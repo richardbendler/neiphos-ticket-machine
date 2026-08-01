@@ -13,3 +13,4 @@ import "./count-passengers";
 import "./switch-run";
 import "./train-spotter";
 import "./memory";
+import "./dj-mixer";

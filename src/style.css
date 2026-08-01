@@ -807,6 +807,84 @@ button {
   content: "?";
 }
 
+/* ---------- DJ-Mischer / Step-Sequencer ---------- */
+
+.seq {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seq-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 6px;
+}
+
+.seq-row__label {
+  appearance: none;
+  border: 1px solid var(--panel-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--panel-alt);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.66rem;
+  line-height: 1.15;
+  padding: 4px;
+  height: 100%;
+}
+
+.seq-row__label:active {
+  background: var(--primary);
+}
+
+.seq-row__cells {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+}
+
+.seq-cell {
+  appearance: none;
+  border: none;
+  border-radius: 3px;
+  aspect-ratio: 1 / 1;
+  background: var(--panel-alt);
+  border: 1px solid var(--panel-border);
+}
+
+.seq-cell--downbeat {
+  background: rgba(169, 192, 192, 0.12);
+}
+
+.seq-cell--active {
+  background: var(--tick-color, var(--primary-light));
+  border-color: transparent;
+}
+
+.seq-cell--playhead {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.seq-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.seq-controls__bpm {
+  font-family: var(--font-display);
+  font-weight: 700;
+  min-width: 64px;
+  text-align: center;
+}
+
 @media (min-width: 700px) {
   .menu-grid {
     grid-template-columns: repeat(3, 1fr);

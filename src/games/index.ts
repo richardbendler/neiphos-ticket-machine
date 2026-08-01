@@ -9,3 +9,4 @@
  */
 import "./connection-puzzle";
 import "./train-quartet";
+import "./count-passengers";

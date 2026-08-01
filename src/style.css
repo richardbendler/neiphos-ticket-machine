@@ -113,6 +113,8 @@ button {
 }
 
 .chrome-bar__title {
+  flex: 1;
+  text-align: center;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.05rem;
@@ -122,6 +124,9 @@ button {
   opacity: 0.9;
   pointer-events: none;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  /* Platz fuer den Exit-Button links freihalten, der als eigenes,
+     unabhaengiges Overlay-Element ueber dem Canvas sitzt (siehe .exit-button). */
+  padding-left: 56px;
 }
 
 .admin-trigger {
@@ -216,6 +221,7 @@ button {
   max-width: 640px;
   flex: 1;
   overflow-y: auto;
+  touch-action: pan-y;
   padding-bottom: 12px;
   align-content: start;
 }
@@ -441,6 +447,7 @@ button {
   max-width: 420px;
   max-height: calc(100% - 40px);
   overflow-y: auto;
+  touch-action: pan-y;
   background: linear-gradient(180deg, var(--panel-alt), var(--panel));
   border: 1px solid var(--panel-border-light);
   border-radius: var(--radius-lg);
@@ -582,6 +589,140 @@ button {
 .osk__key--accent {
   background: linear-gradient(180deg, #ffe08a, var(--accent));
   color: #2b2004;
+}
+
+/* ---------- Generische Bausteine fuer Spiel-UIs (Chips, Listen, Breadcrumb) ---------- */
+
+.scroll-list {
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  appearance: none;
+  border: 1px solid var(--panel-border-light);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #ffffff;
+  background: var(--chip-color, var(--primary));
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
+.chip:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+.chip--outline {
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.list-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 14px;
+  border: none;
+  border-bottom: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.list-row:active {
+  background: var(--panel-alt);
+}
+
+.list-row__meta {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.breadcrumb__sep {
+  color: var(--text-faint);
+}
+
+.stage-top-bar {
+  position: absolute;
+  top: calc(52px + var(--safe-top));
+  left: 0;
+  right: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px calc(12px + var(--safe-right)) 0 calc(64px + var(--safe-left));
+}
+
+.stage-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  max-height: 46%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(18, 51, 56, 0.85), rgba(10, 29, 32, 0.96));
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--panel-border-light);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 12px 14px calc(12px + var(--safe-bottom));
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.stage-sheet__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.hud-badge {
+  pointer-events: none;
+  position: absolute;
+  top: calc(60px + var(--safe-top));
+  right: calc(8px + var(--safe-right));
+  z-index: 20;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border-light);
+  background: rgba(10, 29, 32, 0.72);
+  backdrop-filter: blur(4px);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 @media (min-width: 700px) {

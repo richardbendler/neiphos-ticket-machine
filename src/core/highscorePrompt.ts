@@ -12,8 +12,8 @@ export function promptHighscoreName(opts: {
   title?: string;
   message: string;
   onDone: (name: string) => void;
-}): void {
-  openModal((panel, close) => {
+}): () => void {
+  return openModal((panel, close) => {
     const iconWrap = document.createElement("div");
     iconWrap.style.width = "40px";
     iconWrap.style.height = "40px";

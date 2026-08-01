@@ -7,3 +7,4 @@
  * Neues Spiel andocken: Ordner unter src/games/<name>/ anlegen und hier
  * einmal importieren.
  */
+import "./connection-puzzle";

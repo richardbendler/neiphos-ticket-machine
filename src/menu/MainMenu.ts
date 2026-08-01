@@ -1,0 +1,50 @@
+import { icons } from "../core/icons";
+import type { GameMeta } from "../games/registry";
+
+/**
+ * Rendert das Hauptmenue (reines DOM/CSS, kein Canvas -- die Kacheln sind
+ * grosse Touch-Ziele, das laesst sich mit HTML/CSS einfacher und zugaenglicher
+ * bauen als mit manuellem Canvas-Hit-Testing).
+ */
+export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void): HTMLElement {
+  const screen = document.createElement("div");
+  screen.className = "menu-screen";
+
+  const header = document.createElement("div");
+  header.className = "menu-header";
+  header.innerHTML = `
+    <div class="menu-header__brand">
+      <span class="menu-header__dot"></span>
+      <span class="menu-header__brand-text">Fahrschein &amp; Freizeit</span>
+    </div>
+    <h1>Neiphos Ticket Machine</h1>
+    <p>Wähle ein Spiel und tippe zum Starten</p>
+  `;
+  screen.appendChild(header);
+
+  const grid = document.createElement("div");
+  grid.className = "menu-grid";
+
+  for (const game of games) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "menu-tile";
+    tile.style.setProperty("--tile-accent", game.accent);
+    tile.innerHTML = `
+      <span class="menu-tile__icon">${icons[game.icon]}</span>
+      <span class="menu-tile__title">${game.title}</span>
+      <span class="menu-tile__subtitle">${game.subtitle}</span>
+    `;
+    tile.addEventListener("click", () => onSelect(game.id));
+    grid.appendChild(tile);
+  }
+
+  screen.appendChild(grid);
+
+  const footer = document.createElement("div");
+  footer.className = "menu-footer";
+  footer.innerHTML = `<span>präsentiert von</span> <strong>DJ Flipper</strong>`;
+  screen.appendChild(footer);
+
+  return screen;
+}

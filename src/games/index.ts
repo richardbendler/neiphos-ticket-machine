@@ -8,3 +8,4 @@
  * einmal importieren.
  */
 import "./connection-puzzle";
+import "./train-quartet";

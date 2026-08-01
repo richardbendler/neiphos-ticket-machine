@@ -790,6 +790,23 @@ button {
   opacity: 0.55;
 }
 
+.memory-back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, var(--primary-light), var(--primary-dark));
+  color: rgba(244, 247, 246, 0.55);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.memory-back::after {
+  content: "?";
+}
+
 @media (min-width: 700px) {
   .menu-grid {
     grid-template-columns: repeat(3, 1fr);

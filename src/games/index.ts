@@ -12,3 +12,4 @@ import "./train-quartet";
 import "./count-passengers";
 import "./switch-run";
 import "./train-spotter";
+import "./memory";

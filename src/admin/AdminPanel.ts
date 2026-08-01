@@ -51,7 +51,10 @@ export function openAdminPanel(): void {
       submitLabel: "Anmelden",
       mask: true,
       onSubmit: (value) => {
-        if (value === ADMIN_PASSWORD) {
+        // Die Bildschirmtastatur kann nur Grossbuchstaben eingeben (kein
+        // Shift/Caps-Umschalter auf einem Touch-Kiosk noetig) -- Vergleich
+        // daher bewusst case-insensitive.
+        if (value.toLowerCase() === ADMIN_PASSWORD.toLowerCase()) {
           renderAdminHome(panel, close);
         } else {
           error.textContent = "Falsches Passwort.";

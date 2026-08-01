@@ -183,7 +183,14 @@ function createTrainQuartetGame(): MinigameModule {
     ctx.stroke();
 
     const padding = 10;
-    const imgHeight = rect.height * 0.34;
+    // Statzeilen bekommen zuerst eine feste, garantiert lesbare Hoehe -- das
+    // Bild bekommt nur, was danach uebrig bleibt. So ueberlappt bei wenig
+    // Platz (z. B. Querformat mit geringer Bildschirmhoehe) nie der Text,
+    // sondern hoechstens das Foto wird kleiner.
+    const rowHeight = 24;
+    const nameBlockHeight = 34;
+    const statsBlockHeight = rowHeight * STAT_KEYS.length;
+    const imgHeight = Math.max(36, rect.height - padding * 2 - nameBlockHeight - statsBlockHeight);
     const imgRect: Rect = { x: rect.x + padding, y: rect.y + padding, width: rect.width - padding * 2, height: imgHeight };
 
     ctx.save();
@@ -212,8 +219,7 @@ function createTrainQuartetGame(): MinigameModule {
     ctx.font = `500 10px ${theme.font}`;
     ctx.fillText(card.category, rect.x + padding, textY + 26);
 
-    textY += 34;
-    const rowHeight = (rect.height - (textY - rect.y) - padding) / STAT_KEYS.length;
+    textY += nameBlockHeight;
     statRects = opts.interactive ? [] : statRects;
 
     STAT_KEYS.forEach((key, i) => {
@@ -361,7 +367,7 @@ function createTrainQuartetGame(): MinigameModule {
           x: cardX,
           y: opponentRect.y + opponentRect.height + 16,
           width: cardWidth,
-          height: Math.min(size.height - opponentRect.y - opponentRect.height - 180, 380),
+          height: Math.min(size.height - opponentRect.y - opponentRect.height - 44, 380),
         };
         drawCardFace(ctx, playerRect, playerCard, {
           interactive: phase === "reveal-player",

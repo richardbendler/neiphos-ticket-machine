@@ -215,10 +215,10 @@ button {
 
 .menu-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
   gap: 14px;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
   flex: 1;
   overflow-y: auto;
   touch-action: pan-y;
@@ -885,15 +885,6 @@ button {
   text-align: center;
 }
 
-@media (min-width: 700px) {
-  .menu-grid {
-    grid-template-columns: repeat(3, 1fr);
-    max-width: 760px;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 600px) {
-  .menu-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
+/* .menu-grid nutzt grid-auto-fill mit minmax() (siehe oben) und passt die
+   Spaltenzahl dadurch bereits automatisch an jede Bildschirmbreite an --
+   keine manuellen Breakpoints noetig. */

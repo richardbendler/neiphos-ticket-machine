@@ -13,6 +13,9 @@
  */
 
 export type SoundId =
+  | "kick"
+  | "snare"
+  | "hiHat"
   | "doorChime"
   | "doorThud"
   | "switchClack"
@@ -23,14 +26,18 @@ export type SoundId =
   | "dbAnkuendigung"
   | "deutscheBahn"
   | "bahnhofsansage"
-  | "bahnhofAtmo"
   | "ansageDb"
-  | "sBahn"
   | "sBahnNeu"
   | "bahnhofsszene"
   | "zugbetrieb";
 
-type PlayFn = (ctx: AudioContext, time: number, destination: AudioNode) => void;
+/**
+ * playbackRate ist nur fuer die Sample-Clips relevant (siehe
+ * makeSamplePlayFn) -- die synthetisierten Sounds sind ohnehin kurze,
+ * exakt zum Takt geplante Huellkurven und muessen dafuer nicht gestreckt
+ * werden.
+ */
+type PlayFn = (ctx: AudioContext, time: number, destination: AudioNode, playbackRate: number) => void;
 
 let sharedNoiseBuffer: AudioBuffer | null = null;
 
@@ -52,6 +59,59 @@ function envGain(ctx: AudioContext, time: number, attack: number, decay: number,
   gain.gain.exponentialRampToValueAtTime(0.001, time + attack + decay);
   return gain;
 }
+
+// --------------------------------------------------- Klassische Beat-Basis
+//
+// Jeder Beat braucht im Kern drei Elemente: Kick (Bassdrum), Snare und
+// Hi-Hat. Hier bahn-thematisch nachgebaut, damit sich damit ein richtiger
+// Rhythmus bauen laesst, der trotzdem nach Zug klingt.
+
+/** Kick: tiefer Radaufschlag auf der Schiene statt klassischer Bassdrum. */
+const playKick: PlayFn = (ctx, time, destination) => {
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(130, time);
+  osc.frequency.exponentialRampToValueAtTime(42, time + 0.09);
+  const gain = envGain(ctx, time, 0.002, 0.22, 0.9);
+  osc.connect(gain).connect(destination);
+  osc.start(time);
+  osc.stop(time + 0.26);
+};
+
+/** Snare: Kupplungsklacken -- kurzer Rauschimpuls plus tonaler Kern fuer Punch. */
+const playSnare: PlayFn = (ctx, time, destination) => {
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 1400;
+  filter.Q.value = 1.2;
+  const noiseGain = envGain(ctx, time, 0.001, 0.09, 0.5);
+  noise.connect(filter).connect(noiseGain).connect(destination);
+  noise.start(time);
+  noise.stop(time + 0.12);
+
+  const body = ctx.createOscillator();
+  body.type = "triangle";
+  body.frequency.value = 210;
+  const bodyGain = envGain(ctx, time, 0.001, 0.06, 0.35);
+  body.connect(bodyGain).connect(destination);
+  body.start(time);
+  body.stop(time + 0.08);
+};
+
+/** Hi-Hat: kurzer Druckluft-Tick, wie ein knappes Bremsluft-Zischen. */
+const playHiHat: PlayFn = (ctx, time, destination) => {
+  const src = ctx.createBufferSource();
+  src.buffer = getNoiseBuffer(ctx);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = 7500;
+  const gain = envGain(ctx, time, 0.001, 0.035, 0.3);
+  src.connect(filter).connect(gain).connect(destination);
+  src.start(time);
+  src.stop(time + 0.05);
+};
 
 /**
  * Das klassische Berliner S-Bahn-Tuerschliesssignal "Da-Duu-Da": drei Toene
@@ -144,23 +204,21 @@ const playChime: PlayFn = (ctx, time, destination) => {
 //
 // Kurze, echte Bahn-Sound-Clips (Ansagen/Atmo), per fetch()+decodeAudioData()
 // als AudioBuffer geladen und wie die synthetisierten Sounds sample-genau
-// zum Sequencer-Takt abgespielt. Herkunft (jeweils Instant-Sound-Button auf
-// myinstants.com):
+// zum Sequencer-Takt abgespielt -- inkl. BPM-abhaengiger Wiedergabegeschwindigkeit
+// (siehe makeSamplePlayFn), damit sie sich beim Aendern des Tempos mit
+// dehnen/stauchen statt aus dem Takt zu laufen. Herkunft (jeweils
+// Instant-Sound-Button auf myinstants.com):
 //  - dbAnkuendigung: myinstants.com/en/instant/deutsche-bahn-ankundigung-45554
 //  - deutscheBahn:   myinstants.com/en/instant/deutsche-bahn-373
 //  - bahnhofsansage: myinstants.com/en/instant/bahnhofsansage-95498
-//  - bahnhofAtmo:    myinstants.com/en/instant/bahnhof-54632
 //  - ansageDb:       myinstants.com/en/instant/ansage-db-72287
-//  - sBahn:          myinstants.com/en/instant/s-bahn-90921
 //  - sBahnNeu:       myinstants.com/en/instant/s-bahn-neu-85653
 //  - bahnhofsszene:  myinstants.com/en/instant/bahnhofsszene-80547
 //  - zugbetrieb:     myinstants.com/en/instant/achtung-zugbetrieb-2674
 import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
 import deutscheBahnUrl from "../../assets/sounds/deutsche-bahn.mp3";
 import bahnhofsansageUrl from "../../assets/sounds/bahnhofsansage.mp3";
-import bahnhofUrl from "../../assets/sounds/bahnhof.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
-import sBahnUrl from "../../assets/sounds/s-bahn.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
 import bahnhofsszeneUrl from "../../assets/sounds/bahnhofsszene.mp3";
 import zugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
@@ -188,30 +246,24 @@ export function preloadSamples(ctx: AudioContext): void {
 }
 
 function makeSamplePlayFn(url: string): PlayFn {
-  return (ctx, time, destination) => {
+  return (ctx, time, destination, playbackRate) => {
     void loadSampleBuffer(ctx, url).then((buffer) => {
       // Der Sequencer kann bis zur Fertigstellung des Decodings schon
       // weitergelaufen sein -- ein bereits verstrichener Zielzeitpunkt
       // wuerde AudioBufferSourceNode.start() sonst mit einem Fehler abbrechen.
       const src = ctx.createBufferSource();
       src.buffer = buffer;
+      // An das aktuelle Tempo angepasst (relativ zum Referenz-BPM in
+      // index.ts), damit die Sample-Clips nicht immer gleich lang klingen,
+      // egal wie schnell der Beat gerade laeuft.
+      src.playbackRate.value = playbackRate;
       src.connect(destination);
       src.start(Math.max(time, ctx.currentTime));
     });
   };
 }
 
-const SAMPLE_URLS = [
-  dbAnkuendigungUrl,
-  deutscheBahnUrl,
-  bahnhofsansageUrl,
-  bahnhofUrl,
-  ansageDbUrl,
-  sBahnUrl,
-  sBahnNeuUrl,
-  bahnhofsszeneUrl,
-  zugbetriebUrl,
-];
+const SAMPLE_URLS = [dbAnkuendigungUrl, deutscheBahnUrl, bahnhofsansageUrl, ansageDbUrl, sBahnNeuUrl, bahnhofsszeneUrl, zugbetriebUrl];
 
 export interface SoundDef {
   id: SoundId;
@@ -223,6 +275,9 @@ export interface SoundDef {
 }
 
 export const SOUND_DEFS: SoundDef[] = [
+  { id: "kick", label: "Kick", hint: "Radaufschlag auf der Schiene", play: playKick },
+  { id: "snare", label: "Snare", hint: "Kupplungsklacken", play: playSnare },
+  { id: "hiHat", label: "Hi-Hat", hint: "Druckluft-Tick", play: playHiHat },
   { id: "doorChime", label: "Da-Düü-Da", hint: "Das klassische S-Bahn-Türschließsignal", play: playDoorChime },
   { id: "doorThud", label: "Tür zu", hint: "Dumpfes Schließgeräusch", play: playDoorThud },
   { id: "switchClack", label: "Weiche", hint: "Klacken beim Überfahren", play: playSwitchClack },
@@ -233,10 +288,8 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl) },
   { id: "deutscheBahn", label: "DB-Sound", hint: "Deutsche-Bahn-Sound (Sample-Clip)", play: makeSamplePlayFn(deutscheBahnUrl) },
   { id: "bahnhofsansage", label: "Bahnsteig-Ansage", hint: "Ansage vom Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnhofsansageUrl) },
-  { id: "bahnhofAtmo", label: "Bahnhof", hint: "Bahnhofsgeräusch (Sample-Clip)", play: makeSamplePlayFn(bahnhofUrl) },
   { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
-  { id: "sBahn", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnUrl) },
-  { id: "sBahnNeu", label: "S-Bahn 2", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl) },
+  { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl) },
   { id: "bahnhofsszene", label: "Bahnsteig-Atmo", hint: "Geräuschkulisse Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnhofsszeneUrl) },
   { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl) },
 ];

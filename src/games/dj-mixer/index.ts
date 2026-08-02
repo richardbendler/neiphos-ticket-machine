@@ -65,7 +65,9 @@ function createDjMixerGame(): MinigameModule {
     const ctx = audioCtx!;
     const sound = SOUND_DEFS[trackIndex];
     if (sound.play) {
-      sound.play(ctx, time, masterGain!);
+      // Die Sample-Clips werden relativ zum Referenztempo gestreckt/gestaucht,
+      // damit sie beim Aendern des Tempos im Takt bleiben (siehe sounds.ts).
+      sound.play(ctx, time, masterGain!, bpm / DEFAULT_BPM);
     } else if (sound.text) {
       const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
       setTimeout(() => speakPhrase(sound.text!), delayMs);
@@ -170,19 +172,9 @@ function createDjMixerGame(): MinigameModule {
       panel.style.justifyContent = "flex-start";
       panel.style.paddingTop = "8px";
 
-      const intro = document.createElement("div");
-      intro.style.textAlign = "center";
-      intro.style.fontSize = "0.8rem";
-      intro.style.color = "var(--text-muted)";
-      intro.style.marginBottom = "4px";
-      intro.textContent = "Tippe Felder an, um einen Beat aus Zuggeräuschen zu bauen.";
-      panel.appendChild(intro);
-
-      seqHost = document.createElement("div");
-      seqHost.className = "seq";
-      panel.appendChild(seqHost);
-      buildGridDom();
-
+      // Bewusst VOR dem Sound-Raster: Tempo, Lautstaerke und Transport sind
+      // die Bedienelemente, die man am haeufigsten braucht, waehrend man
+      // unten durch die (mittlerweile recht lange) Sound-Liste scrollt.
       const controls = document.createElement("div");
       controls.className = "seq-controls";
 
@@ -252,6 +244,19 @@ function createDjMixerGame(): MinigameModule {
 
       controls2.append(playBtn, clearBtn);
       panel.appendChild(controls2);
+
+      const intro = document.createElement("div");
+      intro.style.textAlign = "center";
+      intro.style.fontSize = "0.8rem";
+      intro.style.color = "var(--text-muted)";
+      intro.style.margin = "6px 0 4px";
+      intro.textContent = "Tippe Felder an, um einen Beat aus Zuggeräuschen zu bauen.";
+      panel.appendChild(intro);
+
+      seqHost = document.createElement("div");
+      seqHost.className = "seq";
+      panel.appendChild(seqHost);
+      buildGridDom();
 
       env.overlay.appendChild(panel);
 

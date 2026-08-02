@@ -993,6 +993,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Explizit, statt sich auf die Vererbung von .stage-center-panel zu
+     verlassen -- das Sound-Raster ist inzwischen recht lang und muss auf
+     dem Touchscreen zuverlaessig per Wisch-Geste scrollbar sein. */
+  touch-action: pan-y;
 }
 
 .seq-row {

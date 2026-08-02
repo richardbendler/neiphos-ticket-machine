@@ -2,6 +2,7 @@ import { openModal } from "../core/modal";
 import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
 import { enterFullscreen, exitFullscreen, isFullscreenActive } from "../core/kiosk";
 import { getSummaryByGame, getSessionsForGame, clearAllStats, type GameSummary } from "../core/stats";
+import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
 import { gameRegistry } from "../games/registry";
 
 // Bewusst simpel gehalten fuer den Start -- ein staerkeres Schutzverfahren
@@ -145,6 +146,45 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   });
   panel.appendChild(clearBtn);
 
+  // --- Feedback ----------------------------------------------------------
+  const feedbackTitle = document.createElement("p");
+  feedbackTitle.style.color = "var(--text-muted)";
+  feedbackTitle.style.margin = "18px 0 8px";
+  feedbackTitle.textContent = "Feedback von Besucher:innen:";
+  panel.appendChild(feedbackTitle);
+
+  const feedbackBtn = document.createElement("button");
+  feedbackBtn.type = "button";
+  feedbackBtn.className = "btn";
+  feedbackBtn.style.display = "inline-flex";
+  feedbackBtn.style.alignItems = "center";
+  feedbackBtn.style.gap = "8px";
+  feedbackBtn.textContent = "Feedback anschauen";
+  panel.appendChild(feedbackBtn);
+
+  const unreadBadge = document.createElement("span");
+  unreadBadge.style.display = "none";
+  unreadBadge.style.background = "var(--accent)";
+  unreadBadge.style.color = "#2b2004";
+  unreadBadge.style.borderRadius = "999px";
+  unreadBadge.style.padding = "1px 8px";
+  unreadBadge.style.fontSize = "0.8rem";
+  unreadBadge.style.fontWeight = "700";
+  feedbackBtn.appendChild(unreadBadge);
+
+  const refreshUnreadBadge = () => {
+    fetchFeedback().then(({ entries }) => {
+      const unread = countUnread(entries);
+      unreadBadge.style.display = unread > 0 ? "inline-block" : "none";
+      unreadBadge.textContent = String(unread);
+    });
+  };
+  refreshUnreadBadge();
+
+  feedbackBtn.addEventListener("click", () => {
+    renderFeedbackView(panel, close);
+  });
+
   // --- Schliessen --------------------------------------------------------
   const actions = document.createElement("div");
   actions.className = "modal-actions";
@@ -155,6 +195,98 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   closeBtn.addEventListener("click", close);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
+}
+
+function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {
+  panel.innerHTML = "";
+  const h2 = document.createElement("h2");
+  h2.textContent = "Feedback";
+  panel.appendChild(h2);
+
+  const status = document.createElement("p");
+  status.style.color = "var(--text-muted)";
+  status.style.fontSize = "0.85rem";
+  status.textContent = "Lädt …";
+  panel.appendChild(status);
+
+  const list = document.createElement("div");
+  list.style.display = "flex";
+  list.style.flexDirection = "column";
+  list.style.gap = "8px";
+  list.style.margin = "10px 0";
+  panel.appendChild(list);
+
+  const backActions = document.createElement("div");
+  backActions.className = "modal-actions";
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.className = "btn";
+  backBtn.textContent = "Zurück";
+  backBtn.addEventListener("click", () => renderAdminHome(panel, close));
+  backActions.appendChild(backBtn);
+  panel.appendChild(backActions);
+
+  fetchFeedback().then(({ entries, serverReachable }) => {
+    const unreadIds = new Set(entries.filter((e) => !e.read).map((e) => e.id));
+
+    if (!serverReachable) {
+      status.textContent = "Kein Server erreichbar — es werden nur lokal auf diesem Gerät gespeicherte Rückmeldungen angezeigt.";
+    } else if (entries.length === 0) {
+      status.textContent = "Noch kein Feedback vorhanden.";
+    } else {
+      status.textContent = "";
+    }
+
+    list.innerHTML = "";
+    for (const entry of entries) {
+      list.appendChild(buildFeedbackRow(entry, unreadIds.has(entry.id)));
+    }
+
+    // Sobald das Feedback angeschaut wurde, gilt es als gelesen.
+    for (const entry of entries) {
+      if (!entry.read) void markFeedbackRead(entry);
+    }
+  });
+}
+
+function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean): HTMLElement {
+  const row = document.createElement("div");
+  row.style.border = "1px solid var(--panel-border)";
+  row.style.borderRadius = "var(--radius-sm)";
+  row.style.padding = "10px 12px";
+  row.style.background = wasUnread ? "var(--panel-alt)" : "transparent";
+
+  const head = document.createElement("div");
+  head.style.display = "flex";
+  head.style.justifyContent = "space-between";
+  head.style.alignItems = "center";
+  head.style.marginBottom = "4px";
+
+  const date = document.createElement("span");
+  date.style.fontSize = "0.75rem";
+  date.style.color = "var(--text-faint)";
+  date.textContent = formatDateTime(entry.createdAt) + (entry.id.startsWith("local-") ? " · nur lokal" : "");
+  head.appendChild(date);
+
+  if (wasUnread) {
+    const badge = document.createElement("span");
+    badge.style.fontSize = "0.68rem";
+    badge.style.fontWeight = "700";
+    badge.style.color = "var(--accent)";
+    badge.textContent = "NEU";
+    head.appendChild(badge);
+  }
+
+  row.appendChild(head);
+
+  const message = document.createElement("div");
+  message.style.color = "var(--text)";
+  message.style.fontSize = "0.92rem";
+  message.style.whiteSpace = "pre-wrap";
+  message.textContent = entry.message;
+  row.appendChild(message);
+
+  return row;
 }
 
 function renderStatsList(container: HTMLElement): void {

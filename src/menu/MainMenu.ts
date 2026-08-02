@@ -1,4 +1,5 @@
 import { icons } from "../core/icons";
+import { openFeedbackDialog } from "../core/feedbackPrompt";
 import type { GameMeta } from "../games/registry";
 
 /**
@@ -37,6 +38,13 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
   }
 
   screen.appendChild(grid);
+
+  const feedbackBtn = document.createElement("button");
+  feedbackBtn.type = "button";
+  feedbackBtn.className = "menu-feedback-btn";
+  feedbackBtn.innerHTML = `<span class="menu-feedback-btn__icon">${icons.feedback}</span><span>Feedback geben</span>`;
+  feedbackBtn.addEventListener("click", () => openFeedbackDialog());
+  screen.appendChild(feedbackBtn);
 
   const footer = document.createElement("div");
   footer.className = "menu-footer";

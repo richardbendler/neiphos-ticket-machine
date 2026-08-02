@@ -35,7 +35,9 @@ Programm erreichbar) mit Kiosk-/Vollbild-Steuerung und Spielstatistik.
 - [Build](#build)
 - [Deployment auf einen normalen Webserver](#deployment-auf-einen-normalen-webserver)
 - [Deployment auf dem Raspberry Pi (Kiosk)](#deployment-auf-dem-raspberry-pi-kiosk)
+- [Kiosk-Modus unter Windows](#kiosk-modus-unter-windows-zum-testen-oder-als-alternativ-gerät)
 - [Admin-Bereich](#admin-bereich)
+- [Feedback-Funktion](#feedback-funktion)
 - [Neues Minigame hinzufügen](#neues-minigame-hinzufügen)
 - [Assets, Lizenzen, Credits](#assets-lizenzen-credits)
 - [Bekannte Grenzen / Ideen für später](#bekannte-grenzen--ideen-für-später)
@@ -63,7 +65,7 @@ danach nicht mehr.
 ```
 src/
   core/            Router, Game-Loop, Canvas-Setup, Input, Storage, Kiosk-Haertung,
-                    On-Screen-Tastatur, Modal-/Highscore-Helfer, Icons, Theme
+                    On-Screen-Tastatur, Modal-/Highscore-/Feedback-Helfer, Icons, Theme
   menu/            Hauptmenue (DOM-Kacheln)
   admin/           Admin-Bereich (Passwort-Gate, Kiosk-Toggle, Statistik)
   games/
@@ -83,6 +85,9 @@ src/
     images/distractors/  "Kein Zug"-Fotos fuer Spotter/Memory + CREDITS.md
   main.ts          Einstiegspunkt: Kiosk-Haertung + Router starten
   style.css        Gesamtes CSS (Theme-Variablen, Layout, Komponenten)
+server/
+  serve.js         Abhaengigkeitsfreier Node-Server: liefert dist/ aus + Feedback-API
+feedback/          Zur Laufzeit vom Server angelegt (ein JSON-File pro Feedback-Eintrag, nicht im Git)
 ```
 
 ## Architektur
@@ -154,6 +159,7 @@ Nützliche Zusatzbefehle:
 ```bash
 npm run typecheck   # nur TypeScript pruefen, ohne zu bauen
 npm run preview     # gebautes dist/ lokal ausliefern (Test des Produktions-Builds)
+npm run serve       # dist/ ueber den eigenen Server ausliefern, inkl. Feedback-API (siehe unten)
 ```
 
 **Touch-Verhalten im Desktop-Browser testen:** Die meisten Browser bieten in
@@ -200,7 +206,13 @@ komplett offline, siehe unten).
 
 Es reicht ein beliebiger Webserver, der statische Dateien mit korrekten
 MIME-Types ausliefert (Apache, Nginx, GitHub Pages, Netlify, ein einfacher
-Shared-Hosting-Webspace, ...). Es wird kein PHP/Datenbank/Backend benötigt.
+Shared-Hosting-Webspace, ...) – für die Spiele selbst wird kein
+PHP/Datenbank/Backend benötigt. Einzige Ausnahme: Die
+[Feedback-Funktion](#feedback-funktion) braucht für die dauerhafte
+Dateispeicherung den kleinen mitgelieferten `server/serve.js`-Server (siehe
+unten); läuft die App auf reinem statischen Hosting ohne den, greift dafür
+automatisch ein `localStorage`-Fallback, alles andere funktioniert
+unverändert.
 
 ## Deployment auf dem Raspberry Pi (Kiosk)
 
@@ -222,38 +234,31 @@ Browser laden ES-Module aus Sicherheitsgründen **nicht** über `file://` –
 braucht einen (beliebig einfachen) lokalen HTTP-Server, der ausschließlich
 auf `localhost` lauscht – dafür ist weiterhin keine Internetverbindung nötig.
 
-Am einfachsten mit Node (auf dem Pi einmalig `Node.js` installieren):
+Dafür bringt das Projekt einen eigenen, extrem schlanken Server mit
+(`server/serve.js`, nur eingebaute Node-Module, keine Installation
+zusätzlicher Pakete nötig außer Node selbst). Er liefert `dist/` aus **und**
+nimmt Feedback-Nachrichten entgegen (siehe [Feedback-Funktion](#feedback-funktion)):
 
 ```bash
-sudo npm install -g serve
-serve -s /home/pi/neiphos-ticket-machine/dist -l 8080
+cd /home/pi/neiphos-ticket-machine
+node server/serve.js dist 8080
 ```
 
-Alternativ genügt jeder andere statische Webserver (z. B. `python3 -m http.server`
-oder ein minimaler `nginx`-vHost auf `localhost`).
+Das komplette Projekt (inkl. `server/`, `package.json`) muss dafür auf dem Pi
+liegen, nicht nur `dist/` – am einfachsten das ganze Repository klonen/kopieren
+und dort `npm run build` laufen lassen, dann `npm run serve` (ruft
+`node server/serve.js dist 8080` auf).
 
-Damit das automatisch bei jedem Boot startet, als systemd-Service einrichten
-(`/etc/systemd/system/ticketmachine-server.service`):
+Alternativ genügt für reines Ausprobieren ohne Feedback-Funktion auch jeder
+andere statische Webserver (z. B. `python3 -m http.server` oder ein
+minimaler `nginx`-vHost auf `localhost`) – dann greift für abgeschicktes
+Feedback automatisch der lokale `localStorage`-Fallback (siehe unten), es
+landet dann aber keine Datei im Dateisystem.
 
-```ini
-[Unit]
-Description=Neiphos Ticket Machine - lokaler Webserver
-After=network.target
+Für den Autostart des Servers siehe [Autostart einrichten](#autostart-einrichten-linuxraspberry-pi-os)
+weiter unten.
 
-[Service]
-ExecStart=/usr/bin/serve -s /home/pi/neiphos-ticket-machine/dist -l 8080
-Restart=always
-User=pi
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable --now ticketmachine-server
-```
-
-### 3. Chromium im Kiosk-Modus starten
+### 3. Chromium im Kiosk-Modus starten (manuell)
 
 Chromium mit dem `--kiosk`-Flag zeigt keine Adressleiste, keine Tabs, kein
 Browser-Chrome – nur die Seite selbst im Vollbild. Empfohlene Flags für einen
@@ -288,17 +293,160 @@ Hinweise zu den Flags:
   eine Nutzer-Geste – im Spiel selbst reicht der erste Tap auf "Abspielen"
   auch ohne dieses Flag)
 
-Auch das am besten als eigener systemd-User-Service, der nach dem
-Desktop-Login (bzw. direkt nach dem Server-Service) startet, oder klassisch
-über einen Autostart-Eintrag (`~/.config/autostart/ticketmachine.desktop` bei
-einer Desktop-Umgebung wie PIXEL/LXDE).
+### 4. Autostart einrichten (Linux/Raspberry Pi OS)
 
-### 4. Bildschirm/Touch-Kalibrierung
+Ziel: Pi einschalten → ohne jeden manuellen Klick landet man im laufenden
+Kiosk. Dafür müssen zwei Dinge automatisch starten: der lokale Server (kann
+schon vor jedem Login laufen, braucht keine grafische Oberfläche) und
+Chromium im Kiosk-Modus (braucht eine laufende Desktop-Sitzung).
+
+**a) Automatischen Desktop-Login aktivieren** (falls noch nicht geschehen):
+
+```bash
+sudo raspi-config
+```
+
+→ „System Options" → „Boot / Auto Login" → „Desktop Autologin" auswählen,
+neu starten.
+
+**b) Server als systemd-Service** (startet schon beim Booten, unabhängig vom Login):
+
+`/etc/systemd/system/ticketmachine-server.service`:
+
+```ini
+[Unit]
+Description=Neiphos Ticket Machine - lokaler Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /home/pi/neiphos-ticket-machine/server/serve.js /home/pi/neiphos-ticket-machine/dist 8080
+WorkingDirectory=/home/pi/neiphos-ticket-machine
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now ticketmachine-server
+```
+
+(`which node` zeigt den genauen Pfad zu `node`, falls er von `/usr/bin/node`
+abweicht.)
+
+**c) Chromium per Desktop-Autostart** (startet automatisch nach dem
+Desktop-Login der PIXEL-/LXDE-Oberfläche):
+
+Kleines Startskript `/home/pi/neiphos-ticket-machine/start-kiosk.sh` anlegen:
+
+```bash
+#!/bin/bash
+# Kurz warten, bis der Server-Service sicher steht (nach einem Reboot).
+sleep 3
+chromium-browser \
+  --kiosk \
+  --user-data-dir=/home/pi/.config/ticketmachine-chromium \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  --check-for-update-interval=31536000 \
+  --autoplay-policy=no-user-gesture-required \
+  http://localhost:8080
+```
+
+```bash
+chmod +x /home/pi/neiphos-ticket-machine/start-kiosk.sh
+```
+
+Autostart-Eintrag `~/.config/autostart/ticketmachine-kiosk.desktop`:
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=Neiphos Ticket Machine Kiosk
+Exec=/home/pi/neiphos-ticket-machine/start-kiosk.sh
+X-GNOME-Autostart-enabled=true
+```
+
+Nach einem Neustart (`sudo reboot`) sollte der Pi jetzt direkt im laufenden
+Kiosk starten. Zum manuellen Beenden/Neustarten während der Entwicklung
+reicht `pkill chromium-browser` per SSH.
+
+### 5. Bildschirm/Touch-Kalibrierung
 
 Kein App-spezifisches Thema, aber falls Touch-Koordinaten am Rand daneben
 liegen: `xinput_calibrator` bzw. die Kalibrierungsroutine des jeweiligen
 Touch-Controllers verwenden. Die App selbst reagiert responsiv auf jede
 Auflösung/Seitenverhältnis (siehe `core/Canvas.ts`, DPR-bewusstes Skalieren).
+
+## Kiosk-Modus unter Windows (zum Testen oder als Alternativ-Gerät)
+
+Der eigentliche Zielort ist der Raspberry Pi, aber Server und Kiosk-Modus
+laufen identisch auch unter Windows (z. B. um alles am Entwicklungsrechner
+durchzutesten, bevor es auf den Pi kommt, oder falls doch ein Windows-Mini-PC
+statt eines Pi im Automaten verbaut wird).
+
+### 1. Server manuell starten
+
+In einer PowerShell im Projektordner (nach `npm run build`):
+
+```powershell
+npm run serve
+```
+
+Das startet `node server/serve.js dist 8080` — läuft identisch zur
+Pi-Variante, inklusive Feedback-Speicherung als Dateien im `feedback/`-Ordner
+neben `dist/`.
+
+### 2. Chromium/Edge manuell im Kiosk-Modus starten
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+  --kiosk `
+  --user-data-dir="$env:LOCALAPPDATA\TicketMachineChromium" `
+  --noerrdialogs `
+  --disable-pinch `
+  --overscroll-history-navigation=0 `
+  --autoplay-policy=no-user-gesture-required `
+  http://localhost:8080
+```
+
+(Ist statt Chrome der in Windows vorinstallierte Edge gewünscht, funktioniert
+derselbe Aufruf mit `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"`.)
+Zum Beenden: Alt+F4 funktioniert im `--kiosk`-Modus bewusst nicht ohne
+Weiteres — entweder über den Task-Manager (Strg+Umschalt+Esc) den
+Chrome/Edge-Prozess beenden, oder vorher im Admin-Bereich der App den
+Vollbildmodus verlassen (siehe [Admin-Bereich](#admin-bereich)).
+
+### 3. Autostart einrichten (Windows)
+
+Am einfachsten über den **Autostart-Ordner** (kein Admin-Rechte nötig):
+`Win+R` → `shell:startup` öffnet den Ordner, der beim Login jedes darin
+liegende Programm automatisch startet. Dort eine Datei `start-kiosk.bat`
+ablegen:
+
+```bat
+@echo off
+cd /d "C:\Pfad\zur\Neiphos Ticket Machine"
+start "" node server\serve.js dist 8080
+timeout /t 3 /nobreak >nul
+start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk --user-data-dir="%LOCALAPPDATA%\TicketMachineChromium" --noerrdialogs --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required http://localhost:8080
+```
+
+Dazu am besten einen Windows-Benutzer einrichten, der sich automatisch
+anmeldet (`netplwiz` → Benutzerkonto auswählen → Häkchen bei "Benutzer muss
+Kennwort eingeben" entfernen), damit der Rechner nach dem Einschalten direkt
+bis zum Kiosk durchstartet.
+
+Für mehr Kontrolle (z. B. automatischer Neustart bei einem Absturz) eignet
+sich alternativ die **Aufgabenplanung** (`taskschd.msc`): neue Aufgabe
+anlegen, Trigger „Bei Anmeldung", Aktion „Programm starten" →
+`start-kiosk.bat`, unter „Bedingungen"/„Einstellungen" z. B. „Aufgabe bei
+Fehlschlag neu starten" aktivieren.
 
 ## Admin-Bereich
 
@@ -320,6 +468,43 @@ Im Admin-Bereich:
 - **Spielstatistik** – pro Spiel, wie oft gespielt und Gesamtspielzeit;
   aufklappbar für die einzelnen Zeitpunkte/Dauern jeder Sitzung.
   "Statistik zurücksetzen" löscht die komplette Historie.
+- **Feedback anschauen** – zeigt, sofern vorhanden, eine Zahl auf gelbem
+  Grund mit der Anzahl ungelesener Rückmeldungen. Ein Klick öffnet die Liste
+  (neueste zuerst) und markiert alle gerade angezeigten Einträge als
+  gelesen – siehe [Feedback-Funktion](#feedback-funktion).
+
+## Feedback-Funktion
+
+Unten im Hauptmenü (unter den Spielkacheln) gibt es einen unauffälligen
+"Feedback geben"-Button. Er öffnet einen Freitext-Dialog mit derselben
+Bildschirmtastatur wie überall sonst in der App – bewusst **keine
+Systemtastatur**, damit niemand über eine Texteingabe versehentlich aus dem
+Kiosk-Modus herausgelangt.
+
+Abgeschicktes Feedback wird an den lokalen Server geschickt
+(`POST /api/feedback`, siehe `server/serve.js`) und dort als einzelne
+JSON-Datei im Ordner `feedback/` abgelegt – **neben** `dist/`, nicht darin
+(ein `npm run build` leert `dist/` bei jedem Lauf, das Feedback darf davon
+nicht betroffen sein). Das funktioniert identisch, egal ob die App gerade
+lokal auf dem Pi oder auf einem Webserver läuft, solange dort `server/serve.js`
+das Ausliefern übernimmt.
+
+**Fallback ohne eigenen Server:** Läuft die App auf einem rein statischen
+Hosting ohne `server/serve.js` (z. B. `npx serve`, `vite preview`, ein reiner
+Shared-Hosting-Webspace, oder einfach beim Testen mit `npm run dev`), gibt es
+dort keinen `POST`-Endpunkt. Die App merkt das automatisch (der Request
+schlägt fehl) und legt das Feedback stattdessen in `localStorage` auf dem
+jeweiligen Gerät ab, damit nichts verloren geht. Im Admin-Bereich werden
+Server- und lokal-gespeichertes Feedback gemeinsam angezeigt; rein lokal
+gespeicherte Einträge sind mit "· nur lokal" gekennzeichnet.
+
+Die Feedback-API ist bewusst ohne eigene Authentifizierung – sie liegt hinter
+demselben Admin-Passwort-Gate wie die Statistik-Ansicht in der Oberfläche,
+ein direkter Zugriff auf `/api/feedback` wäre aber technisch ohne Passwort
+möglich, sofern der Server von außerhalb des Kiosk-Geräts erreichbar ist. Für
+den vorgesehenen Einsatzzweck (ein isoliertes Kiosk-Gerät bzw. ein privater
+Testserver) ist das ausreichend, siehe auch die Einschränkung beim
+Admin-Passwort unten.
 
 ## Neues Minigame hinzufügen
 
@@ -408,3 +593,9 @@ Gemeinsame Bausteine, die sich jedes neue Spiel einfach mitnehmen kann:
   Gerät, gehen sie verloren – für diesen Offline-Kiosk mit einem Gerät völlig
   ausreichend, aber kein Ersatz für eine "echte" Datenbank, falls später z. B.
   mehrere Automaten ihre Highscores teilen sollen.
+- **Feedback-API ohne eigene Authentifizierung** – `server/serve.js` prüft
+  bei `/api/feedback` kein Passwort (nur die App-Oberfläche selbst gated die
+  Ansicht hinter dem Admin-Login). Für ein isoliertes Kiosk-Gerät ohne
+  öffentlich erreichbaren Port ist das unkritisch; wird der Server jemals von
+  außerhalb erreichbar gemacht, wäre ein Auth-Header/Token ein sinnvoller
+  nächster Schritt.

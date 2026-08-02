@@ -4,7 +4,15 @@
  * automatisch -- auf einem Kiosk ohne Escape-Taste soll ein Dialog nur ueber
  * einen expliziten Button verlassen werden koennen, sonst tippt man sich
  * versehentlich raus.
+ *
+ * Alle offenen Modals werden in einem kleinen Stack verfolgt, damit der
+ * permanente "Zurueck zum Menue"-Button (siehe Router.ts) jederzeit --
+ * auch waehrend z. B. ein Spiel-Anleitungs- oder Highscore-Dialog offen ist
+ * -- wirklich alles schliessen kann, bevor er ins Hauptmenue wechselt.
  */
+
+const openModals: Array<() => void> = [];
+
 export function openModal(
   build: (panel: HTMLDivElement, close: () => void) => void,
   opts: { wide?: boolean } = {},
@@ -18,7 +26,18 @@ export function openModal(
 
   document.body.appendChild(scrim);
 
-  const close = () => scrim.remove();
+  const close = () => {
+    scrim.remove();
+    const idx = openModals.indexOf(close);
+    if (idx !== -1) openModals.splice(idx, 1);
+  };
+  openModals.push(close);
+
   build(panel, close);
   return close;
+}
+
+/** Schliesst alle aktuell offenen Modals (unabhaengig davon, welches Spiel/welcher Dialog sie geoeffnet hat). */
+export function closeAllModals(): void {
+  for (const close of [...openModals]) close();
 }

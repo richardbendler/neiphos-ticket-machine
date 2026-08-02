@@ -3,6 +3,7 @@ import { GameLoop } from "./GameLoop";
 import { toCanvasPoint } from "./input";
 import { icons } from "./icons";
 import { recordSession } from "./stats";
+import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { renderMainMenu } from "../menu/MainMenu";
 import { openAdminPanel } from "../admin/AdminPanel";
@@ -17,6 +18,7 @@ import type { GameEnv, MinigameModule } from "./Game";
 export class Router {
   private readonly root: HTMLElement;
   private readonly chromeTitle: HTMLElement;
+  private readonly menuBtn: HTMLButtonElement;
   private screenEl: HTMLElement | null = null;
 
   private activeGame: MinigameModule | null = null;
@@ -29,13 +31,33 @@ export class Router {
     this.root = root;
     const chromeBar = this.buildChromeBar();
     this.chromeTitle = chromeBar.querySelector(".chrome-bar__title")!;
-    this.root.appendChild(chromeBar);
+    this.menuBtn = chromeBar.querySelector(".chrome-menu-btn")!;
+    // Bewusst an document.body gehaengt statt an #app: #app ist selbst
+    // position:fixed und bildet damit einen eigenen Stacking-Context, in dem
+    // kein z-index jemals gegen ein an document.body gehaengtes Modal (siehe
+    // core/modal.ts) gewinnen kann. Auf Body-Ebene konkurriert die Kopfleiste
+    // z-index-technisch auf Augenhoehe mit jedem Modal-Scrim.
+    document.body.appendChild(chromeBar);
     this.showMenu();
   }
 
   private buildChromeBar(): HTMLElement {
     const bar = document.createElement("div");
     bar.className = "chrome-bar";
+
+    // Permanent oben links, mit hoeherer Stapelreihenfolge als jedes Modal
+    // (siehe style.css) -- dadurch kommt man WIRKLICH von ueberall aus sofort
+    // zurueck ins Hauptmenue, auch waehrend z. B. gerade ein Spiel-Anleitungs-
+    // oder Highscore-Dialog offen ist.
+    const menuBtn = document.createElement("button");
+    menuBtn.type = "button";
+    menuBtn.className = "chrome-menu-btn";
+    menuBtn.setAttribute("aria-label", "Zurück zum Hauptmenü");
+    menuBtn.innerHTML = `${icons.exit}<span>Menü</span>`;
+    menuBtn.addEventListener("click", () => {
+      closeAllModals();
+      this.showMenu();
+    });
 
     const title = document.createElement("div");
     title.className = "chrome-bar__title";
@@ -47,7 +69,7 @@ export class Router {
     adminBtn.innerHTML = icons.gear;
     adminBtn.addEventListener("click", () => openAdminPanel());
 
-    bar.append(title, adminBtn);
+    bar.append(menuBtn, title, adminBtn);
     return bar;
   }
 
@@ -62,6 +84,7 @@ export class Router {
     this.teardownActiveGame();
     this.clearScreen();
     this.chromeTitle.textContent = "";
+    this.menuBtn.style.visibility = "hidden";
     const screen = renderMainMenu(gameRegistry, (id) => this.startGame(id));
     this.root.appendChild(screen);
     this.screenEl = screen;
@@ -76,6 +99,7 @@ export class Router {
 
     this.clearScreen();
     this.chromeTitle.textContent = meta.title;
+    this.menuBtn.style.visibility = "visible";
 
     const stage = document.createElement("div");
     stage.className = "game-stage";
@@ -89,13 +113,6 @@ export class Router {
     const overlay = document.createElement("div");
     overlay.className = "game-stage__overlay";
     canvasWrap.appendChild(overlay);
-
-    const exitBtn = document.createElement("button");
-    exitBtn.type = "button";
-    exitBtn.className = "exit-button";
-    exitBtn.innerHTML = `${icons.exit}<span>Menü</span>`;
-    exitBtn.addEventListener("click", () => this.showMenu());
-    overlay.appendChild(exitBtn);
 
     this.root.appendChild(stage);
     this.screenEl = stage;

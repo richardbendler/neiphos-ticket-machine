@@ -1246,26 +1246,26 @@ button {
 
 .shutter-btn {
   appearance: none;
-  width: 74px;
-  height: 74px;
+  width: 148px;
+  height: 148px;
   border-radius: 50%;
-  border: 4px solid #ffffff;
+  border: 6px solid #ffffff;
   background: linear-gradient(180deg, #ff6b57, var(--danger));
   color: #ffffff;
-  box-shadow: 0 4px 0 #8f1f1f, 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 0 #8f1f1f, 0 10px 24px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .shutter-btn:active {
-  transform: translateY(3px);
+  transform: translateY(5px);
   box-shadow: 0 1px 0 #8f1f1f;
 }
 
 .shutter-btn svg {
-  width: 34px;
-  height: 34px;
+  width: 64px;
+  height: 64px;
 }
 
 /* .menu-grid nutzt grid-auto-fill mit minmax() (siehe oben) und passt die

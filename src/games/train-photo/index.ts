@@ -63,7 +63,11 @@ function createTrainPhotoGame(): MinigameModule {
   }
 
   function updateShutterVisibility(): void {
-    shutterHost.style.display = phase === "running" ? "flex" : "none";
+    // Der Ausloeser ist von Anfang an (schon waehrend Countdown/Wartephase)
+    // sichtbar, nicht erst wenn der Zug tatsaechlich zu sehen ist -- man
+    // soll die ganze Zeit wissen, wo man hintippen muss.
+    const visible = started && (phase === "countdown" || phase === "waiting" || phase === "running");
+    shutterHost.style.display = visible ? "flex" : "none";
   }
 
   /** Zufaellige Wartezeit -- bewusst kein fixer Rhythmus, damit man nicht einfach mitzaehlen kann. */
@@ -257,6 +261,7 @@ function createTrainPhotoGame(): MinigameModule {
         onStart: () => {
           closeIntro = null;
           started = true;
+          updateShutterVisibility();
         },
       });
     },

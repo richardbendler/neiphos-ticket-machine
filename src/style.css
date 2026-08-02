@@ -967,8 +967,15 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px calc(12px + var(--safe-right)) 0 calc(12px + var(--safe-left));
+  padding: 10px calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left));
   justify-content: center;
+  /* Deckender Hintergrund: die Leiste kann je nach Inhalt (Zugsimulator hat
+     hier zwei Textzeilen zusaetzlich zu den Tempo-Buttons) unterschiedlich
+     hoch werden und auf kurzen Viewports in den dunklen Canvas-Bereich
+     hineinragen -- ohne eigenen Hintergrund waere Text dort unlesbar. */
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .stage-sheet {

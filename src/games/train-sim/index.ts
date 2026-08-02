@@ -47,6 +47,8 @@ function createTrainSimGame(): MinigameModule {
 
   let topBar: HTMLDivElement;
   let speedLabel: HTMLSpanElement;
+  let goalLine: HTMLDivElement;
+  let cityLine: HTMLDivElement;
   let sheet: HTMLDivElement;
   let choiceHost: HTMLDivElement;
   let finishHost: HTMLDivElement;
@@ -58,6 +60,22 @@ function createTrainSimGame(): MinigameModule {
   function setSpeed(next: number): void {
     speedKmS = Math.min(MAX_SPEED, Math.max(MIN_SPEED, next));
     updateSpeedLabel();
+  }
+
+  /**
+   * Aktuelle Station als DOM-Text statt auf dem Canvas -- so bleibt sie auf
+   * jeder Bildschirmhoehe lesbar. Eine Canvas-Position mit festem Pixel-
+   * Versatz geriet auf kuerzeren Viewports in den dunklen Gleisbereich und
+   * war dort praktisch unsichtbar (dunkler Text auf dunklem Grund).
+   */
+  function updateCityInfo(): void {
+    goalLine.textContent = `Ziel: Kyritz · ${formatLegCount(legsCompleted)} bisher`;
+    if (phase === "traveling" && targetCityId) {
+      const pct = Math.min(100, Math.round((progressKm / currentEdgeKm) * 100));
+      cityLine.textContent = `${cityName(currentCityId)} → ${cityName(targetCityId)} (${pct}%)`;
+    } else {
+      cityLine.textContent = cityName(currentCityId);
+    }
   }
 
   function renderChoiceButtons(options: RailEdge[]): void {
@@ -85,6 +103,7 @@ function createTrainSimGame(): MinigameModule {
 
   function beginChoice(): void {
     phase = "choosing";
+    updateCityInfo();
     const options = neighborsOf(currentCityId, previousCityId);
     if (options.length === 0) {
       finish(false);
@@ -103,6 +122,7 @@ function createTrainSimGame(): MinigameModule {
     progressKm = 0;
     phase = "traveling";
     updateSheetVisibility();
+    updateCityInfo();
   }
 
   function arriveAtTarget(): void {
@@ -237,7 +257,14 @@ function createTrainSimGame(): MinigameModule {
     init(env: GameEnv) {
       topBar = document.createElement("div");
       topBar.className = "stage-top-bar";
-      topBar.style.gap = "10px";
+      topBar.style.flexDirection = "column";
+      topBar.style.gap = "6px";
+
+      const speedRow = document.createElement("div");
+      speedRow.style.display = "flex";
+      speedRow.style.alignItems = "center";
+      speedRow.style.justifyContent = "center";
+      speedRow.style.gap = "10px";
 
       const minusBtn = document.createElement("button");
       minusBtn.type = "button";
@@ -258,7 +285,23 @@ function createTrainSimGame(): MinigameModule {
       plusBtn.textContent = "+";
       plusBtn.addEventListener("click", () => setSpeed(speedKmS + SPEED_STEP));
 
-      topBar.append(minusBtn, speedLabel, plusBtn);
+      speedRow.append(minusBtn, speedLabel, plusBtn);
+
+      goalLine = document.createElement("div");
+      goalLine.style.fontFamily = "var(--font-display)";
+      goalLine.style.fontWeight = "600";
+      goalLine.style.fontSize = "0.8rem";
+      goalLine.style.color = theme.accent;
+      goalLine.style.textAlign = "center";
+
+      cityLine = document.createElement("div");
+      cityLine.style.fontFamily = "var(--font-display)";
+      cityLine.style.fontWeight = "700";
+      cityLine.style.fontSize = "1rem";
+      cityLine.style.color = "var(--text)";
+      cityLine.style.textAlign = "center";
+
+      topBar.append(speedRow, goalLine, cityLine);
       env.overlay.appendChild(topBar);
 
       sheet = document.createElement("div");
@@ -312,6 +355,8 @@ function createTrainSimGame(): MinigameModule {
       tieOffset += dt * (speedKmS / 25);
       if (progressKm >= currentEdgeKm) {
         arriveAtTarget();
+      } else {
+        updateCityInfo();
       }
     },
 
@@ -323,26 +368,6 @@ function createTrainSimGame(): MinigameModule {
       if (!started) return;
 
       drawTrack(ctx, size);
-
-      // Unterhalb der Geschwindigkeits-Controls (stage-top-bar) und oberhalb
-      // des Horizonts -- drei knappe Zeilen HUD-Text auf festen Pixel-
-      // Abstaenden, da die Controls selbst auch fest positioniert sind.
-      const hudTop = 210;
-      ctx.font = `600 13px ${theme.font}`;
-      ctx.fillStyle = theme.accent;
-      ctx.fillText(`Ziel: Kyritz · ${formatLegCount(legsCompleted)} bisher`, size.width / 2, hudTop);
-
-      if (phase === "traveling" && targetCityId) {
-        ctx.font = `600 12px ${theme.font}`;
-        ctx.fillStyle = theme.textMuted;
-        const pct = Math.min(100, Math.round((progressKm / currentEdgeKm) * 100));
-        ctx.fillText(`→ ${cityName(targetCityId)} (${pct}%)`, size.width / 2, hudTop + 20);
-      }
-
-      ctx.textAlign = "center";
-      ctx.fillStyle = theme.text;
-      ctx.font = `700 15px ${theme.fontDisplay}`;
-      ctx.fillText(cityName(currentCityId), size.width / 2, hudTop + 42);
     },
 
     cleanup() {

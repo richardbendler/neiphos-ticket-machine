@@ -417,12 +417,12 @@ function createTrainQuartetGame(): MinigameModule {
       // zeile, ueber dem unteren Rand) vertikal zentriert, statt fest oben
       // zu kleben -- auf hohen Bildschirmen blieb sonst darunter viel toter
       // Platz.
-      const headerBottom = 150;
+      const headerBottom = 210;
       const bottomMargin = 70;
       const availableHeight = Math.max(120, size.height - headerBottom - bottomMargin);
-      const singleCardWidth = Math.min(size.width - 32, 300);
-      const pairCardWidth = Math.min((size.width - 32 - CARD_GAP) / 2, 220);
-      const cardHeight = Math.min(availableHeight, 420);
+      const singleCardWidth = Math.min(size.width - 32, 340);
+      const pairCardWidth = Math.min((size.width - 32 - CARD_GAP) / 2, 250);
+      const cardHeight = Math.min(availableHeight, 460);
       const topOffset = headerBottom + (availableHeight - cardHeight) / 2;
       const singleX = (size.width - singleCardWidth) / 2;
       const pairTotalWidth = pairCardWidth * 2 + CARD_GAP;
@@ -430,20 +430,23 @@ function createTrainQuartetGame(): MinigameModule {
       const pairRightX = pairLeftX + pairCardWidth + CARD_GAP;
 
       // Rundenstand -- klar erkennbar, in welcher Runde man ist und wie
-      // lange das Spiel (bis TOTAL_ROUNDS) noch geht.
+      // lange das Spiel (bis TOTAL_ROUNDS) noch geht. Deutlich tiefer als
+      // frueher (150 statt 96), sonst ragte der Text hinter die permanente
+      // Highscore-Anzeige oben und wirkte halb abgeschnitten. Groessere
+      // Schrift, da das der zentrale "wo stehe ich gerade"-Hinweis ist.
       const roundNumber = Math.min(TOTAL_ROUNDS, roundsPlayed + (phase === "reveal-player" ? 1 : 0));
       ctx.fillStyle = theme.accent;
-      ctx.font = `800 15px ${theme.fontDisplay}`;
+      ctx.font = `800 19px ${theme.fontDisplay}`;
       ctx.textAlign = "center";
-      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, 96);
+      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, 150);
 
       ctx.fillStyle = theme.textMuted;
-      ctx.font = `600 12px ${theme.font}`;
+      ctx.font = `600 14px ${theme.font}`;
       ctx.textAlign = "center";
       ctx.fillText(
         `Computer: ${cpuDeck.length} Karten${pot.length > 0 ? `  ·  Pot: ${pot.length}` : ""}  ·  Du: ${playerDeck.length} Karten`,
         size.width / 2,
-        118,
+        176,
       );
 
       const drawLabel = (text: string, rect: Rect) => {
@@ -458,10 +461,10 @@ function createTrainQuartetGame(): MinigameModule {
         if (playerCard) {
           const rect: Rect = { x: singleX, y: topOffset, width: singleCardWidth, height: cardHeight };
           drawCardFace(ctx, rect, playerCard, { interactive: true, highlightStat: null });
-          ctx.fillStyle = theme.textFaint;
-          ctx.font = `500 11px ${theme.font}`;
+          ctx.fillStyle = theme.textMuted;
+          ctx.font = `700 15px ${theme.fontDisplay}`;
           ctx.textAlign = "center";
-          ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 20);
+          ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 24);
         }
         return;
       }

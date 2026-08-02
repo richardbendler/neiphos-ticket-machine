@@ -44,6 +44,15 @@ export interface TrainCard {
   subtitle: string;
   category: string;
   image: string;
+  /**
+   * CSS object-position fuer das Foto bei quadratischem Zuschnitt (Zug-
+   * Spotter, Zug-Memory). Die meisten Fotos sind breiter als hoch und der
+   * Zug steht dabei mittig -- Default (50% 50%) reicht dann. Ein paar
+   * Hochformat-Fotos zeigen den Zug aber nur in einem schmalen Streifen
+   * (z. B. der Koelner Dom ueber dem ICE3), da muss der Ausschnitt gezielt
+   * dorthin verschoben werden, sonst faellt der Zug beim Zuschneiden raus.
+   */
+  focus?: string;
   stats: TrainStats;
 }
 
@@ -150,6 +159,8 @@ export const trainCards: TrainCard[] = [
     subtitle: "Der erste deutsche Hochgeschwindigkeitszug",
     category: "Hochgeschwindigkeitszug",
     image: ice1,
+    // Hochformat-Foto, Zugfront sitzt im unteren Bilddrittel.
+    focus: "50% 80%",
     stats: { baujahr: 1991, hoechstgeschwindigkeitKmh: 280, leistungKw: 9580, laengeM: 358, gewichtT: 782 },
   },
   {
@@ -158,6 +169,10 @@ export const trainCards: TrainCard[] = [
     subtitle: "Angetrieben über den ganzen Zug verteilt",
     category: "Hochgeschwindigkeitszug",
     image: ice3,
+    // Sehr hohes Hochformat-Foto (Koelner Dom) -- der Zug ist nur ganz unten
+    // im Bild zu sehen, ohne diesen Fokus wuerde er beim quadratischen
+    // Zuschnitt komplett rausfallen.
+    focus: "50% 96%",
     stats: { baujahr: 2000, hoechstgeschwindigkeitKmh: 330, leistungKw: 8000, laengeM: 200.8, gewichtT: 496 },
   },
   {

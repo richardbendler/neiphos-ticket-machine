@@ -17,6 +17,10 @@ const MIN_TRAINS = 6;
 const MAX_TRAINS = 9;
 const WRONG_TAP_PENALTY = 1.5;
 
+// Bildausschnitt (object-position) je Zugfoto beim quadratischen Zuschnitt --
+// siehe TrainCard.focus in data/trains.ts, Default ist Bildmitte.
+const FOCUS_BY_IMAGE = new Map(trainCards.map((c) => [c.image, c.focus ?? "50% 50%"]));
+
 interface Cell {
   image: string;
   isTrain: boolean;
@@ -77,6 +81,7 @@ function createTrainSpotterGame(): MinigameModule {
       btn.className = "tile-grid__cell";
       const img = document.createElement("img");
       img.src = cell.image;
+      img.style.objectPosition = FOCUS_BY_IMAGE.get(cell.image) ?? "50% 50%";
       img.draggable = false;
       btn.appendChild(img);
       btn.addEventListener("click", () => handleTap(i));

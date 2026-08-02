@@ -220,6 +220,7 @@ registerGame({
   title: "Zug-Spotter",
   subtitle: "Finde alle Züge im Raster",
   icon: "searchGrid",
+  badge: "ZS",
   accent: "#0059a4",
   create: createTrainSpotterGame,
 });

@@ -229,6 +229,7 @@ registerGame({
   title: "Verbindungssuche",
   subtitle: "Finde die schnellste Route",
   icon: "route",
+  badge: "VS",
   accent: "#0f7a86",
   create: createConnectionPuzzleGame,
 });

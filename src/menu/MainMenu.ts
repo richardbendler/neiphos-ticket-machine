@@ -85,7 +85,7 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
         <span class="menu-tile__title">${game.title}</span>
         <span class="menu-tile__subtitle">${game.subtitle}</span>
       </span>
-      <span class="menu-tile__icon">${icons[game.icon]}</span>
+      <span class="menu-tile__icon">${game.badge}</span>
     `;
     tile.addEventListener("click", () => onSelect(game.id));
     grid.appendChild(tile);

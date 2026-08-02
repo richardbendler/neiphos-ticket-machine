@@ -306,6 +306,7 @@ registerGame({
   title: "Zug-Memory",
   subtitle: "Finde alle Zugpaare",
   icon: "memory",
+  badge: "ZM",
   accent: "#e2007a",
   create: createMemoryGame,
 });

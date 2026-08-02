@@ -420,6 +420,7 @@ registerGame({
   title: "Zug-Quartett",
   subtitle: "Top-Trumps mit 20 echten Zügen",
   icon: "cards",
+  badge: "ZQ",
   accent: "#7e5330",
   create: createTrainQuartetGame,
 });

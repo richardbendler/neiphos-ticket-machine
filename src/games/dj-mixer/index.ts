@@ -271,6 +271,7 @@ registerGame({
   title: "DJ-Mischer",
   subtitle: "Baue einen Beat aus Zuggeräuschen",
   icon: "sliders",
+  badge: "DJ",
   accent: "#f3791d",
   create: createDjMixerGame,
 });

@@ -295,6 +295,7 @@ registerGame({
   title: "Passagiere zählen",
   subtitle: "Zähle, wer durchs Fenster fährt",
   icon: "trainWindow",
+  badge: "PZ",
   accent: "#0a545c",
   create: createCountPassengersGame,
 });

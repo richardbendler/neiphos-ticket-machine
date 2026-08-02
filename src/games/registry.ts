@@ -6,6 +6,8 @@ export interface GameMeta {
   title: string;
   subtitle: string;
   icon: IconName;
+  /** Kurzcode fuer das Farb-Badge der Menu-Kachel (2 Grossbuchstaben, angelehnt an die Zonen-Schilder "AB"/"BC" echter Fahrkartenautomaten). */
+  badge: string;
   /** Akzentfarbe der Menu-Kachel (CSS-Farbwert). */
   accent: string;
   /** Factory statt Singleton -- jedes Spiel bekommt bei jedem Start eine frische Instanz ohne Altzustand. */

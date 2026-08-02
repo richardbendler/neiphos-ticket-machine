@@ -426,6 +426,7 @@ registerGame({
   title: "Weichenspiel",
   subtitle: "Links, Mitte oder Rechts?",
   icon: "fork",
+  badge: "WS",
   accent: "#8c6dab",
   create: createSwitchRunGame,
 });

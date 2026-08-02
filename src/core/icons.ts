@@ -71,6 +71,10 @@ export const icons = {
      <line x1="8" y1="9" x2="16" y2="9"/>
      <line x1="8" y1="12.5" x2="13" y2="12.5"/>`,
   ),
+  camera: svg(
+    `<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/>
+     <circle cx="12" cy="13.2" r="3.4"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

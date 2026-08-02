@@ -26,32 +26,43 @@ export interface MainMenuResult {
  * Bildschirms fuellen sollen, statt oben oder seitlich Luft zu lassen.
  */
 function computeGridLayout(containerWidth: number, containerHeight: number, count: number): { cols: number; tileWidth: number } {
-  let best: { cols: number; tileWidth: number; area: number } | null = null;
+  // Zwei Durchgaenge: zuerst mit Mindestbreite (angenehme Lesbarkeit auf
+  // normal grossen Bildschirmen), danach ohne -- auf sehr kleinen bzw. sehr
+  // flachen Bildschirmen (z. B. Handy-Querformat) wuerde sonst JEDE
+  // Spaltenzahl an der Mindestbreite scheitern und der bisherige Fallback
+  // (eine Spalte, volle Breite) ignorierte dabei die verfuegbare Hoehe
+  // komplett -- die Kacheln wurden dann per aspect-ratio viel hoeher
+  // gerendert, als die Grid-Zeile tatsaechlich Platz hatte, und ueberlappten
+  // sich dadurch bis zur Unkenntlichkeit. Der zweite Durchgang liefert immer
+  // ein Paar (tileWidth, tileHeight), das nachweislich in beide Richtungen
+  // passt, egal wie klein.
+  for (const minWidth of [MIN_TILE_WIDTH, 0]) {
+    let best: { cols: number; tileWidth: number; area: number } | null = null;
 
-  for (let cols = 1; cols <= count; cols++) {
-    const rows = Math.ceil(count / cols);
-    const widthFromCols = (containerWidth - GRID_GAP * (cols - 1)) / cols;
-    const heightFromRows = (containerHeight - GRID_GAP * (rows - 1)) / rows;
+    for (let cols = 1; cols <= count; cols++) {
+      const rows = Math.ceil(count / cols);
+      const widthFromCols = (containerWidth - GRID_GAP * (cols - 1)) / cols;
+      const heightFromRows = (containerHeight - GRID_GAP * (rows - 1)) / rows;
 
-    let tileWidth = widthFromCols;
-    let tileHeight = tileWidth / TILE_ASPECT;
-    if (tileHeight > heightFromRows) {
-      tileHeight = heightFromRows;
-      tileWidth = tileHeight * TILE_ASPECT;
+      let tileWidth = widthFromCols;
+      let tileHeight = tileWidth / TILE_ASPECT;
+      if (tileHeight > heightFromRows) {
+        tileHeight = heightFromRows;
+        tileWidth = tileHeight * TILE_ASPECT;
+      }
+      tileWidth = Math.min(tileWidth, MAX_TILE_WIDTH);
+      if (tileWidth < minWidth) continue;
+
+      const area = tileWidth * (tileWidth / TILE_ASPECT);
+      if (!best || area > best.area) best = { cols, tileWidth, area };
     }
-    tileWidth = Math.min(tileWidth, MAX_TILE_WIDTH);
-    if (tileWidth < MIN_TILE_WIDTH) continue;
 
-    const area = tileWidth * (tileWidth / TILE_ASPECT);
-    if (!best || area > best.area) best = { cols, tileWidth, area };
+    if (best) return { cols: best.cols, tileWidth: Math.floor(best.tileWidth) };
   }
 
-  if (!best) {
-    // Sehr kleiner Bildschirm, bei dem selbst eine Spalte die Mindestbreite
-    // unterschreiten wuerde -- dann eben so breit wie moeglich, eine Spalte.
-    return { cols: 1, tileWidth: Math.max(60, containerWidth) };
-  }
-  return { cols: best.cols, tileWidth: Math.floor(best.tileWidth) };
+  // Kann rechnerisch nicht mehr vorkommen (minWidth=0 findet immer einen
+  // Kandidaten), aber ein Fallback ohne jede Division schadet nicht.
+  return { cols: 1, tileWidth: Math.max(1, Math.floor(containerWidth)) };
 }
 
 /**

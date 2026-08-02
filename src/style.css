@@ -1186,12 +1186,26 @@ button {
   outline-offset: 1px;
 }
 
+/* Umschliesst die einzelnen Regel-Gruppen (Tempo, Takte, Lautstaerke,
+   Transport) -- bei genug Platz stehen sie nebeneinander, auf schmalen
+   Bildschirmen brechen sie einzeln um. */
+.seq-controls-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .seq-controls {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: var(--panel-alt);
 }
 
 .seq-controls__bpm {

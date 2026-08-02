@@ -134,13 +134,21 @@ function createDjMixerGame(): MinigameModule {
   }
 
   function setBars(next: number): void {
-    bars = Math.min(MAX_BARS, Math.max(MIN_BARS, next));
+    const clamped = Math.min(MAX_BARS, Math.max(MIN_BARS, next));
+    if (clamped === bars) return;
+    bars = clamped;
     barsLabel.textContent = `${bars} Takte`;
-    // Beim Aendern der Taktzahl aendert sich die Rasterbreite grundlegend --
-    // ein bestehendes Muster liesse sich nicht sinnvoll uebertragen, darum
-    // einfach neu beginnen (wie bei "Leeren").
     if (playing) togglePlay();
-    grid = SOUND_DEFS.map(() => new Array(totalSteps()).fill(false));
+
+    // Bestehendes Muster bleibt erhalten: beim Verkleinern werden die
+    // ueberzaehligen Felder rechts abgeschnitten, beim Vergroessern kommen
+    // leere neue Felder rechts dazu -- kein Neubeginn wie bei "Leeren".
+    const newStepCount = totalSteps();
+    grid = grid.map((row) => {
+      const trimmed = row.slice(0, newStepCount);
+      while (trimmed.length < newStepCount) trimmed.push(false);
+      return trimmed;
+    });
     buildGridDom();
   }
 
@@ -234,6 +242,14 @@ function createDjMixerGame(): MinigameModule {
       // Bewusst VOR dem Sound-Raster: Tempo, Lautstaerke und Transport sind
       // die Bedienelemente, die man am haeufigsten braucht, waehrend man
       // unten durch die (mittlerweile recht lange) Sound-Liste scrollt.
+      // Die einzelnen Gruppen stehen in einer umbrechenden Leiste, damit sie
+      // bei genug Platz nebeneinander stehen, statt jede eine eigene Zeile
+      // zu beanspruchen -- aber ueber Rahmen/Hintergrund klar voneinander
+      // abgegrenzt bleiben.
+      const controlsBar = document.createElement("div");
+      controlsBar.className = "seq-controls-bar";
+      panel.appendChild(controlsBar);
+
       const controls = document.createElement("div");
       controls.className = "seq-controls";
 
@@ -260,7 +276,7 @@ function createDjMixerGame(): MinigameModule {
       });
 
       controls.append(minusBtn, bpmLabel, plusBtn);
-      panel.appendChild(controls);
+      controlsBar.appendChild(controls);
 
       const barsRow = document.createElement("div");
       barsRow.className = "seq-controls";
@@ -282,7 +298,7 @@ function createDjMixerGame(): MinigameModule {
       barsPlusBtn.addEventListener("click", () => setBars(bars + 1));
 
       barsRow.append(barsMinusBtn, barsLabel, barsPlusBtn);
-      panel.appendChild(barsRow);
+      controlsBar.appendChild(barsRow);
 
       const volumeRow = document.createElement("div");
       volumeRow.className = "seq-controls";
@@ -305,7 +321,7 @@ function createDjMixerGame(): MinigameModule {
       volumeLabel.textContent = `${Math.round(DEFAULT_VOLUME * 100)}%`;
 
       volumeRow.append(volumeIcon, volumeSlider, volumeLabel);
-      panel.appendChild(volumeRow);
+      controlsBar.appendChild(volumeRow);
 
       const controls2 = document.createElement("div");
       controls2.className = "seq-controls";
@@ -324,7 +340,7 @@ function createDjMixerGame(): MinigameModule {
       clearBtn.addEventListener("click", clearGrid);
 
       controls2.append(playBtn, clearBtn);
-      panel.appendChild(controls2);
+      controlsBar.appendChild(controls2);
 
       const intro = document.createElement("div");
       intro.style.textAlign = "center";

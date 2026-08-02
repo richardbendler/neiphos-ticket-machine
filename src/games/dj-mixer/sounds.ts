@@ -17,18 +17,20 @@ export type SoundId =
   | "snare"
   | "hiHat"
   | "horn"
-  | "chime"
   | "announcement"
   | "dbAnkuendigung"
   | "ansageDb"
   | "sBahnNeu"
-  | "zugbetrieb"
   | "railroadBell"
-  | "emergencyBrake"
   | "steamBrake"
   | "trainRumble"
-  | "doorKorail"
-  | "chooChoo";
+  | "tramBell"
+  | "hornUsa"
+  | "hornParis"
+  | "hornChina"
+  | "hornJapan"
+  | "hornUk"
+  | "steamWhistle";
 
 /**
  * playbackRate ist nur fuer die Sample-Clips relevant (siehe
@@ -114,7 +116,7 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
 
 // -------------------------------------------------------------- Sample-Clips
 //
-// Kurze, echte Bahn-Sound-Clips (Ansagen/Signalhorn/Atmo), per
+// Kurze, echte Bahn-Sound-Clips (Ansagen/Hupen/Atmo), per
 // fetch()+decodeAudioData() als AudioBuffer geladen und wie die
 // synthetisierten Sounds sample-genau zum Sequencer-Takt abgespielt --
 // inkl. BPM-abhaengiger Wiedergabegeschwindigkeit (siehe makeSamplePlayFn),
@@ -123,29 +125,38 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
 //  - dbAnkuendigung: myinstants.com/en/instant/deutsche-bahn-ankundigung-45554
 //  - ansageDb:       myinstants.com/en/instant/ansage-db-72287
 //  - sBahnNeu:       myinstants.com/en/instant/s-bahn-neu-85653
-//  - zugbetrieb:     myinstants.com/en/instant/achtung-zugbetrieb-2674
-//  - horn:           myinstants.com/en/instant/train-horn (echtes Signalhorn
-//                     statt der vorherigen, zu kuenstlich klingenden
-//                     Web-Audio-Synthese)
-//  - chime:          myinstants.com/en/instant/ankunft-1-32312
+//  - horn:           myinstants.com/en/instant/train-horn (klingt eher nach
+//                     rhythmischem Tuckern als nach einem harten
+//                     Signalhorn, daher hier als "Choo-Choo" benannt)
+//  - announcement:   myinstants.com/en/instant/bahnhofsansage-95498 (echter
+//                     Ansage-Clip statt der kuenstlich klingenden
+//                     Sprachsynthese-Stimme zuvor)
 //  - railroadBell:   myinstants.com/en/instant/bells-railroad-crossing-18898
-//  - emergencyBrake: myinstants.com/en/instant/zwangsbremsung-76081
 //  - steamBrake:     myinstants.com/en/instant/steam-locomotive-brakes-screaming-67672
 //  - trainRumble:    myinstants.com/en/instant/anderes-zugsgerausch-7741
-//  - doorKorail:     myinstants.com/en/instant/korail-door-sound-87012
-//  - chooChoo:       myinstants.com/en/instant/choo-choo-11509
+//  - tramBell:       myinstants.com/en/instant/tram-bell-45667
+//  - hornUsa:        myinstants.com/en/instant/amtrak-liberty-horn
+//  - hornParis:      myinstants.com/en/instant/paris-train-horn
+//  - hornChina:      myinstants.com/en/instant/chinese-diesel-locomotive-horn
+//  - hornJapan:      myinstants.com/en/instant/jr-e353-series-horn
+//  - hornUk:         myinstants.com/en/instant/british-class-141-horn-sound
+//  - steamWhistle:   myinstants.com/en/instant/nkp-765-whistle (Pfeife der
+//                     erhaltenen Dampflok Nickel Plate Road 765)
 import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
-import zugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
 import hornUrl from "../../assets/sounds/train-horn.mp3";
-import chimeUrl from "../../assets/sounds/ankunft.mp3";
+import announcementUrl from "../../assets/sounds/bahnhofsansage.mp3";
 import railroadBellUrl from "../../assets/sounds/railroad-bell.mp3";
-import emergencyBrakeUrl from "../../assets/sounds/zwangsbremsung.mp3";
 import steamBrakeUrl from "../../assets/sounds/steam-brake.mp3";
 import trainRumbleUrl from "../../assets/sounds/zugsgeraeusch.mp3";
-import doorKorailUrl from "../../assets/sounds/tuer-korail.mp3";
-import chooChooUrl from "../../assets/sounds/choo-choo.mp3";
+import tramBellUrl from "../../assets/sounds/tram-bell.mp3";
+import hornUsaUrl from "../../assets/sounds/horn-usa.mp3";
+import hornParisUrl from "../../assets/sounds/horn-paris.mp3";
+import hornChinaUrl from "../../assets/sounds/horn-china.mp3";
+import hornJapanUrl from "../../assets/sounds/horn-japan.mp3";
+import hornUkUrl from "../../assets/sounds/horn-uk.mp3";
+import steamWhistleUrl from "../../assets/sounds/steam-whistle.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -210,15 +221,18 @@ const SAMPLE_URLS = [
   dbAnkuendigungUrl,
   ansageDbUrl,
   sBahnNeuUrl,
-  zugbetriebUrl,
   hornUrl,
-  chimeUrl,
+  announcementUrl,
   railroadBellUrl,
-  emergencyBrakeUrl,
   steamBrakeUrl,
   trainRumbleUrl,
-  doorKorailUrl,
-  chooChooUrl,
+  tramBellUrl,
+  hornUsaUrl,
+  hornParisUrl,
+  hornChinaUrl,
+  hornJapanUrl,
+  hornUkUrl,
+  steamWhistleUrl,
 ];
 
 export interface SoundDef {
@@ -234,19 +248,21 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "kick", label: "Tür zu", hint: "Dumpfes Schließgeräusch (Kick)", play: playKick },
   { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
   { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
-  { id: "horn", label: "Signalhorn", hint: "Echtes Zug-Signalhorn (Sample-Clip)", play: makeSamplePlayFn(hornUrl) },
-  { id: "chime", label: "Ankunft", hint: "Ankunfts-Ansage-Chime (Sample-Clip)", play: makeSamplePlayFn(chimeUrl, 6) },
-  { id: "announcement", label: "Ansage", hint: '„Bitte die Fahrkarten bereithalten" (Sprachausgabe)', text: "Bitte die Fahrkarten bereithalten." },
+  { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 1, 1) },
+  { id: "announcement", label: "Ansage", hint: "Bahnhofsansage (Sample-Clip)", play: makeSamplePlayFn(announcementUrl, 3.2, 1.5) },
   { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl, 2) },
   { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
   { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2) },
-  { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl, 6) },
   { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 3, 1.1) },
-  { id: "emergencyBrake", label: "Notbremse", hint: "Zwangsbremsung (Sample-Clip)", play: makeSamplePlayFn(emergencyBrakeUrl, 1.1, 1.2) },
   { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.8, 0.8) },
   { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.5, 1) },
-  { id: "doorKorail", label: "Zugtür", hint: "Zugtür-Signal (Sample-Clip)", play: makeSamplePlayFn(doorKorailUrl, 1.1, 0.6) },
-  { id: "chooChoo", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(chooChooUrl, 3, 1) },
+  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 2.6, 0.8) },
+  { id: "hornUsa", label: "Horn USA", hint: "Amtrak-Signalhorn (Sample-Clip)", play: makeSamplePlayFn(hornUsaUrl, 1, 1.2) },
+  { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 1, 1.2) },
+  { id: "hornChina", label: "Horn China", hint: "Chinesisches Diesellok-Horn (Sample-Clip)", play: makeSamplePlayFn(hornChinaUrl, 1, 1.2) },
+  { id: "hornJapan", label: "Horn Japan", hint: "Japanisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornJapanUrl, 1.35, 1.2) },
+  { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 1, 1.2) },
+  { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 1, 1.3) },
 ];
 
 /**

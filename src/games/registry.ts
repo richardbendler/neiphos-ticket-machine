@@ -1,5 +1,15 @@
 import type { MinigameModule } from "../core/Game";
 import type { IconName } from "../core/icons";
+import type { HighscoreDirection } from "../core/storage";
+
+export interface HighscoreCategory {
+  /** Highscore-"board"-Schluessel, siehe core/storage.ts (z. B. Spielfeldgroesse oder Geschwindigkeitsstufe). "default" fuer Spiele ohne Varianten. */
+  board: string;
+  /** Anzeigename der Variante, z. B. "4 × 4" oder "60 km/h". */
+  label: string;
+  direction: HighscoreDirection;
+  formatValue: (value: number) => string;
+}
 
 export interface GameMeta {
   id: string;
@@ -12,6 +22,8 @@ export interface GameMeta {
   accent: string;
   /** Factory statt Singleton -- jedes Spiel bekommt bei jedem Start eine frische Instanz ohne Altzustand. */
   create: () => MinigameModule;
+  /** Fuer das globale Highscore-Board (Hauptmenue): leer/weggelassen bei Spielen ohne Highscore (z. B. Zug-Quartett, DJ-Mischer). */
+  highscoreCategories?: HighscoreCategory[];
 }
 
 /**

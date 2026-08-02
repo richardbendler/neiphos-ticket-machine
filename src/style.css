@@ -759,7 +759,7 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--header-h) + 10px + var(--safe-top));
+  top: calc(var(--header-h) + 46px + var(--safe-top));
   z-index: 15;
   align-items: center;
   justify-content: center;
@@ -791,6 +791,56 @@ button {
   font-weight: 800;
   font-size: 1.3rem;
   white-space: nowrap;
+}
+
+/* Dauerhafte Bestwert-Anzeige, mittig direkt unter der Kopfleiste -- siehe
+   core/highscoreBanner.ts. Bewusst dezent/klein gehalten, damit sie nicht
+   mit dem eigentlichen Spielgeschehen konkurriert. */
+.stage-highscore-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--header-h) + 8px + var(--safe-top));
+  z-index: 16;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+  pointer-events: none;
+}
+
+.stage-highscore-banner__pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  max-width: 100%;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--panel-alt);
+  border: 1px solid var(--panel-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-highscore-banner__label {
+  font-size: 0.66rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stage-highscore-banner__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--accent-dark);
+}
+
+.stage-highscore-banner__names {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stage-top-bar {

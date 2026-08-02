@@ -1,7 +1,6 @@
 import type { TransitLine } from "../../data/berlinNetwork";
 import { transitLines } from "../../data/berlinNetwork";
 import type { LineRoute } from "./graph";
-import type { HighscoreEntry } from "../../core/storage";
 
 const MODE_LABEL: Record<TransitLine["mode"], string> = {
   "u-bahn": "U-Bahn",
@@ -24,7 +23,6 @@ export interface ScreenState {
   attempt: number;
   totalAttempts: number;
   selectedLines: string[];
-  highscore: HighscoreEntry | null;
   error?: string | null;
   feedback?: {
     success: boolean;
@@ -101,16 +99,6 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   card.appendChild(targetValue);
 
   container.appendChild(card);
-
-  if (state.highscore) {
-    const badge = document.createElement("div");
-    badge.className = "chip";
-    badge.style.setProperty("--chip-color", "var(--accent-dark)");
-    badge.style.color = "#2b2004";
-    badge.style.marginTop = "8px";
-    badge.textContent = `🏆 ${state.highscore.value} · ${state.highscore.name}`;
-    container.appendChild(badge);
-  }
 }
 
 function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: ScreenActions): void {

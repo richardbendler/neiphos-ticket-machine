@@ -1,8 +1,9 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { getAllStations } from "../../data/berlinNetwork";
-import { getHighscore, isNewHighscore, setHighscore, type HighscoreEntry } from "../../core/storage";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 import { pickRandomPair, validateLineSequence, type LineRoute } from "./graph";
@@ -13,6 +14,10 @@ const TOTAL_ROUNDS = 5;
 const TOTAL_ATTEMPTS = 3;
 const POINTS_BY_ATTEMPT = [100, 60, 30];
 
+function formatPoints(value: number): string {
+  return `${value} Punkte`;
+}
+
 interface RoundState {
   start: string;
   target: string;
@@ -22,7 +27,7 @@ interface RoundState {
 
 function createConnectionPuzzleGame(): MinigameModule {
   let allStations: string[] = [];
-  let highscore: HighscoreEntry | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
 
   let round = 1;
   let totalScore = 0;
@@ -64,7 +69,6 @@ function createConnectionPuzzleGame(): MinigameModule {
       attempt: roundState.attempt,
       totalAttempts: TOTAL_ATTEMPTS,
       selectedLines,
-      highscore,
       error,
       feedback,
       summary,
@@ -149,16 +153,16 @@ function createConnectionPuzzleGame(): MinigameModule {
     }
 
     if (round >= TOTAL_ROUNDS) {
-      const newRecord = isNewHighscore(GAME_ID, totalScore, "higher-better");
-      summary = { totalScore, isNewHighscore: newRecord };
+      const outcome = getHighscoreOutcome(GAME_ID, totalScore, "higher-better");
+      summary = { totalScore, isNewHighscore: outcome !== "none" };
       phase = "summary";
       render();
-      if (newRecord) {
+      if (outcome !== "none") {
         closeHighscoreModal = promptHighscoreName({
-          message: `Du hast ${totalScore} Punkte erreicht — neuer Bestwert für die Verbindungssuche!`,
+          message: `Du hast ${totalScore} Punkte erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert" : "neuer Bestwert"} für die Verbindungssuche!`,
           onDone: (name) => {
             closeHighscoreModal = null;
-            highscore = setHighscore(GAME_ID, name, totalScore);
+            highscoreBanner.update(recordHighscore(GAME_ID, name, totalScore, "higher-better"));
             render();
           },
         });
@@ -185,13 +189,15 @@ function createConnectionPuzzleGame(): MinigameModule {
 
     init(env: GameEnv) {
       allStations = getAllStations();
-      highscore = getHighscore(GAME_ID);
 
       panel = document.createElement("div");
       panel.className = "stage-center-panel";
-      panel.style.top = "calc(52px + var(--safe-top))";
+      panel.style.top = "calc(var(--header-h) + 54px + var(--safe-top))";
       panel.style.justifyContent = "flex-start";
       env.overlay.appendChild(panel);
+
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatPoints);
+      highscoreBanner.update(getHighscoreBoard(GAME_ID));
 
       resetGame();
       render();
@@ -219,6 +225,7 @@ function createConnectionPuzzleGame(): MinigameModule {
       closeHighscoreModal = null;
       closeIntro?.();
       closeIntro = null;
+      highscoreBanner?.destroy();
       panel?.remove();
     },
   };
@@ -235,4 +242,5 @@ registerGame({
   badge: "VS",
   accent: "#0f7a86",
   create: createConnectionPuzzleGame,
+  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatPoints }],
 });

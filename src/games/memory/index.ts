@@ -2,13 +2,17 @@ import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { trainCards } from "../../data/trains";
 import { distractorImages } from "../../data/distractors";
-import { getHighscore, isNewHighscore, setHighscore, type HighscoreEntry } from "../../core/storage";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { registerGame } from "../registry";
 
 const GAME_ID = "memory";
-const INTRO_DURATION = 2.5;
 const MISMATCH_DELAY = 0.8;
+
+function formatMoves(value: number): string {
+  return `${value} Züge`;
+}
 
 interface BoardSize {
   key: string;
@@ -29,7 +33,7 @@ interface Card {
   matched: boolean;
 }
 
-type Phase = "size-select" | "intro" | "playing" | "resolving" | "done";
+type Phase = "size-select" | "playing" | "resolving" | "done";
 
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -52,10 +56,9 @@ function createMemoryGame(): MinigameModule {
   let cards: Card[] = [];
   let flipped: number[] = [];
   let moves = 0;
-  let introTimer = 0;
   let resolveTimer = 0;
-  let highscore: HighscoreEntry | null = null;
   let closeHighscoreModal: (() => void) | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
 
   let panel: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
@@ -99,16 +102,6 @@ function createMemoryGame(): MinigameModule {
         row.appendChild(btn);
       }
       panel.appendChild(row);
-    } else if (phase === "intro") {
-      const banner = document.createElement("div");
-      banner.className = "ticket-card";
-      banner.style.textAlign = "center";
-      banner.style.fontFamily = "var(--font-display)";
-      banner.style.fontWeight = "700";
-      banner.textContent = highscore
-        ? `Bestwert ${boardSize?.label}: ${highscore.name} — ${highscore.value} Züge`
-        : `Noch kein Highscore für ${boardSize?.label} — sei die/der Erste!`;
-      panel.appendChild(banner);
     } else if (phase === "done") {
       const title = document.createElement("div");
       title.style.fontFamily = "var(--font-display)";
@@ -148,14 +141,13 @@ function createMemoryGame(): MinigameModule {
 
   function selectSize(size: BoardSize): void {
     boardSize = size;
-    highscore = getHighscore(GAME_ID, size.key);
+    highscoreBanner.update(getHighscoreBoard(GAME_ID, size.key));
     cards = buildBoard((size.cols * size.cols) / 2);
     flipped = [];
     moves = 0;
-    introTimer = 0;
-    phase = "intro";
+    phase = "playing";
     renderGrid();
-    gridHost.style.visibility = "hidden";
+    gridHost.style.visibility = "visible";
     renderPanel();
   }
 
@@ -223,15 +215,15 @@ function createMemoryGame(): MinigameModule {
   function finish(): void {
     if (!boardSize) return;
     phase = "done";
-    const newRecord = isNewHighscore(GAME_ID, moves, "lower-better", boardSize.key);
+    const outcome = getHighscoreOutcome(GAME_ID, moves, "lower-better", boardSize.key);
     renderPanel();
-    if (newRecord) {
+    if (outcome !== "none") {
       const size = boardSize;
       closeHighscoreModal = promptHighscoreName({
-        message: `${moves} Züge auf ${size.label} — neuer Bestwert!`,
+        message: `${moves} Züge auf ${size.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
         onDone: (name) => {
           closeHighscoreModal = null;
-          highscore = setHighscore(GAME_ID, name, moves, size.key);
+          highscoreBanner.update(recordHighscore(GAME_ID, name, moves, "lower-better", size.key));
         },
       });
     }
@@ -250,7 +242,7 @@ function createMemoryGame(): MinigameModule {
       gridHost.style.position = "absolute";
       gridHost.style.left = "0";
       gridHost.style.right = "0";
-      gridHost.style.top = "calc(var(--header-h) + 30px + var(--safe-top))";
+      gridHost.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
       gridHost.style.margin = "0 auto";
       gridHost.style.zIndex = "10";
       gridHost.style.width = "min(92%, 460px)";
@@ -258,18 +250,13 @@ function createMemoryGame(): MinigameModule {
       env.overlay.appendChild(gridHost);
       env.overlay.appendChild(panel);
 
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatMoves);
+
       renderPanel();
     },
 
     update(dt: number) {
-      if (phase === "intro") {
-        introTimer += dt;
-        if (introTimer >= INTRO_DURATION) {
-          phase = "playing";
-          gridHost.style.visibility = "visible";
-          renderPanel();
-        }
-      } else if (phase === "resolving") {
+      if (phase === "resolving") {
         resolveTimer += dt;
         if (resolveTimer >= MISMATCH_DELAY) {
           flipped = [];
@@ -288,13 +275,14 @@ function createMemoryGame(): MinigameModule {
         ctx.textAlign = "center";
         ctx.fillStyle = theme.textMuted;
         ctx.font = `600 13px ${theme.font}`;
-        ctx.fillText(`${boardSize.label} · ${moves} Züge`, size.width / 2, 80);
+        ctx.fillText(`${boardSize.label} · ${moves} Züge`, size.width / 2, 150);
       }
     },
 
     cleanup() {
       closeHighscoreModal?.();
       closeHighscoreModal = null;
+      highscoreBanner?.destroy();
       gridHost?.remove();
       panel?.remove();
     },
@@ -309,4 +297,10 @@ registerGame({
   badge: "ZM",
   accent: "#e2007a",
   create: createMemoryGame,
+  highscoreCategories: BOARD_SIZES.map((size) => ({
+    board: size.key,
+    label: size.label,
+    direction: "lower-better",
+    formatValue: formatMoves,
+  })),
 });

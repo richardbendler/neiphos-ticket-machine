@@ -1,7 +1,8 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
-import { getHighscore, isNewHighscore, setHighscore, type HighscoreEntry } from "../../core/storage";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
@@ -10,6 +11,10 @@ const FORK_DURATION = 1.1;
 const OUTCOME_DURATION = 1.3;
 const BASE_COUNTDOWN = 10;
 const MIN_COUNTDOWN = 4;
+
+function formatSwitches(value: number): string {
+  return `${value} Weiche${value === 1 ? "" : "n"}`;
+}
 
 type Lane = "left" | "center" | "right";
 type Phase = "approaching" | "forking" | "outcome" | "game-over";
@@ -43,9 +48,9 @@ function createSwitchRunGame(): MinigameModule {
   let outcomeTimer = 0;
   let crashed = false;
   let tieOffset = 0;
-  let highscore: HighscoreEntry | null = null;
   let closeHighscoreModal: (() => void) | null = null;
   let closeIntro: (() => void) | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
 
   let buttonBar: HTMLDivElement;
   let choiceIndicator: HTMLDivElement;
@@ -93,13 +98,12 @@ function createSwitchRunGame(): MinigameModule {
     deadEndLane = pickDeadEnd();
     chosenLane = "center";
     crashed = false;
-    highscore = getHighscore(GAME_ID);
+    highscoreBanner.update(getHighscoreBoard(GAME_ID));
     updateHud();
 
     closeIntro = showGameIntro({
       title: "Weichenspiel",
       description:
-        (highscore ? `Highscore: ${highscore.name} — ${highscore.value} Weichen. ` : "Noch kein Highscore aufgestellt — sei die/der Erste! ") +
         "Vor jeder Weiche läuft ein Countdown. Wähle Links, Mitte oder Rechts — eine Richtung ist immer eine Sackgasse. Ohne Wahl fährst du automatisch Mitte.",
       onStart: () => {
         closeIntro = null;
@@ -126,14 +130,14 @@ function createSwitchRunGame(): MinigameModule {
   function finishOutcome(): void {
     if (crashed) {
       phase = "game-over";
-      const newRecord = isNewHighscore(GAME_ID, score, "higher-better");
+      const outcome = getHighscoreOutcome(GAME_ID, score, "higher-better");
       updateHud();
-      if (newRecord) {
+      if (outcome !== "none") {
         closeHighscoreModal = promptHighscoreName({
-          message: `Du hast ${score} Weiche${score === 1 ? "" : "n"} geschafft — neuer Bestwert!`,
+          message: `Du hast ${score} Weiche${score === 1 ? "" : "n"} geschafft — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
-            highscore = setHighscore(GAME_ID, name, score);
+            highscoreBanner.update(recordHighscore(GAME_ID, name, score, "higher-better"));
           },
         });
       }
@@ -334,6 +338,8 @@ function createSwitchRunGame(): MinigameModule {
       wrap.appendChild(gameOverPanel);
       env.overlay.appendChild(wrap);
 
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatSwitches);
+
       restart();
     },
 
@@ -371,7 +377,7 @@ function createSwitchRunGame(): MinigameModule {
         ctx.textAlign = "center";
         ctx.fillStyle = theme.text;
         ctx.font = `800 40px ${theme.fontDisplay}`;
-        ctx.fillText(`${Math.max(0, Math.ceil(countdown))}`, size.width / 2, size.height * 0.27);
+        ctx.fillText(`${Math.max(0, Math.ceil(countdown))}`, size.width / 2, size.height * 0.32);
       } else {
         // Bei einem Crash wackelt das Bild waehrend der Outcome-Phase kurz --
         // simuliert eine Vollbremsung.
@@ -410,6 +416,7 @@ function createSwitchRunGame(): MinigameModule {
       closeHighscoreModal = null;
       closeIntro?.();
       closeIntro = null;
+      highscoreBanner?.destroy();
       buttonBar?.parentElement?.remove();
       choiceIndicator?.remove();
     },
@@ -424,4 +431,5 @@ registerGame({
   badge: "WS",
   accent: "#8c6dab",
   create: createSwitchRunGame,
+  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatSwitches }],
 });

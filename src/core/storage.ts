@@ -45,34 +45,71 @@ export interface HighscoreEntry {
   achievedAt: string;
 }
 
-export type HighscoreDirection = "higher-better" | "lower-better";
-
-export function getHighscore(gameId: string, board = "default"): HighscoreEntry | null {
-  return loadJSON<HighscoreEntry | null>(["highscore", gameId, board], null);
+/**
+ * Ein Highscore-"Brett" haelt nicht mehr nur den einen Bestwert, sondern
+ * ALLE Personen, die diesen Bestwert erreicht haben -- bei Gleichstand soll
+ * niemand den anderen aus der Liste verdraengen, sondern beide stehen
+ * gemeinsam oben (siehe recordHighscore).
+ */
+export interface HighscoreBoard {
+  value: number;
+  entries: HighscoreEntry[];
 }
 
-export function isNewHighscore(
+export type HighscoreDirection = "higher-better" | "lower-better";
+export type HighscoreOutcome = "new-best" | "tied-best" | "none";
+
+export function getHighscoreBoard(gameId: string, board = "default"): HighscoreBoard | null {
+  return loadJSON<HighscoreBoard | null>(["highscore", gameId, board], null);
+}
+
+function isBetter(value: number, current: number, direction: HighscoreDirection): boolean {
+  return direction === "higher-better" ? value > current : value < current;
+}
+
+/**
+ * Bestimmt, ob ein frisch erzielter Wert das bestehende Brett schlaegt
+ * (verdraengt die bisherige Bestmarke) oder nur einholt (reiht sich bei den
+ * Gleichstand-Namen ein) -- in beiden Faellen "hat man's geschafft" und darf
+ * seinen Namen eintragen, siehe recordHighscore.
+ */
+export function getHighscoreOutcome(
   gameId: string,
   value: number,
   direction: HighscoreDirection,
   board = "default",
-): boolean {
-  const current = getHighscore(gameId, board);
-  if (!current) return true;
-  return direction === "higher-better" ? value > current.value : value < current.value;
+): HighscoreOutcome {
+  const current = getHighscoreBoard(gameId, board);
+  if (!current) return "new-best";
+  if (value === current.value) return "tied-best";
+  return isBetter(value, current.value, direction) ? "new-best" : "none";
 }
 
-export function setHighscore(
+export function recordHighscore(
   gameId: string,
   name: string,
   value: number,
+  direction: HighscoreDirection,
   board = "default",
-): HighscoreEntry {
+): HighscoreBoard {
+  const current = getHighscoreBoard(gameId, board);
   const entry: HighscoreEntry = {
     name: name.trim().slice(0, 16) || "Anonym",
     value,
     achievedAt: new Date().toISOString(),
   };
-  saveJSON(["highscore", gameId, board], entry);
-  return entry;
+
+  let next: HighscoreBoard;
+  if (!current) {
+    next = { value, entries: [entry] };
+  } else if (value === current.value) {
+    next = { value: current.value, entries: [...current.entries, entry] };
+  } else if (isBetter(value, current.value, direction)) {
+    next = { value, entries: [entry] };
+  } else {
+    next = current;
+  }
+
+  saveJSON(["highscore", gameId, board], next);
+  return next;
 }

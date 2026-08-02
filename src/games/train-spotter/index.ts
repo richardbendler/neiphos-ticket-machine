@@ -2,8 +2,9 @@ import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { trainCards } from "../../data/trains";
 import { distractorImages } from "../../data/distractors";
-import { getHighscore, isNewHighscore, setHighscore, type HighscoreEntry } from "../../core/storage";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
@@ -55,9 +56,9 @@ function createTrainSpotterGame(): MinigameModule {
   let elapsed = 0;
   let cells: Cell[] = [];
   let remainingTrains = 0;
-  let highscore: HighscoreEntry | null = null;
   let closeHighscoreModal: (() => void) | null = null;
   let closeIntro: (() => void) | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
 
   let gridHost: HTMLDivElement;
   let doneOverlay: HTMLDivElement;
@@ -99,14 +100,14 @@ function createTrainSpotterGame(): MinigameModule {
 
   function finish(): void {
     phase = "done";
-    const newRecord = isNewHighscore(GAME_ID, elapsed, "lower-better");
+    const outcome = getHighscoreOutcome(GAME_ID, elapsed, "lower-better");
     renderDone();
-    if (newRecord) {
+    if (outcome !== "none") {
       closeHighscoreModal = promptHighscoreName({
-        message: `${formatTime(elapsed)} — neue Bestzeit für den Zug-Spotter!`,
+        message: `${formatTime(elapsed)} — ${outcome === "tied-best" ? "eingestellte Bestzeit" : "neue Bestzeit"} für den Zug-Spotter!`,
         onDone: (name) => {
           closeHighscoreModal = null;
-          highscore = setHighscore(GAME_ID, name, elapsed);
+          highscoreBanner.update(recordHighscore(GAME_ID, name, elapsed, "lower-better"));
         },
       });
     }
@@ -134,7 +135,7 @@ function createTrainSpotterGame(): MinigameModule {
   }
 
   function restart(): void {
-    highscore = getHighscore(GAME_ID);
+    highscoreBanner.update(getHighscoreBoard(GAME_ID));
     cells = buildGrid();
     remainingTrains = cells.filter((c) => c.isTrain).length;
     elapsed = 0;
@@ -145,9 +146,7 @@ function createTrainSpotterGame(): MinigameModule {
 
     closeIntro = showGameIntro({
       title: "Zug-Spotter",
-      description:
-        (highscore ? `Bestzeit: ${highscore.name} — ${formatTime(highscore.value)}. ` : "Noch keine Bestzeit aufgestellt — sei die/der Erste! ") +
-        "Tippe im Raster so schnell wie möglich alle Bilder mit Zügen an. Falsche Tipps kosten Zeit.",
+      description: "Tippe im Raster so schnell wie möglich alle Bilder mit Zügen an. Falsche Tipps kosten Zeit.",
       startLabel: "Los geht's",
       onStart: () => {
         closeIntro = null;
@@ -173,9 +172,12 @@ function createTrainSpotterGame(): MinigameModule {
 
       const wrap = document.createElement("div");
       wrap.className = "stage-center-panel";
+      wrap.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
       wrap.appendChild(gridHost);
       wrap.appendChild(doneOverlay);
       env.overlay.appendChild(wrap);
+
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatTime);
 
       restart();
     },
@@ -195,19 +197,20 @@ function createTrainSpotterGame(): MinigameModule {
         ctx.textAlign = "center";
         ctx.fillStyle = phase === "playing" ? theme.accent : theme.textFaint;
         ctx.font = `700 22px ${theme.fontDisplay}`;
-        ctx.fillText(formatTime(elapsed), size.width / 2, 80);
+        ctx.fillText(formatTime(elapsed), size.width / 2, 150);
       }
 
       if (phase === "playing") {
         ctx.font = `500 11px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText(`Tippe alle Züge an${remainingTrains > 0 ? ` (noch ${remainingTrains})` : ""}`, size.width / 2, 100);
+        ctx.fillText(`Tippe alle Züge an${remainingTrains > 0 ? ` (noch ${remainingTrains})` : ""}`, size.width / 2, 172);
       }
     },
 
     cleanup() {
       closeHighscoreModal?.();
       closeHighscoreModal = null;
+      highscoreBanner?.destroy();
       closeIntro?.();
       closeIntro = null;
       gridHost?.parentElement?.remove();
@@ -223,4 +226,5 @@ registerGame({
   badge: "ZS",
   accent: "#0059a4",
   create: createTrainSpotterGame,
+  highscoreCategories: [{ board: "default", label: "Bestzeit", direction: "lower-better", formatValue: formatTime }],
 });

@@ -27,8 +27,6 @@ function createDjMixerGame(): MinigameModule {
   let audioCtx: AudioContext | null = null;
   let closeIntro: (() => void) | null = null;
   let masterGain: GainNode | null = null;
-  let rowGains: GainNode[] = [];
-  let rowVolumes: number[] = SOUND_DEFS.map(() => 1);
 
   let bars = DEFAULT_BARS;
   let grid: boolean[][] = SOUND_DEFS.map(() => new Array(bars * STEPS_PER_BAR).fill(false));
@@ -47,6 +45,7 @@ function createDjMixerGame(): MinigameModule {
   let volumeLabel: HTMLSpanElement;
   let barsLabel: HTMLSpanElement;
   let cellEls: HTMLButtonElement[][] = [];
+  let gridResizeObserver: ResizeObserver | null = null;
 
   function totalSteps(): number {
     return bars * STEPS_PER_BAR;
@@ -59,15 +58,6 @@ function createDjMixerGame(): MinigameModule {
       masterGain = audioCtx.createGain();
       masterGain.gain.value = volume;
       masterGain.connect(compressor).connect(audioCtx.destination);
-      // Ein Gain-Knoten pro Sound-Zeile, dazwischengeschaltet vor dem
-      // Master-Gain -- so laesst sich jede Zeile einzeln leiser/lauter
-      // regeln, unabhaengig von der Gesamtlautstaerke.
-      rowGains = SOUND_DEFS.map((_, i) => {
-        const gain = audioCtx!.createGain();
-        gain.gain.value = rowVolumes[i];
-        gain.connect(masterGain!);
-        return gain;
-      });
       preloadSamples(audioCtx);
     }
     if (audioCtx.state === "suspended") void audioCtx.resume();
@@ -80,11 +70,6 @@ function createDjMixerGame(): MinigameModule {
     if (volumeLabel) volumeLabel.textContent = `${Math.round(volume * 100)}%`;
   }
 
-  function setRowVolume(row: number, next: number): void {
-    rowVolumes[row] = Math.min(1, Math.max(0, next));
-    if (rowGains[row]) rowGains[row].gain.value = rowVolumes[row];
-  }
-
   function secondsPerStep(): number {
     return 60 / bpm / 4; // 16tel-Noten
   }
@@ -95,12 +80,10 @@ function createDjMixerGame(): MinigameModule {
     if (sound.play) {
       // Die Sample-Clips werden relativ zum Referenztempo gestreckt/gestaucht,
       // damit sie beim Aendern des Tempos im Takt bleiben (siehe sounds.ts).
-      // Ueber den Zeilen-eigenen Gain-Knoten geroutet, damit der
-      // Lautstaerkeregler dieser Zeile greift.
-      sound.play(ctx, time, rowGains[trackIndex] ?? masterGain!, bpm / DEFAULT_BPM);
+      sound.play(ctx, time, masterGain!, bpm / DEFAULT_BPM);
     } else if (sound.text) {
       const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
-      setTimeout(() => speakPhrase(sound.text!, rowVolumes[trackIndex]), delayMs);
+      setTimeout(() => speakPhrase(sound.text!), delayMs);
     }
   }
 
@@ -187,30 +170,13 @@ function createDjMixerGame(): MinigameModule {
       const rowEl = document.createElement("div");
       rowEl.className = "seq-row";
 
-      const labelCol = document.createElement("div");
-      labelCol.className = "seq-row__labelcol";
-
       const label = document.createElement("button");
       label.type = "button";
       label.className = "seq-row__label";
       label.textContent = sound.label;
       label.title = sound.hint;
       label.addEventListener("click", () => previewSound(r));
-      labelCol.appendChild(label);
-
-      // Bewusst winzig -- nur fuer die Feinabstimmung dieser einen Zeile
-      // gegenueber den anderen, nicht als vollwertiger Regler gedacht.
-      const rowVolume = document.createElement("input");
-      rowVolume.type = "range";
-      rowVolume.min = "0";
-      rowVolume.max = "100";
-      rowVolume.value = String(Math.round(rowVolumes[r] * 100));
-      rowVolume.className = "seq-row__volume";
-      rowVolume.setAttribute("aria-label", `Lautstärke ${sound.label}`);
-      rowVolume.addEventListener("input", () => setRowVolume(r, Number(rowVolume.value) / 100));
-      labelCol.appendChild(rowVolume);
-
-      rowEl.appendChild(labelCol);
+      rowEl.appendChild(label);
 
       const cellsWrap = document.createElement("div");
       cellsWrap.className = "seq-row__cells";
@@ -228,6 +194,23 @@ function createDjMixerGame(): MinigameModule {
       rowEl.appendChild(cellsWrap);
       seqHost.appendChild(rowEl);
     });
+    fitGridToContainer();
+  }
+
+  /**
+   * Berechnet aus der tatsaechlich verfuegbaren Hoehe von seqHost eine
+   * gemeinsame Zeilenhoehe, damit alle 16 Sound-Zeilen ohne vertikales
+   * Scrollen auf den Bildschirm passen -- die Breite folgt automatisch der
+   * CSS-Grid-Spaltenzahl (repeat(totalSteps(), 1fr)), reagiert also von
+   * selbst auf mehr/weniger Takte.
+   */
+  function fitGridToContainer(): void {
+    const rows = SOUND_DEFS.length;
+    if (rows === 0) return;
+    const rowGap = 4;
+    const available = seqHost.clientHeight - (rows - 1) * rowGap;
+    const rowHeight = Math.max(18, Math.floor(available / rows));
+    seqHost.style.setProperty("--seq-row-height", `${rowHeight}px`);
   }
 
   return {
@@ -342,13 +325,10 @@ function createDjMixerGame(): MinigameModule {
       controls2.append(playBtn, clearBtn);
       controlsBar.appendChild(controls2);
 
-      const intro = document.createElement("div");
-      intro.style.textAlign = "center";
-      intro.style.fontSize = "0.8rem";
-      intro.style.color = "var(--text-muted)";
-      intro.style.margin = "6px 0 4px";
-      intro.textContent = "Tippe Felder an, um einen Beat aus Zuggeräuschen zu bauen.";
-      panel.appendChild(intro);
+      // Kein Scrollen mehr noetig -- seqHost bekommt per Flex den kompletten
+      // restlichen Platz unter der Controls-Leiste, buildGridDom/
+      // fitGridToContainer verteilen die Sound-Zeilen dann exakt darauf.
+      panel.style.overflowY = "hidden";
 
       seqHost = document.createElement("div");
       seqHost.className = "seq";
@@ -356,6 +336,9 @@ function createDjMixerGame(): MinigameModule {
       buildGridDom();
 
       env.overlay.appendChild(panel);
+
+      gridResizeObserver = new ResizeObserver(() => fitGridToContainer());
+      gridResizeObserver.observe(seqHost);
 
       closeIntro = showGameIntro({
         title: "DJ-Mischer",
@@ -394,6 +377,8 @@ function createDjMixerGame(): MinigameModule {
     cleanup() {
       closeIntro?.();
       closeIntro = null;
+      gridResizeObserver?.disconnect();
+      gridResizeObserver = null;
       playing = false;
       stopSpeech();
       if (audioCtx) {

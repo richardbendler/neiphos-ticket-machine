@@ -773,6 +773,13 @@ button {
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  /* Der unmittelbare Elternknoten (z.B. ein schmuckloser Wrapper-Div in
+     count-passengers) sitzt oft selbst in einem Flex-Container mit
+     align-items:center -- ohne stretch wuerde dieser Wrapper (und mit ihm
+     .osk trotz width:100%) auf seinen eigenen Inhalt zusammenschrumpfen,
+     ein zirkulaerer Bezug, der die Groessenberechnung der Zifferntasten
+     unbrauchbar macht (siehe fitNumericKeys in OnScreenKeyboard.ts). */
+  align-self: stretch;
   user-select: none;
 }
 
@@ -809,11 +816,19 @@ button {
   flex: 1.8;
 }
 
-/* Ziffernblock (z.B. Passagiere zaehlen) hat nur 3 Tasten pro Reihe statt
-   der bis zu 10 beim Buchstaben-Layout -- darum duerfen die Tasten hier
-   spuerbar hoeher sein, damit sie ungefaehr quadratisch statt flach wirken. */
+/* Ziffernblock (z.B. Passagiere zaehlen): Tastengroesse kommt als fester
+   Pixelwert von OnScreenKeyboard.fitNumericKeys() (per ResizeObserver aus
+   der tatsaechlich verfuegbaren Breite berechnet) -- garantiert quadratische
+   Tasten, die nie ueber den Bildschirmrand hinausragen, statt sich auf
+   reines CSS flex/aspect-ratio zu verlassen. */
+.osk--numeric .osk__row {
+  gap: var(--osk-row-gap, 6px);
+}
+
 .osk--numeric .osk__key {
-  height: 78px;
+  flex: none;
+  width: var(--osk-key-size, 78px);
+  height: var(--osk-key-size, 78px);
   font-size: 1.4rem;
 }
 

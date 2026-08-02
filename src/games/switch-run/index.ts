@@ -11,7 +11,7 @@ const HIGHSCORE_POPUP_DELAY_MS = 2000;
 const FORK_DURATION = 1.1;
 const OUTCOME_DURATION = 1.3;
 const BASE_COUNTDOWN = 10;
-const MIN_COUNTDOWN = 4;
+const MIN_COUNTDOWN = 3;
 // Der Zug faehrt waehrend der "forking"-Phase nur bis knapp vor die Weichen-
 // Aeste (nicht bis zum rechnerischen Fluchtpunkt) -- dort ist er noch gross
 // genug, dass Zug UND (im Sackgassen-Fall) die Barriere davor gut sichtbar
@@ -162,7 +162,7 @@ function createSwitchRunGame(): MinigameModule {
       }
     } else {
       score += 1;
-      roundDuration = Math.max(MIN_COUNTDOWN, BASE_COUNTDOWN - score * 0.4);
+      roundDuration = Math.max(MIN_COUNTDOWN, BASE_COUNTDOWN - score * 1);
       countdown = roundDuration;
       deadEndLane = pickDeadEnd();
       chosenLane = "center";

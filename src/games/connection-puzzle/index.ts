@@ -13,6 +13,9 @@ const GAME_ID = "connection-puzzle";
 const TOTAL_ROUNDS = 5;
 const TOTAL_ATTEMPTS = 3;
 const POINTS_BY_ATTEMPT = [100, 60, 30];
+// Erst das Endergebnis in Ruhe zeigen, das Highscore-Popup kommt bewusst
+// erst etwas spaeter -- sonst ueberlagern sich beide sofort.
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
 
 function formatPoints(value: number): string {
   return `${value} Punkte`;
@@ -40,6 +43,7 @@ function createConnectionPuzzleGame(): MinigameModule {
 
   let closeHighscoreModal: (() => void) | null = null;
   let closeIntro: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let panel: HTMLDivElement;
 
   function startNewRound(): RoundState {
@@ -72,6 +76,9 @@ function createConnectionPuzzleGame(): MinigameModule {
       error,
       feedback,
       summary,
+      // Beim letzten Versuch schon eine Linie verraten, statt die Aufloesung
+      // erst nach dem (dann meist erwarteten) Scheitern zu zeigen.
+      hint: phase === "building" && roundState.attempt === TOTAL_ATTEMPTS ? roundState.optimal.lineIds[0] : undefined,
     };
 
     renderScreen(panel, base, {
@@ -158,14 +165,17 @@ function createConnectionPuzzleGame(): MinigameModule {
       phase = "summary";
       render();
       if (outcome !== "none") {
-        closeHighscoreModal = promptHighscoreName({
-          message: `Du hast ${totalScore} Punkte erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert" : "neuer Bestwert"} für die Verbindungssuche!`,
-          onDone: (name) => {
-            closeHighscoreModal = null;
-            highscoreBanner.update(recordHighscore(GAME_ID, name, totalScore, "higher-better"));
-            render();
-          },
-        });
+        highscoreTimer = setTimeout(() => {
+          highscoreTimer = null;
+          closeHighscoreModal = promptHighscoreName({
+            message: `Du hast ${totalScore} Punkte erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert" : "neuer Bestwert"} für die Verbindungssuche!`,
+            onDone: (name) => {
+              closeHighscoreModal = null;
+              highscoreBanner.update(recordHighscore(GAME_ID, name, totalScore, "higher-better"));
+              render();
+            },
+          });
+        }, HIGHSCORE_POPUP_DELAY_MS);
       }
     } else {
       round += 1;
@@ -221,6 +231,8 @@ function createConnectionPuzzleGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       closeIntro?.();

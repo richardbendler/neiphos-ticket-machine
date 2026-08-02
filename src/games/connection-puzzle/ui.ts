@@ -24,6 +24,7 @@ export interface ScreenState {
   totalAttempts: number;
   selectedLines: string[];
   error?: string | null;
+  hint?: string;
   feedback?: {
     success: boolean;
     message: string;
@@ -137,6 +138,17 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
     container.appendChild(err);
   }
 
+  if (state.hint) {
+    const hint = document.createElement("div");
+    hint.style.textAlign = "center";
+    hint.style.fontSize = "0.8rem";
+    hint.style.fontWeight = "700";
+    hint.style.color = "var(--accent-dark)";
+    hint.style.margin = "4px 0";
+    hint.textContent = `💡 Tipp: Eine der Linien ist ${state.hint}.`;
+    container.appendChild(hint);
+  }
+
   const btnRow = document.createElement("div");
   btnRow.style.display = "flex";
   btnRow.style.gap = "8px";
@@ -177,11 +189,11 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
     container.appendChild(label);
 
     const row = document.createElement("div");
-    row.className = "chip-row";
+    row.className = "chip-row chip-row--picker";
     for (const line of grouped[mode]) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "chip";
+      btn.className = "chip chip--picker";
       btn.style.setProperty("--chip-color", line.color);
       btn.textContent = line.label.split(" ")[0];
       btn.addEventListener("click", () => actions.onSelectLine(line.id));

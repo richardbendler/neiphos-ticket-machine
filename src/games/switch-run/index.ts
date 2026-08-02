@@ -7,6 +7,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "switch-run";
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
 const FORK_DURATION = 1.1;
 const OUTCOME_DURATION = 1.3;
 const BASE_COUNTDOWN = 10;
@@ -49,6 +50,7 @@ function createSwitchRunGame(): MinigameModule {
   let crashed = false;
   let tieOffset = 0;
   let closeHighscoreModal: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let closeIntro: (() => void) | null = null;
   let highscoreBanner: HighscoreBannerHandle;
 
@@ -133,13 +135,16 @@ function createSwitchRunGame(): MinigameModule {
       const outcome = getHighscoreOutcome(GAME_ID, score, "higher-better");
       updateHud();
       if (outcome !== "none") {
-        closeHighscoreModal = promptHighscoreName({
-          message: `Du hast ${score} Weiche${score === 1 ? "" : "n"} geschafft — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-          onDone: (name) => {
-            closeHighscoreModal = null;
-            highscoreBanner.update(recordHighscore(GAME_ID, name, score, "higher-better"));
-          },
-        });
+        highscoreTimer = setTimeout(() => {
+          highscoreTimer = null;
+          closeHighscoreModal = promptHighscoreName({
+            message: `Du hast ${score} Weiche${score === 1 ? "" : "n"} geschafft — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+            onDone: (name) => {
+              closeHighscoreModal = null;
+              highscoreBanner.update(recordHighscore(GAME_ID, name, score, "higher-better"));
+            },
+          });
+        }, HIGHSCORE_POPUP_DELAY_MS);
       }
     } else {
       score += 1;
@@ -420,6 +425,8 @@ function createSwitchRunGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       closeIntro?.();

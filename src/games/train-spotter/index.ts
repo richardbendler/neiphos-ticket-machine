@@ -10,6 +10,7 @@ import { fitSquareToContainer } from "../../core/squareFit";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-spotter";
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
 const GRID_SIZE = 4;
 const CELL_COUNT = GRID_SIZE * GRID_SIZE;
 const MIN_TRAINS = 6;
@@ -58,6 +59,7 @@ function createTrainSpotterGame(): MinigameModule {
   let cells: Cell[] = [];
   let remainingTrains = 0;
   let closeHighscoreModal: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let closeIntro: (() => void) | null = null;
   let highscoreBanner: HighscoreBannerHandle;
 
@@ -105,13 +107,16 @@ function createTrainSpotterGame(): MinigameModule {
     const outcome = getHighscoreOutcome(GAME_ID, elapsed, "lower-better");
     renderDone();
     if (outcome !== "none") {
-      closeHighscoreModal = promptHighscoreName({
-        message: `${formatTime(elapsed)} — ${outcome === "tied-best" ? "eingestellte Bestzeit" : "neue Bestzeit"} für den Zug-Spotter!`,
-        onDone: (name) => {
-          closeHighscoreModal = null;
-          highscoreBanner.update(recordHighscore(GAME_ID, name, elapsed, "lower-better"));
-        },
-      });
+      highscoreTimer = setTimeout(() => {
+        highscoreTimer = null;
+        closeHighscoreModal = promptHighscoreName({
+          message: `${formatTime(elapsed)} — ${outcome === "tied-best" ? "eingestellte Bestzeit" : "neue Bestzeit"} für den Zug-Spotter!`,
+          onDone: (name) => {
+            closeHighscoreModal = null;
+            highscoreBanner.update(recordHighscore(GAME_ID, name, elapsed, "lower-better"));
+          },
+        });
+      }, HIGHSCORE_POPUP_DELAY_MS);
     }
   }
 
@@ -216,6 +221,8 @@ function createTrainSpotterGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       highscoreBanner?.destroy();

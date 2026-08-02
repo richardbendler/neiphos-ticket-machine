@@ -45,16 +45,26 @@ export function renderHighscoreBoard(): HTMLElement {
       label.textContent = category.label;
       row.appendChild(label);
 
-      const value = document.createElement("span");
       if (board && board.entries.length > 0) {
-        value.className = "highscore-board__value";
-        const names = board.entries.map((e) => e.name).join(", ");
-        value.innerHTML = `<strong>${category.formatValue(board.value)}</strong> — ${names}`;
+        const valueWrap = document.createElement("span");
+        valueWrap.className = "highscore-board__values";
+        // Bei Gleichstand stehen alle Halter des Bestwerts einzeln
+        // untereinander, statt zu einer einzigen Zeile zusammengefasst zu
+        // werden -- so ist auf einen Blick klar, wer sich den Highscore
+        // teilt.
+        for (const entry of board.entries) {
+          const value = document.createElement("span");
+          value.className = "highscore-board__value";
+          value.innerHTML = `<strong>${category.formatValue(board.value)}</strong> — ${entry.name}`;
+          valueWrap.appendChild(value);
+        }
+        row.appendChild(valueWrap);
       } else {
+        const value = document.createElement("span");
         value.className = "highscore-board__value highscore-board__value--empty";
         value.textContent = "Noch kein Highscore";
+        row.appendChild(value);
       }
-      row.appendChild(value);
 
       section.appendChild(row);
     }

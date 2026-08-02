@@ -13,6 +13,7 @@ const GAME_ID = "train-sim";
 // gespeichert hat -- die waeren sonst als (falsch interpretierte) Zugzahlen
 // wieder aufgetaucht.
 const BOARD = "kyritz";
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
 const MIN_SPEED = 20;
 const MAX_SPEED = 100;
 const SPEED_STEP = 10;
@@ -43,6 +44,7 @@ function createTrainSimGame(): MinigameModule {
 
   let closeIntro: (() => void) | null = null;
   let closeHighscoreModal: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
 
   let topBar: HTMLDivElement;
@@ -146,13 +148,16 @@ function createTrainSimGame(): MinigameModule {
     if (!reached) return;
     const outcome = getHighscoreOutcome(GAME_ID, legsCompleted, "lower-better", BOARD);
     if (outcome !== "none") {
-      closeHighscoreModal = promptHighscoreName({
-        message: `${formatLegCount(legsCompleted)} bis nach Kyritz — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-        onDone: (name) => {
-          closeHighscoreModal = null;
-          highscoreBanner.update(recordHighscore(GAME_ID, name, legsCompleted, "lower-better", BOARD));
-        },
-      });
+      highscoreTimer = setTimeout(() => {
+        highscoreTimer = null;
+        closeHighscoreModal = promptHighscoreName({
+          message: `${formatLegCount(legsCompleted)} bis nach Kyritz — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          onDone: (name) => {
+            closeHighscoreModal = null;
+            highscoreBanner.update(recordHighscore(GAME_ID, name, legsCompleted, "lower-better", BOARD));
+          },
+        });
+      }, HIGHSCORE_POPUP_DELAY_MS);
     }
   }
 
@@ -371,6 +376,8 @@ function createTrainSimGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
       closeIntro?.();
       closeIntro = null;
       closeHighscoreModal?.();

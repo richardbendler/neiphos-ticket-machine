@@ -34,6 +34,9 @@ const BOARD_SIZES: BoardSize[] = [
 ];
 
 const ALL_IMAGES: string[] = trainCards.map((c) => c.image);
+// Bildausschnitt (object-position) je Zugfoto beim quadratischen Zuschnitt --
+// siehe TrainCard.focus in data/trains.ts, Default ist Bildmitte.
+const FOCUS_BY_IMAGE = new Map(trainCards.map((c) => [c.image, c.focus ?? "50% 50%"]));
 
 interface Card {
   image: string;
@@ -266,6 +269,7 @@ function createMemoryGame(): MinigameModule {
       const img = btn.querySelector("img")!;
       const isRevealed = flipped.includes(i) || card.matched;
       img.src = card.image;
+      img.style.objectPosition = FOCUS_BY_IMAGE.get(card.image) ?? "50% 50%";
       btn.classList.toggle("tile-grid__cell--hidden", !isRevealed);
       btn.classList.toggle("tile-grid__cell--matched", card.matched);
       const back = btn.querySelector<HTMLDivElement>(".memory-back");

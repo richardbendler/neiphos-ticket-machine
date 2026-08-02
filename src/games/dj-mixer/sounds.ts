@@ -6,7 +6,7 @@
  * siehe index.ts).
  */
 
-export type SoundId = "doorBeep" | "doorThud" | "switchClack" | "brakeHiss" | "horn" | "chime";
+export type SoundId = "doorChime" | "doorThud" | "switchClack" | "brakeHiss" | "horn" | "chime" | "announcement";
 
 type PlayFn = (ctx: AudioContext, time: number, destination: AudioNode) => void;
 
@@ -31,16 +31,26 @@ function envGain(ctx: AudioContext, time: number, attack: number, decay: number,
   return gain;
 }
 
-const playDoorBeep: PlayFn = (ctx, time, destination) => {
-  for (const offset of [0, 0.16]) {
+/**
+ * Das klassische Berliner S-Bahn-Tuerschliesssignal "Da-Duu-Da": drei Toene
+ * C5-E5-C5 (c-moll... genauer: C-Dur-Dreiklangston C-E-C), electronisch/
+ * schnarrend statt weich -- daher Rechteckwelle statt Sinus.
+ */
+const DOOR_CHIME_NOTES = [523.25, 659.25, 523.25];
+
+const playDoorChime: PlayFn = (ctx, time, destination) => {
+  const noteDuration = 0.15;
+  const gap = 0.03;
+  DOOR_CHIME_NOTES.forEach((freq, i) => {
+    const t = time + i * (noteDuration + gap);
     const osc = ctx.createOscillator();
     osc.type = "square";
-    osc.frequency.value = 1050;
-    const gain = envGain(ctx, time + offset, 0.005, 0.09, 0.22);
+    osc.frequency.value = freq;
+    const gain = envGain(ctx, t, 0.004, noteDuration - 0.02, 0.2);
     osc.connect(gain).connect(destination);
-    osc.start(time + offset);
-    osc.stop(time + offset + 0.13);
-  }
+    osc.start(t);
+    osc.stop(t + noteDuration + 0.02);
+  });
 };
 
 const playDoorThud: PlayFn = (ctx, time, destination) => {
@@ -112,14 +122,70 @@ export interface SoundDef {
   id: SoundId;
   label: string;
   hint: string;
-  play: PlayFn;
+  /** Web-Audio-Sounds haben play(); die gesprochene Ansage nutzt stattdessen text (siehe speakPhrase). */
+  play?: PlayFn;
+  text?: string;
 }
 
 export const SOUND_DEFS: SoundDef[] = [
-  { id: "doorBeep", label: "Türsignal", hint: "Piep-piep beim Türschließen", play: playDoorBeep },
+  { id: "doorChime", label: "Da-Düü-Da", hint: "Das klassische S-Bahn-Türschließsignal", play: playDoorChime },
   { id: "doorThud", label: "Tür zu", hint: "Dumpfes Schließgeräusch", play: playDoorThud },
   { id: "switchClack", label: "Weiche", hint: "Klacken beim Überfahren", play: playSwitchClack },
   { id: "brakeHiss", label: "Bremse", hint: "Pneumatisches Zischen", play: playBrakeHiss },
   { id: "horn", label: "Signalhorn", hint: "Zweiklang-Signal", play: playHorn },
   { id: "chime", label: "Ankunft", hint: "Ding-Dong-Ansage-Chime", play: playChime },
+  { id: "announcement", label: "Ansage", hint: '„Bitte die Fahrkarten bereithalten" (Sprachausgabe)', text: "Bitte die Fahrkarten bereithalten." },
 ];
+
+/**
+ * Gesprochene Ansage per Web Speech API (SpeechSynthesis) -- keine Audiodatei,
+ * dadurch keine Lizenzfrage. Braucht eine lokal installierte deutsche
+ * TTS-Stimme im Browser/System; ist die keine vorhanden, bleibt der Track
+ * einfach stumm (kein Fehler, kein Absturz).
+ */
+let cachedGermanVoice: SpeechSynthesisVoice | null | undefined;
+
+// Chrome laedt Stimmen teils asynchron nach -- der erste getVoices()-Aufruf
+// kommt oft mit leerer Liste zurueck. Sobald "voiceschanged" feuert, den
+// Cache einmalig verwerfen, damit die naechste Anfrage die echte Stimme findet.
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  window.speechSynthesis.addEventListener(
+    "voiceschanged",
+    () => {
+      cachedGermanVoice = undefined;
+    },
+    { once: true },
+  );
+}
+
+function getGermanVoice(): SpeechSynthesisVoice | null {
+  if (cachedGermanVoice !== undefined) return cachedGermanVoice;
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    cachedGermanVoice = null;
+    return null;
+  }
+  const voices = window.speechSynthesis.getVoices();
+  cachedGermanVoice = voices.find((v) => v.lang.toLowerCase().startsWith("de")) ?? voices[0] ?? null;
+  return cachedGermanVoice;
+}
+
+export function speakPhrase(text: string): void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "de-DE";
+    const voice = getGermanVoice();
+    if (voice) utterance.voice = voice;
+    utterance.rate = 1.05;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    // Keine Sprachausgabe verfuegbar -- Track bleibt einfach stumm.
+  }
+}
+
+export function stopSpeech(): void {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+}

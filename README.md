@@ -6,8 +6,9 @@ Chromium läuft im Kiosk-Modus, komplett ohne Internetverbindung.
 
 Aus einem Hauptmenü heraus sind sieben Zug-/Bahn-Minigames erreichbar:
 
-1. **Verbindungssuche** – die schnellste Route zwischen zwei Berliner
-   Haltestellen aus echten U-/S-Bahn-/Tram-Linien zusammenpuzzeln.
+1. **Verbindungssuche** – zwischen zwei Berliner Haltestellen die Linien
+   (U-/S-Bahn/Tram) in der richtigen Reihenfolge wählen, um eine möglichst
+   direkte Verbindung zu puzzeln.
 2. **Zug-Quartett** – Top-Trumps mit 20 recherchierten, echten Zügen.
 3. **Passagiere zählen** – ein Zug fährt vorbei, du zählst die Fahrgäste
    hinter den Fenstern und schätzt die Anzahl.
@@ -353,7 +354,14 @@ Gemeinsame Bausteine, die sich jedes neue Spiel einfach mitnehmen kann:
   Wikimedia Commons, jeweils mit Lizenz und Urheber:in
 - **"Kein Zug"-Fotos** (Zug-Spotter/Memory): `src/assets/images/distractors/CREDITS.md`
 - **DJ-Mischer-Sounds:** komplett prozedural per Web Audio API synthetisiert
-  (`games/dj-mixer/sounds.ts`), keine Audiodateien, keine Lizenzfragen
+  (`games/dj-mixer/sounds.ts`), keine Audiodateien, keine Lizenzfragen. Das
+  Türschließsignal ist bewusst dem echten, ikonischen Berliner
+  S-Bahn-"Da-Düü-Da" nachempfunden (Tondreiklang C–E–C). Die Ansage-Spur
+  ("Bitte die Fahrkarten bereithalten") nutzt die Web Speech API
+  (`speechSynthesis`) statt einer Audiodatei — funktioniert offline, sofern
+  auf dem Gerät/im Browser eine deutsche TTS-Stimme installiert ist (bei
+  Standard-Raspberry-Pi-OS ggf. nicht der Fall); ist keine Stimme vorhanden,
+  bleibt die Spur einfach stumm, es gibt keinen Fehler.
 - **Berlin-Nahverkehrsnetz** (`src/data/berlinNetwork.ts`): recherchiert über
   die deutsch-/englischsprachige Wikipedia. Enthält alle U-Bahn-Linien
   (U1–U9, U12) und die wichtigsten S-Bahn-Linien mit echter, stationsgenauer
@@ -386,7 +394,10 @@ Gemeinsame Bausteine, die sich jedes neue Spiel einfach mitnehmen kann:
   öffnen, ohne dass das explizit gewünscht ist.
 - **Tram-Netz** ist wie oben beschrieben eine kuratierte Auswahl der
   zentralen Linien, keine vollständige Abbildung aller Berliner Tramlinien.
-- **DJ-Mischer** hat aktuell sechs feste Sounds und ein gemeinsames
+  Busse sind in der Verbindungssuche bewusst (noch) nicht enthalten — das
+  wäre nochmal ein eigener, größerer Rechercheaufwand.
+- **DJ-Mischer** hat aktuell sechs synthetisierte Sounds plus eine
+  gesprochene Ansage, und ein gemeinsames
   16-Step-Raster für alle Spuren (kein individuelles Tempo pro Spur, keine
   Pattern-Speicherung). Deckt die Kernidee "eigenen Beat aus
   Zuggeräuschen bauen" ab, ließe sich aber gut um Presets, Lautstärke pro

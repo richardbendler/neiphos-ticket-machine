@@ -1,6 +1,6 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
-import { SOUND_DEFS } from "./sounds";
+import { SOUND_DEFS, speakPhrase, stopSpeech } from "./sounds";
 import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
@@ -51,10 +51,20 @@ function createDjMixerGame(): MinigameModule {
     return 60 / bpm / 4; // 16tel-Noten
   }
 
-  function scheduleStep(step: number, time: number): void {
+  function triggerSound(trackIndex: number, time: number): void {
     const ctx = audioCtx!;
+    const sound = SOUND_DEFS[trackIndex];
+    if (sound.play) {
+      sound.play(ctx, time, masterGain!);
+    } else if (sound.text) {
+      const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
+      setTimeout(() => speakPhrase(sound.text!), delayMs);
+    }
+  }
+
+  function scheduleStep(step: number, time: number): void {
     grid.forEach((row, trackIndex) => {
-      if (row[step]) SOUND_DEFS[trackIndex].play(ctx, time, masterGain!);
+      if (row[step]) triggerSound(trackIndex, time);
     });
     stepQueue.push({ step, time });
   }
@@ -65,6 +75,7 @@ function createDjMixerGame(): MinigameModule {
       playBtn.textContent = "▶ Abspielen";
       visualStep = -1;
       syncPlayheadVisuals();
+      stopSpeech();
       return;
     }
     const ctx = ensureAudio();
@@ -87,7 +98,7 @@ function createDjMixerGame(): MinigameModule {
 
   function previewSound(row: number): void {
     const ctx = ensureAudio();
-    SOUND_DEFS[row].play(ctx, ctx.currentTime + 0.01, masterGain!);
+    triggerSound(row, ctx.currentTime + 0.01);
   }
 
   function syncCellVisuals(): void {
@@ -245,6 +256,7 @@ function createDjMixerGame(): MinigameModule {
       closeIntro?.();
       closeIntro = null;
       playing = false;
+      stopSpeech();
       if (audioCtx) {
         void audioCtx.close();
         audioCtx = null;

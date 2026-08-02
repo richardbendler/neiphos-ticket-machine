@@ -790,6 +790,14 @@ button {
   flex: 1.8;
 }
 
+/* Ziffernblock (z.B. Passagiere zaehlen) hat nur 3 Tasten pro Reihe statt
+   der bis zu 10 beim Buchstaben-Layout -- darum duerfen die Tasten hier
+   spuerbar hoeher sein, damit sie ungefaehr quadratisch statt flach wirken. */
+.osk--numeric .osk__key {
+  height: 78px;
+  font-size: 1.4rem;
+}
+
 .osk__key--accent {
   background: linear-gradient(180deg, #ffe08a, var(--accent));
   color: #2b2004;

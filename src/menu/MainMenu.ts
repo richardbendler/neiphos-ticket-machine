@@ -2,14 +2,24 @@ import { icons } from "../core/icons";
 import type { GameMeta } from "../games/registry";
 
 const GRID_GAP = 12;
-// Breite Tasten statt quadratischer Icon-Kacheln -- angelehnt an die
-// Tastenform echter Fahrkartenautomaten-Bildschirme (Text linksbuendig,
-// kleines Farb-Icon rechts). Muss mit .menu-tile { aspect-ratio: ... } in
-// style.css uebereinstimmen, sonst rechnet computeGridLayout mit einer
-// anderen Kachelform, als tatsaechlich gerendert wird.
-const TILE_ASPECT = 2.35;
-const MIN_TILE_WIDTH = 200;
-const MAX_TILE_WIDTH = 460;
+// Kachelhoehe kommt rein aus .menu-tile { aspect-ratio: 2.35/1 } in
+// style.css -- hier wird nur noch die Breite berechnet (siehe
+// tileWidthForCols), die Hoehe ergibt sich daraus automatisch per CSS.
+const MAX_TILE_WIDTH = 620;
+const MIN_TILE_WIDTH = 40;
+// Querformat (Breite >= Hoehe): immer 3 Spalten (bei aktuell 9 Spielen
+// also ein 3x3-Raster). Hochformat: bevorzugt 2 Spalten, faellt aber auf 1
+// zurueck, wenn selbst 2 Spalten die Kacheln unangenehm schmal machen wuerden
+// -- Kacheln UND Schrift werden ansonsten per Skalierungsfaktor kleiner/
+// groesser, statt bei wenig Platz auf noch mehr Spalten umzuspringen.
+const LANDSCAPE_COLS = 3;
+const PORTRAIT_PREFERRED_COLS = 2;
+const PORTRAIT_MIN_TILE_WIDTH_FOR_TWO_COLS = 170;
+// Kachelbreite, bei der Schrift/Icon in style.css ihre "normale" Groesse
+// (1.08rem/0.76rem/46px) haben -- der Skalierungsfaktor ist relativ dazu.
+const REFERENCE_TILE_WIDTH = 280;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2.2;
 
 export interface MainMenuResult {
   element: HTMLElement;
@@ -18,51 +28,35 @@ export interface MainMenuResult {
 }
 
 /**
- * Berechnet die Spaltenzahl + Kachelbreite, mit der N Kacheln (festes
- * Seitenverhaeltnis) einen gegebenen Bereich moeglichst vollstaendig
- * ausfuellen -- sowohl in der Breite als auch in der Hoehe. Reines
- * CSS-Grid (auto-fill/minmax) kennt nur die Breite, nicht die verfuegbare
- * Hoehe; das reicht nicht, wenn die Kacheln wirklich einen Grossteil des
- * Bildschirms fuellen sollen, statt oben oder seitlich Luft zu lassen.
+ * Kachelbreite fuer eine gegebene Spaltenzahl -- haengt bewusst NUR von der
+ * verfuegbaren Breite ab, nicht von der Hoehe. Ein fruehere Version bezog
+ * auch die Hoehe mit ein (um ohne Scrollen auszukommen), das liess Kacheln
+ * bei vielen Zeilen (z. B. eine einzelne schmale Spalte mit 9 Kacheln
+ * untereinander) aber absurd schmal werden -- mit Buchstabe-fuer-Buchstabe-
+ * Zeilenumbruch. .menu-grid ist ohnehin scrollbar, also darf die Liste
+ * bei Bedarf einfach laenger werden, statt in der Breite zu schrumpfen.
  */
+function tileWidthForCols(containerWidth: number, cols: number): number {
+  const tileWidth = (containerWidth - GRID_GAP * (cols - 1)) / cols;
+  return Math.max(MIN_TILE_WIDTH, Math.min(tileWidth, MAX_TILE_WIDTH));
+}
+
 function computeGridLayout(containerWidth: number, containerHeight: number, count: number): { cols: number; tileWidth: number } {
-  // Zwei Durchgaenge: zuerst mit Mindestbreite (angenehme Lesbarkeit auf
-  // normal grossen Bildschirmen), danach ohne -- auf sehr kleinen bzw. sehr
-  // flachen Bildschirmen (z. B. Handy-Querformat) wuerde sonst JEDE
-  // Spaltenzahl an der Mindestbreite scheitern und der bisherige Fallback
-  // (eine Spalte, volle Breite) ignorierte dabei die verfuegbare Hoehe
-  // komplett -- die Kacheln wurden dann per aspect-ratio viel hoeher
-  // gerendert, als die Grid-Zeile tatsaechlich Platz hatte, und ueberlappten
-  // sich dadurch bis zur Unkenntlichkeit. Der zweite Durchgang liefert immer
-  // ein Paar (tileWidth, tileHeight), das nachweislich in beide Richtungen
-  // passt, egal wie klein.
-  for (const minWidth of [MIN_TILE_WIDTH, 0]) {
-    let best: { cols: number; tileWidth: number; area: number } | null = null;
+  const isPortrait = containerHeight > containerWidth;
 
-    for (let cols = 1; cols <= count; cols++) {
-      const rows = Math.ceil(count / cols);
-      const widthFromCols = (containerWidth - GRID_GAP * (cols - 1)) / cols;
-      const heightFromRows = (containerHeight - GRID_GAP * (rows - 1)) / rows;
-
-      let tileWidth = widthFromCols;
-      let tileHeight = tileWidth / TILE_ASPECT;
-      if (tileHeight > heightFromRows) {
-        tileHeight = heightFromRows;
-        tileWidth = tileHeight * TILE_ASPECT;
-      }
-      tileWidth = Math.min(tileWidth, MAX_TILE_WIDTH);
-      if (tileWidth < minWidth) continue;
-
-      const area = tileWidth * (tileWidth / TILE_ASPECT);
-      if (!best || area > best.area) best = { cols, tileWidth, area };
-    }
-
-    if (best) return { cols: best.cols, tileWidth: Math.floor(best.tileWidth) };
+  if (!isPortrait) {
+    const cols = Math.min(LANDSCAPE_COLS, Math.max(1, count));
+    return { cols, tileWidth: Math.floor(tileWidthForCols(containerWidth, cols)) };
   }
 
-  // Kann rechnerisch nicht mehr vorkommen (minWidth=0 findet immer einen
-  // Kandidaten), aber ein Fallback ohne jede Division schadet nicht.
-  return { cols: 1, tileWidth: Math.max(1, Math.floor(containerWidth)) };
+  const preferredCols = Math.min(PORTRAIT_PREFERRED_COLS, Math.max(1, count));
+  const preferredWidth = tileWidthForCols(containerWidth, preferredCols);
+  if (preferredCols <= 1 || preferredWidth >= PORTRAIT_MIN_TILE_WIDTH_FOR_TWO_COLS) {
+    return { cols: preferredCols, tileWidth: Math.floor(preferredWidth) };
+  }
+  // 2 Spalten waeren zu schmal -- lieber eine breite Spalte mit groesserer
+  // Schrift als zwei knapp lesbare.
+  return { cols: 1, tileWidth: Math.floor(tileWidthForCols(containerWidth, 1)) };
 }
 
 /**
@@ -104,15 +98,18 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
   card.appendChild(grid);
   screen.appendChild(card);
 
-  // Spaltenzahl/Kachelgroesse an die tatsaechlich verfuegbare Breite UND
-  // Hoehe anpassen (nicht nur an die Breite wie bei reinem CSS-Grid) --
-  // dadurch fuellen die Kacheln den Bildschirm wirklich aus, egal ob
-  // Hochformat, Querformat oder Browserfenster in Entwicklergroesse.
+  // Spaltenzahl bleibt fest (3), aber Kachelgroesse UND Schrift-/Icon-
+  // Skalierung passen sich an die tatsaechlich verfuegbare Breite UND Hoehe
+  // an (nicht nur an die Breite wie bei reinem CSS-Grid) -- dadurch fuellen
+  // die Kacheln den Bildschirm wirklich aus, egal ob Hochformat, Querformat
+  // oder Browserfenster in Entwicklergroesse.
   const applyLayout = () => {
     const rect = grid.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1 || games.length === 0) return;
     const { cols, tileWidth } = computeGridLayout(rect.width, rect.height, games.length);
     grid.style.gridTemplateColumns = `repeat(${cols}, ${tileWidth}px)`;
+    const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, tileWidth / REFERENCE_TILE_WIDTH));
+    grid.style.setProperty("--menu-tile-scale", String(scale));
   };
 
   const resizeObserver = new ResizeObserver(applyLayout);

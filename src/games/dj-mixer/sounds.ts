@@ -25,7 +25,6 @@ export type SoundId =
   | "steamBrake"
   | "trainRumble"
   | "tramBell"
-  | "hornUsa"
   | "hornParis"
   | "hornChina"
   | "hornJapan"
@@ -135,7 +134,6 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
 //  - steamBrake:     myinstants.com/en/instant/steam-locomotive-brakes-screaming-67672
 //  - trainRumble:    myinstants.com/en/instant/anderes-zugsgerausch-7741
 //  - tramBell:       myinstants.com/en/instant/tram-bell-45667
-//  - hornUsa:        myinstants.com/en/instant/amtrak-liberty-horn
 //  - hornParis:      myinstants.com/en/instant/paris-train-horn
 //  - hornChina:      myinstants.com/en/instant/chinese-diesel-locomotive-horn
 //  - hornJapan:      myinstants.com/en/instant/jr-e353-series-horn
@@ -151,7 +149,6 @@ import railroadBellUrl from "../../assets/sounds/railroad-bell.mp3";
 import steamBrakeUrl from "../../assets/sounds/steam-brake.mp3";
 import trainRumbleUrl from "../../assets/sounds/zugsgeraeusch.mp3";
 import tramBellUrl from "../../assets/sounds/tram-bell.mp3";
-import hornUsaUrl from "../../assets/sounds/horn-usa.mp3";
 import hornParisUrl from "../../assets/sounds/horn-paris.mp3";
 import hornChinaUrl from "../../assets/sounds/horn-china.mp3";
 import hornJapanUrl from "../../assets/sounds/horn-japan.mp3";
@@ -227,7 +224,6 @@ const SAMPLE_URLS = [
   steamBrakeUrl,
   trainRumbleUrl,
   tramBellUrl,
-  hornUsaUrl,
   hornParisUrl,
   hornChinaUrl,
   hornJapanUrl,
@@ -257,7 +253,6 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.8, 0.8) },
   { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.5, 1) },
   { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 2.6, 0.8) },
-  { id: "hornUsa", label: "Horn USA", hint: "Amtrak-Signalhorn (Sample-Clip)", play: makeSamplePlayFn(hornUsaUrl, 1, 1.2) },
   { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 1, 1.2) },
   { id: "hornChina", label: "Horn China", hint: "Chinesisches Diesellok-Horn (Sample-Clip)", play: makeSamplePlayFn(hornChinaUrl, 1, 1.2) },
   { id: "hornJapan", label: "Horn Japan", hint: "Japanisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornJapanUrl, 1.35, 1.2) },

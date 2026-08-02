@@ -1308,3 +1308,73 @@ button {
 /* .menu-grid nutzt grid-auto-fill mit minmax() (siehe oben) und passt die
    Spaltenzahl dadurch bereits automatisch an jede Bildschirmbreite an --
    keine manuellen Breakpoints noetig. */
+
+/* ---------- Berlin-Mini-Karte (Verbindungssuche) ---------- */
+
+.berlin-map {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+.berlin-map--collapsed {
+  width: 100%;
+  height: 84px;
+  cursor: pointer;
+}
+
+.berlin-map--expanded {
+  width: 100%;
+  height: min(60vh, 480px);
+  margin-top: 8px;
+}
+
+.berlin-map__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.berlin-map__hint {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 1px 6px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.berlin-map__dot {
+  fill: var(--text-faint);
+  opacity: 0.45;
+}
+
+.berlin-map__marker {
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+.berlin-map__marker--start {
+  fill: var(--primary);
+}
+
+.berlin-map__marker--target {
+  fill: var(--accent-dark);
+}
+
+.berlin-map__label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 26px;
+  fill: var(--text);
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 5px;
+}

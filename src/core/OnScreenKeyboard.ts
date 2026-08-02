@@ -43,7 +43,7 @@ export class OnScreenKeyboard {
     this.value = this.opts.initialValue;
 
     this.el = document.createElement("div");
-    this.el.className = "osk";
+    this.el.className = `osk osk--${this.opts.layout}`;
 
     this.display = document.createElement("div");
     this.display.className = "field-input";

@@ -5,7 +5,13 @@ import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "dj-mixer";
-const STEP_COUNT = 16;
+// Ein "Takt" (im Sinn dieses Reglers) entspricht einer Gruppe von 4
+// Sechzehntel-Feldern -- der bisherige feste Standard von 16 Feldern
+// entsprach also 4 Takten.
+const STEPS_PER_BAR = 4;
+const DEFAULT_BARS = 8;
+const MIN_BARS = 4;
+const MAX_BARS = 16;
 const LOOKAHEAD_S = 0.12;
 const MIN_BPM = 60;
 const MAX_BPM = 160;
@@ -22,7 +28,8 @@ function createDjMixerGame(): MinigameModule {
   let closeIntro: (() => void) | null = null;
   let masterGain: GainNode | null = null;
 
-  let grid: boolean[][] = SOUND_DEFS.map(() => new Array(STEP_COUNT).fill(false));
+  let bars = DEFAULT_BARS;
+  let grid: boolean[][] = SOUND_DEFS.map(() => new Array(bars * STEPS_PER_BAR).fill(false));
   let playing = false;
   let currentSchedulerStep = 0;
   let nextStepTime = 0;
@@ -36,7 +43,12 @@ function createDjMixerGame(): MinigameModule {
   let playBtn: HTMLButtonElement;
   let bpmLabel: HTMLSpanElement;
   let volumeLabel: HTMLSpanElement;
+  let barsLabel: HTMLSpanElement;
   let cellEls: HTMLButtonElement[][] = [];
+
+  function totalSteps(): number {
+    return bars * STEPS_PER_BAR;
+  }
 
   function ensureAudio(): AudioContext {
     if (!audioCtx) {
@@ -99,8 +111,19 @@ function createDjMixerGame(): MinigameModule {
   }
 
   function clearGrid(): void {
-    grid = SOUND_DEFS.map(() => new Array(STEP_COUNT).fill(false));
+    grid = SOUND_DEFS.map(() => new Array(totalSteps()).fill(false));
     syncCellVisuals();
+  }
+
+  function setBars(next: number): void {
+    bars = Math.min(MAX_BARS, Math.max(MIN_BARS, next));
+    barsLabel.textContent = `${bars} Takte`;
+    // Beim Aendern der Taktzahl aendert sich die Rasterbreite grundlegend --
+    // ein bestehendes Muster liesse sich nicht sinnvoll uebertragen, darum
+    // einfach neu beginnen (wie bei "Leeren").
+    if (playing) togglePlay();
+    grid = SOUND_DEFS.map(() => new Array(totalSteps()).fill(false));
+    buildGridDom();
   }
 
   function toggleCell(row: number, step: number): void {
@@ -125,7 +148,7 @@ function createDjMixerGame(): MinigameModule {
 
   function syncPlayheadVisuals(): void {
     for (let r = 0; r < cellEls.length; r++) {
-      for (let s = 0; s < STEP_COUNT; s++) {
+      for (let s = 0; s < totalSteps(); s++) {
         cellEls[r][s]?.classList.toggle("seq-cell--playhead", s === visualStep);
       }
     }
@@ -148,11 +171,12 @@ function createDjMixerGame(): MinigameModule {
 
       const cellsWrap = document.createElement("div");
       cellsWrap.className = "seq-row__cells";
+      cellsWrap.style.gridTemplateColumns = `repeat(${totalSteps()}, 1fr)`;
       const rowCells: HTMLButtonElement[] = [];
-      for (let s = 0; s < STEP_COUNT; s++) {
+      for (let s = 0; s < totalSteps(); s++) {
         const cell = document.createElement("button");
         cell.type = "button";
-        cell.className = "seq-cell" + (s % 4 === 0 ? " seq-cell--downbeat" : "");
+        cell.className = "seq-cell" + (s % STEPS_PER_BAR === 0 ? " seq-cell--downbeat" : "");
         cell.addEventListener("click", () => toggleCell(r, s));
         cellsWrap.appendChild(cell);
         rowCells.push(cell);
@@ -202,6 +226,28 @@ function createDjMixerGame(): MinigameModule {
 
       controls.append(minusBtn, bpmLabel, plusBtn);
       panel.appendChild(controls);
+
+      const barsRow = document.createElement("div");
+      barsRow.className = "seq-controls";
+
+      const barsMinusBtn = document.createElement("button");
+      barsMinusBtn.type = "button";
+      barsMinusBtn.className = "btn btn--ghost";
+      barsMinusBtn.textContent = "−";
+      barsMinusBtn.addEventListener("click", () => setBars(bars - 1));
+
+      barsLabel = document.createElement("span");
+      barsLabel.className = "seq-controls__bpm";
+      barsLabel.textContent = `${bars} Takte`;
+
+      const barsPlusBtn = document.createElement("button");
+      barsPlusBtn.type = "button";
+      barsPlusBtn.className = "btn btn--ghost";
+      barsPlusBtn.textContent = "+";
+      barsPlusBtn.addEventListener("click", () => setBars(bars + 1));
+
+      barsRow.append(barsMinusBtn, barsLabel, barsPlusBtn);
+      panel.appendChild(barsRow);
 
       const volumeRow = document.createElement("div");
       volumeRow.className = "seq-controls";
@@ -275,7 +321,7 @@ function createDjMixerGame(): MinigameModule {
       while (nextStepTime < audioCtx.currentTime + LOOKAHEAD_S) {
         scheduleStep(currentSchedulerStep, nextStepTime);
         nextStepTime += secondsPerStep();
-        currentSchedulerStep = (currentSchedulerStep + 1) % STEP_COUNT;
+        currentSchedulerStep = (currentSchedulerStep + 1) % totalSteps();
       }
       while (stepQueue.length > 0 && stepQueue[0].time <= audioCtx.currentTime) {
         const next = stepQueue.shift()!;

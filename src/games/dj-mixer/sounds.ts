@@ -12,24 +12,7 @@
  * das keine eigenen Kompositionen, siehe Quellenangaben dort.
  */
 
-export type SoundId =
-  | "kick"
-  | "snare"
-  | "hiHat"
-  | "doorChime"
-  | "doorThud"
-  | "switchClack"
-  | "brakeHiss"
-  | "horn"
-  | "chime"
-  | "announcement"
-  | "dbAnkuendigung"
-  | "deutscheBahn"
-  | "bahnhofsansage"
-  | "ansageDb"
-  | "sBahnNeu"
-  | "bahnhofsszene"
-  | "zugbetrieb";
+export type SoundId = "kick" | "snare" | "hiHat" | "horn" | "chime" | "announcement" | "dbAnkuendigung" | "ansageDb" | "sBahnNeu" | "zugbetrieb";
 
 /**
  * playbackRate ist nur fuer die Sample-Clips relevant (siehe
@@ -113,115 +96,28 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
   src.stop(time + 0.05);
 };
 
-/**
- * Das klassische Berliner S-Bahn-Tuerschliesssignal "Da-Duu-Da": drei Toene
- * C5-E5-C5 (c-moll... genauer: C-Dur-Dreiklangston C-E-C), electronisch/
- * schnarrend statt weich -- daher Rechteckwelle statt Sinus.
- */
-const DOOR_CHIME_NOTES = [523.25, 659.25, 523.25];
-
-const playDoorChime: PlayFn = (ctx, time, destination) => {
-  const noteDuration = 0.15;
-  const gap = 0.03;
-  DOOR_CHIME_NOTES.forEach((freq, i) => {
-    const t = time + i * (noteDuration + gap);
-    const osc = ctx.createOscillator();
-    osc.type = "square";
-    osc.frequency.value = freq;
-    const gain = envGain(ctx, t, 0.004, noteDuration - 0.02, 0.2);
-    osc.connect(gain).connect(destination);
-    osc.start(t);
-    osc.stop(t + noteDuration + 0.02);
-  });
-};
-
-const playDoorThud: PlayFn = (ctx, time, destination) => {
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(160, time);
-  osc.frequency.exponentialRampToValueAtTime(60, time + 0.12);
-  const gain = envGain(ctx, time, 0.002, 0.16, 0.5);
-  osc.connect(gain).connect(destination);
-  osc.start(time);
-  osc.stop(time + 0.2);
-};
-
-const playSwitchClack: PlayFn = (ctx, time, destination) => {
-  const src = ctx.createBufferSource();
-  src.buffer = getNoiseBuffer(ctx);
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = 2200;
-  filter.Q.value = 3;
-  const gain = envGain(ctx, time, 0.001, 0.05, 0.6);
-  src.connect(filter).connect(gain).connect(destination);
-  src.start(time);
-  src.stop(time + 0.08);
-};
-
-const playBrakeHiss: PlayFn = (ctx, time, destination) => {
-  const src = ctx.createBufferSource();
-  src.buffer = getNoiseBuffer(ctx);
-  const filter = ctx.createBiquadFilter();
-  filter.type = "highpass";
-  filter.frequency.value = 1800;
-  const gain = envGain(ctx, time, 0.02, 0.32, 0.35);
-  src.connect(filter).connect(gain).connect(destination);
-  src.start(time);
-  src.stop(time + 0.4);
-};
-
-const playHorn: PlayFn = (ctx, time, destination) => {
-  const gain = envGain(ctx, time, 0.01, 0.22, 0.3);
-  gain.connect(destination);
-  for (const freq of [311, 415]) {
-    const osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.value = freq;
-    osc.connect(gain);
-    osc.start(time);
-    osc.stop(time + 0.26);
-  }
-};
-
-const playChime: PlayFn = (ctx, time, destination) => {
-  const notes: Array<[number, number]> = [
-    [880, 0],
-    [659, 0.18],
-  ];
-  for (const [freq, offset] of notes) {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    const gain = envGain(ctx, time + offset, 0.01, 0.28, 0.28);
-    osc.connect(gain).connect(destination);
-    osc.start(time + offset);
-    osc.stop(time + offset + 0.32);
-  }
-};
-
 // -------------------------------------------------------------- Sample-Clips
 //
-// Kurze, echte Bahn-Sound-Clips (Ansagen/Atmo), per fetch()+decodeAudioData()
-// als AudioBuffer geladen und wie die synthetisierten Sounds sample-genau
-// zum Sequencer-Takt abgespielt -- inkl. BPM-abhaengiger Wiedergabegeschwindigkeit
-// (siehe makeSamplePlayFn), damit sie sich beim Aendern des Tempos mit
-// dehnen/stauchen statt aus dem Takt zu laufen. Herkunft (jeweils
-// Instant-Sound-Button auf myinstants.com):
+// Kurze, echte Bahn-Sound-Clips (Ansagen/Signalhorn/Atmo), per
+// fetch()+decodeAudioData() als AudioBuffer geladen und wie die
+// synthetisierten Sounds sample-genau zum Sequencer-Takt abgespielt --
+// inkl. BPM-abhaengiger Wiedergabegeschwindigkeit (siehe makeSamplePlayFn),
+// damit sie sich beim Aendern des Tempos mit dehnen/stauchen statt aus dem
+// Takt zu laufen. Herkunft (jeweils Instant-Sound-Button auf myinstants.com):
 //  - dbAnkuendigung: myinstants.com/en/instant/deutsche-bahn-ankundigung-45554
-//  - deutscheBahn:   myinstants.com/en/instant/deutsche-bahn-373
-//  - bahnhofsansage: myinstants.com/en/instant/bahnhofsansage-95498
 //  - ansageDb:       myinstants.com/en/instant/ansage-db-72287
 //  - sBahnNeu:       myinstants.com/en/instant/s-bahn-neu-85653
-//  - bahnhofsszene:  myinstants.com/en/instant/bahnhofsszene-80547
 //  - zugbetrieb:     myinstants.com/en/instant/achtung-zugbetrieb-2674
+//  - horn:           myinstants.com/en/instant/train-horn (echtes Signalhorn
+//                     statt der vorherigen, zu kuenstlich klingenden
+//                     Web-Audio-Synthese)
+//  - chime:          myinstants.com/en/instant/ankunft-1-32312
 import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
-import deutscheBahnUrl from "../../assets/sounds/deutsche-bahn.mp3";
-import bahnhofsansageUrl from "../../assets/sounds/bahnhofsansage.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
-import bahnhofsszeneUrl from "../../assets/sounds/bahnhofsszene.mp3";
 import zugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
+import hornUrl from "../../assets/sounds/train-horn.mp3";
+import chimeUrl from "../../assets/sounds/ankunft.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -263,7 +159,7 @@ function makeSamplePlayFn(url: string): PlayFn {
   };
 }
 
-const SAMPLE_URLS = [dbAnkuendigungUrl, deutscheBahnUrl, bahnhofsansageUrl, ansageDbUrl, sBahnNeuUrl, bahnhofsszeneUrl, zugbetriebUrl];
+const SAMPLE_URLS = [dbAnkuendigungUrl, ansageDbUrl, sBahnNeuUrl, zugbetriebUrl, hornUrl, chimeUrl];
 
 export interface SoundDef {
   id: SoundId;
@@ -275,22 +171,15 @@ export interface SoundDef {
 }
 
 export const SOUND_DEFS: SoundDef[] = [
-  { id: "kick", label: "Kick", hint: "Radaufschlag auf der Schiene", play: playKick },
-  { id: "snare", label: "Snare", hint: "Kupplungsklacken", play: playSnare },
-  { id: "hiHat", label: "Hi-Hat", hint: "Druckluft-Tick", play: playHiHat },
-  { id: "doorChime", label: "Da-Düü-Da", hint: "Das klassische S-Bahn-Türschließsignal", play: playDoorChime },
-  { id: "doorThud", label: "Tür zu", hint: "Dumpfes Schließgeräusch", play: playDoorThud },
-  { id: "switchClack", label: "Weiche", hint: "Klacken beim Überfahren", play: playSwitchClack },
-  { id: "brakeHiss", label: "Bremse", hint: "Pneumatisches Zischen", play: playBrakeHiss },
-  { id: "horn", label: "Signalhorn", hint: "Zweiklang-Signal", play: playHorn },
-  { id: "chime", label: "Ankunft", hint: "Ding-Dong-Ansage-Chime", play: playChime },
+  { id: "kick", label: "Tür zu", hint: "Dumpfes Schließgeräusch (Kick)", play: playKick },
+  { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
+  { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
+  { id: "horn", label: "Signalhorn", hint: "Echtes Zug-Signalhorn (Sample-Clip)", play: makeSamplePlayFn(hornUrl) },
+  { id: "chime", label: "Ankunft", hint: "Ankunfts-Ansage-Chime (Sample-Clip)", play: makeSamplePlayFn(chimeUrl) },
   { id: "announcement", label: "Ansage", hint: '„Bitte die Fahrkarten bereithalten" (Sprachausgabe)', text: "Bitte die Fahrkarten bereithalten." },
   { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl) },
-  { id: "deutscheBahn", label: "DB-Sound", hint: "Deutsche-Bahn-Sound (Sample-Clip)", play: makeSamplePlayFn(deutscheBahnUrl) },
-  { id: "bahnhofsansage", label: "Bahnsteig-Ansage", hint: "Ansage vom Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnhofsansageUrl) },
   { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
   { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl) },
-  { id: "bahnhofsszene", label: "Bahnsteig-Atmo", hint: "Geräuschkulisse Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnhofsszeneUrl) },
   { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl) },
 ];
 

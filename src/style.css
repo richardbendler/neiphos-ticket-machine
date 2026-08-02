@@ -1026,7 +1026,8 @@ button {
 
 .seq-row__cells {
   display: grid;
-  grid-template-columns: repeat(16, 1fr);
+  /* Spaltenzahl haengt von der einstellbaren Taktzahl ab und wird daher
+     per JS gesetzt (siehe dj-mixer/index.ts, buildGridDom). */
   gap: 3px;
 }
 

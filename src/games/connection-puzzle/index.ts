@@ -5,6 +5,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
+import { createBerlinMap, type BerlinMapHandle } from "../../core/berlinMap";
 import { registerGame } from "../registry";
 import { pickRandomPair, validateLineSequence, type LineRoute } from "./graph";
 import { renderScreen, type Phase, type ScreenState } from "./ui";
@@ -45,6 +46,7 @@ function createConnectionPuzzleGame(): MinigameModule {
   let closeIntro: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let panel: HTMLDivElement;
+  let berlinMap: BerlinMapHandle;
 
   function startNewRound(): RoundState {
     const { start, end, optimal } = pickRandomPair(allStations);
@@ -64,6 +66,7 @@ function createConnectionPuzzleGame(): MinigameModule {
 
   function render(): void {
     if (!roundState) return;
+    berlinMap.update(roundState.start, roundState.target);
     const base: ScreenState = {
       phase,
       start: roundState.start,
@@ -202,12 +205,22 @@ function createConnectionPuzzleGame(): MinigameModule {
 
       panel = document.createElement("div");
       panel.className = "stage-center-panel";
-      panel.style.top = "calc(var(--header-h) + 54px + var(--safe-top))";
+      // Platz fuer Highscore-Banner + Mini-Karte oben lassen (siehe unten).
+      panel.style.top = "calc(var(--header-h) + 150px + var(--safe-top))";
       panel.style.justifyContent = "flex-start";
       env.overlay.appendChild(panel);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatPoints);
       highscoreBanner.update(getHighscoreBoard(GAME_ID));
+
+      berlinMap = createBerlinMap();
+      berlinMap.el.style.position = "absolute";
+      berlinMap.el.style.left = "calc(12px + var(--safe-left))";
+      berlinMap.el.style.right = "calc(12px + var(--safe-right))";
+      berlinMap.el.style.top = "calc(var(--header-h) + 54px + var(--safe-top))";
+      berlinMap.el.style.width = "auto";
+      berlinMap.el.style.zIndex = "15";
+      env.overlay.appendChild(berlinMap.el);
 
       resetGame();
       render();
@@ -242,6 +255,7 @@ function createConnectionPuzzleGame(): MinigameModule {
       closeIntro?.();
       closeIntro = null;
       highscoreBanner?.destroy();
+      berlinMap?.destroy();
       panel?.remove();
     },
   };

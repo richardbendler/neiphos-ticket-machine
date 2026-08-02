@@ -32,6 +32,7 @@ export class Router {
   private readonly root: HTMLElement;
   private readonly chromeTitle: HTMLElement;
   private readonly menuBtn: HTMLButtonElement;
+  private readonly highscoreBtn: HTMLButtonElement;
   private screenEl: HTMLElement | null = null;
   private screenCleanup: (() => void) | null = null;
   private clockInterval: number | null = null;
@@ -47,6 +48,7 @@ export class Router {
     const chromeBar = this.buildChromeBar();
     this.chromeTitle = chromeBar.querySelector(".chrome-bar__title")!;
     this.menuBtn = chromeBar.querySelector(".chrome-menu-btn")!;
+    this.highscoreBtn = chromeBar.querySelector(".chrome-highscore-btn")!;
     // Bewusst an document.body gehaengt statt an #app: #app ist selbst
     // position:fixed und bildet damit einen eigenen Stacking-Context, in dem
     // kein z-index jemals gegen ein an document.body gehaengtes Modal (siehe
@@ -99,11 +101,11 @@ export class Router {
     logo.alt = "Neiphos";
     brand.appendChild(logo);
 
-    // highscoreBtn bewusst VOR menuBtn: menuBtn ist auf dem Hauptmenue-
-    // Bildschirm per visibility:hidden ausgeblendet, behaelt dabei aber
-    // seinen Platz im Fluss -- staende highscoreBtn dahinter, waere er
-    // dadurch immer nach rechts eingerueckt statt buendig mit dem
-    // Feedback-Button in der Fussleiste zu stehen.
+    // highscoreBtn und menuBtn teilen sich denselben Platz oben links (siehe
+    // setNavMode): auf dem Hauptmenue-Bildschirm braucht man keinen
+    // "zurueck ins Menü"-Button, dafuer den Highscores-Zugang; ueberall
+    // sonst (Spiel, Highscores-Ansicht) ist es umgekehrt. Nur jeweils einer
+    // der beiden ist per display:none/flex tatsaechlich im Fluss.
     bar.append(highscoreBtn, menuBtn, title, brand);
     return bar;
   }
@@ -166,10 +168,22 @@ export class Router {
     }
   }
 
+  /**
+   * highscoreBtn und menuBtn stehen an derselben Stelle oben links und
+   * schliessen sich gegenseitig aus: auf dem Hauptmenue gibt es nichts,
+   * wohin man "zurueck" muesste, dafuer den Highscores-Einstieg; ueberall
+   * sonst ist ein Weg zurueck ins Menue wichtiger als der Highscores-Zugang.
+   */
+  private setNavMode(mode: "menu-screen" | "elsewhere"): void {
+    const onMenu = mode === "menu-screen";
+    this.highscoreBtn.style.display = onMenu ? "flex" : "none";
+    this.menuBtn.style.display = onMenu ? "none" : "flex";
+  }
+
   showMenu(): void {
     this.teardownActiveGame();
     this.clearScreen();
-    this.menuBtn.style.visibility = "hidden";
+    this.setNavMode("menu-screen");
     this.startClock();
     const { element, destroy } = renderMainMenu(gameRegistry, (id) => this.startGame(id));
     this.root.appendChild(element);
@@ -182,7 +196,7 @@ export class Router {
     this.clearScreen();
     this.stopClock();
     this.chromeTitle.textContent = "Highscores";
-    this.menuBtn.style.visibility = "visible";
+    this.setNavMode("elsewhere");
     const element = renderHighscoreBoard();
     this.root.appendChild(element);
     this.screenEl = element;
@@ -198,7 +212,7 @@ export class Router {
     this.clearScreen();
     this.stopClock();
     this.chromeTitle.textContent = meta.title;
-    this.menuBtn.style.visibility = "visible";
+    this.setNavMode("elsewhere");
 
     const stage = document.createElement("div");
     stage.className = "game-stage";

@@ -2,6 +2,9 @@ import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { OnScreenKeyboard } from "../../core/OnScreenKeyboard";
 import { showGameIntro } from "../../core/gameIntro";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
+import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { registerGame } from "../registry";
 
 const GAME_ID = "count-passengers";
@@ -11,10 +14,24 @@ const WINDOW_GAP = 12;
 const WINDOW_PITCH = WINDOW_WIDTH + WINDOW_GAP;
 const CAR_GAP_EVERY = 4; // zusaetzlicher Spalt alle N Fenster (Wagenuebergang)
 const CAR_GAP_EXTRA = 20;
-const SPEED_PX_S = 180;
 const COUNTDOWN_START = 3;
 
-type Phase = "countdown" | "running" | "input" | "result";
+interface SpeedLevel {
+  key: string;
+  label: string;
+  speedPxS: number;
+}
+
+// 10 Geschwindigkeitsstufen, von gut zaehlbar bis kaum noch zu erfassen --
+// jede Stufe hat ihren eigenen Highscore (kleinste Abweichung), siehe
+// highscoreCategories unten.
+const SPEED_LEVELS: SpeedLevel[] = [110, 130, 150, 170, 190, 215, 240, 270, 305, 345].map((speedPxS, i) => ({
+  key: String(i + 1),
+  label: `Stufe ${i + 1}`,
+  speedPxS,
+}));
+
+type Phase = "speed-select" | "countdown" | "running" | "input" | "result";
 
 function generateWindows(): number[] {
   const count = 16 + Math.floor(Math.random() * 9); // 16-24 Fenster
@@ -41,19 +58,70 @@ function classifyResult(diff: number): { text: string; color: string } {
   return { text: "Uff, das war schwer zu zählen, oder?", color: theme.textMuted };
 }
 
+function formatDiff(value: number): string {
+  return value === 0 ? "genau richtig" : `${value} daneben`;
+}
+
 function createCountPassengersGame(): MinigameModule {
   let windows: number[] = [];
   let actualTotal = 0;
   let trainOffsetX = 0;
-  let phase: Phase = "countdown";
+  let phase: Phase = "speed-select";
   let countdown = COUNTDOWN_START;
   let started = false;
+  let selectedLevel: SpeedLevel | null = null;
 
+  let speedPanel: HTMLDivElement;
   let panel: HTMLDivElement;
   let promptEl: HTMLDivElement;
   let keyboardHost: HTMLDivElement;
   let keyboard: OnScreenKeyboard | null = null;
   let closeIntro: (() => void) | null = null;
+  let closeHighscoreModal: (() => void) | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
+
+  function renderSpeedPanel(): void {
+    speedPanel.innerHTML = "";
+    speedPanel.style.display = phase === "speed-select" ? "flex" : "none";
+    if (phase !== "speed-select") return;
+
+    const title = document.createElement("div");
+    title.className = "stage-sheet__title";
+    title.style.fontSize = "1rem";
+    title.style.color = "var(--text)";
+    title.textContent = "Wie schnell soll der Zug fahren?";
+    speedPanel.appendChild(title);
+
+    const desc = document.createElement("p");
+    desc.style.color = "var(--text-muted)";
+    desc.style.fontSize = "0.85rem";
+    desc.style.margin = "0 0 4px";
+    desc.textContent = "Je höher die Stufe, desto schwerer lässt sich die Anzahl der Passagiere noch erfassen.";
+    speedPanel.appendChild(desc);
+
+    const grid = document.createElement("div");
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = "repeat(5, 1fr)";
+    grid.style.gap = "8px";
+    grid.style.width = "100%";
+    grid.style.maxWidth = "320px";
+    for (const level of SPEED_LEVELS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn";
+      btn.style.padding = "10px 4px";
+      btn.textContent = level.label.replace("Stufe ", "");
+      btn.addEventListener("click", () => selectSpeed(level));
+      grid.appendChild(btn);
+    }
+    speedPanel.appendChild(grid);
+  }
+
+  function selectSpeed(level: SpeedLevel): void {
+    selectedLevel = level;
+    highscoreBanner.update(getHighscoreBoard(GAME_ID, level.key));
+    resetRound();
+  }
 
   function resetRound(): void {
     windows = generateWindows();
@@ -61,6 +129,7 @@ function createCountPassengersGame(): MinigameModule {
     trainOffsetX = -trainWidth(windows);
     phase = "countdown";
     countdown = COUNTDOWN_START;
+    renderSpeedPanel();
     renderPanel();
   }
 
@@ -75,6 +144,19 @@ function createCountPassengersGame(): MinigameModule {
     const diff = Math.abs(guess - actualTotal);
     phase = "result";
     renderPanel(diff, guess);
+
+    if (!selectedLevel) return;
+    const level = selectedLevel;
+    const outcome = getHighscoreOutcome(GAME_ID, diff, "lower-better", level.key);
+    if (outcome !== "none") {
+      closeHighscoreModal = promptHighscoreName({
+        message: `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        onDone: (name) => {
+          closeHighscoreModal = null;
+          highscoreBanner.update(recordHighscore(GAME_ID, name, diff, "lower-better", level.key));
+        },
+      });
+    }
   }
 
   function renderPanel(diff?: number, guess?: number): void {
@@ -82,7 +164,7 @@ function createCountPassengersGame(): MinigameModule {
     keyboard?.destroy();
     keyboard = null;
 
-    if (phase === "countdown" || phase === "running") {
+    if (phase === "countdown" || phase === "running" || phase === "speed-select") {
       panel.style.display = "none";
       return;
     }
@@ -125,12 +207,31 @@ function createCountPassengersGame(): MinigameModule {
           : `Tatsächlich waren es ${actualTotal} Passagiere. Du warst ${diff} daneben (deine Schätzung: ${guess}).`;
       panel.appendChild(detail);
 
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+
       const again = document.createElement("button");
       again.type = "button";
       again.className = "btn btn--accent";
       again.textContent = "Nochmal";
       again.addEventListener("click", resetRound);
-      panel.appendChild(again);
+      actions.appendChild(again);
+
+      const changeSpeed = document.createElement("button");
+      changeSpeed.type = "button";
+      changeSpeed.className = "btn btn--ghost";
+      changeSpeed.textContent = "Andere Geschwindigkeit";
+      changeSpeed.addEventListener("click", () => {
+        phase = "speed-select";
+        selectedLevel = null;
+        highscoreBanner.update(null);
+        renderSpeedPanel();
+        renderPanel();
+      });
+      actions.appendChild(changeSpeed);
+
+      panel.appendChild(actions);
     }
   }
 
@@ -217,6 +318,13 @@ function createCountPassengersGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      speedPanel = document.createElement("div");
+      speedPanel.className = "stage-center-panel";
+      speedPanel.style.alignItems = "center";
+      speedPanel.style.textAlign = "center";
+      speedPanel.style.gap = "10px";
+      env.overlay.appendChild(speedPanel);
+
       panel = document.createElement("div");
       panel.className = "stage-sheet";
       panel.style.alignItems = "center";
@@ -224,11 +332,15 @@ function createCountPassengersGame(): MinigameModule {
       panel.style.gap = "8px";
       env.overlay.appendChild(panel);
 
-      resetRound();
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatDiff);
+
+      renderSpeedPanel();
+      renderPanel();
+
       closeIntro = showGameIntro({
         title: "Passagiere zählen",
         description:
-          "Ein Zug fährt an dir vorbei. Zähle, wie viele Passagiere du hinter den Fenstern siehst, und gib deine Schätzung danach über die Tastatur ein.",
+          "Wähle zuerst eine Geschwindigkeitsstufe. Dann fährt ein Zug an dir vorbei — zähle, wie viele Passagiere du hinter den Fenstern siehst, und gib deine Schätzung danach über die Tastatur ein.",
         onStart: () => {
           closeIntro = null;
           started = true;
@@ -241,8 +353,8 @@ function createCountPassengersGame(): MinigameModule {
       if (phase === "countdown") {
         countdown -= dt;
         if (countdown <= 0) phase = "running";
-      } else if (phase === "running") {
-        trainOffsetX += SPEED_PX_S * dt;
+      } else if (phase === "running" && selectedLevel) {
+        trainOffsetX += selectedLevel.speedPxS * dt;
         if (trainOffsetX > 20000) return; // Sicherheitsnetz, sollte nie erreicht werden
       }
     },
@@ -255,8 +367,9 @@ function createCountPassengersGame(): MinigameModule {
       const trackY = size.height * 0.6;
       drawTrack(ctx, size, trackY);
 
-      if (!started) {
-        // Warten, bis der Anleitungs-Dialog bestaetigt wurde.
+      if (!started || phase === "speed-select") {
+        // Warten, bis der Anleitungs-Dialog bestaetigt bzw. eine
+        // Geschwindigkeit gewaehlt wurde.
       } else if (phase === "countdown") {
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
@@ -284,7 +397,11 @@ function createCountPassengersGame(): MinigameModule {
     cleanup() {
       closeIntro?.();
       closeIntro = null;
+      closeHighscoreModal?.();
+      closeHighscoreModal = null;
+      highscoreBanner?.destroy();
       keyboard?.destroy();
+      speedPanel?.remove();
       panel?.remove();
     },
   };
@@ -298,4 +415,10 @@ registerGame({
   badge: "PZ",
   accent: "#0a545c",
   create: createCountPassengersGame,
+  highscoreCategories: SPEED_LEVELS.map((level) => ({
+    board: level.key,
+    label: level.label,
+    direction: "lower-better",
+    formatValue: formatDiff,
+  })),
 });

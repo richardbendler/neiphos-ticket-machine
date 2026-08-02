@@ -508,6 +508,14 @@ button {
   font-size: 0.85rem;
 }
 
+.highscore-board__values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
 .highscore-board__row:first-of-type {
   border-top: none;
 }
@@ -802,6 +810,22 @@ button {
   gap: 6px;
 }
 
+/* Linien-Auswahl bei der Verbindungssuche: statt kleiner, eng gepackter
+   Pillen ein responsives Raster, das den verfuegbaren Platz ausfuellt und
+   auf breiteren/hoeheren Bildschirmen entsprechend groesser wird. */
+.chip-row--picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.chip--picker {
+  padding: 16px 8px;
+  font-size: 1.05rem;
+  width: 100%;
+}
+
 .chip {
   appearance: none;
   border: 1px solid rgba(0, 0, 0, 0.15);
@@ -924,9 +948,9 @@ button {
 .stage-highscore-banner__pill {
   display: inline-flex;
   align-items: baseline;
-  gap: 7px;
+  gap: 8px;
   max-width: 100%;
-  padding: 5px 14px;
+  padding: 7px 16px;
   border-radius: 999px;
   background: var(--panel-alt);
   border: 1px solid var(--panel-border);
@@ -936,7 +960,7 @@ button {
 }
 
 .stage-highscore-banner__label {
-  font-size: 0.66rem;
+  font-size: 0.74rem;
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -945,12 +969,12 @@ button {
 .stage-highscore-banner__value {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 0.98rem;
   color: var(--accent-dark);
 }
 
 .stage-highscore-banner__names {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;

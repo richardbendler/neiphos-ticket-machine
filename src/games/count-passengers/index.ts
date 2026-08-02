@@ -8,6 +8,7 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { registerGame } from "../registry";
 
 const GAME_ID = "count-passengers";
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
 
 const WINDOW_WIDTH = 40;
 const WINDOW_GAP = 12;
@@ -78,6 +79,7 @@ function createCountPassengersGame(): MinigameModule {
   let keyboard: OnScreenKeyboard | null = null;
   let closeIntro: (() => void) | null = null;
   let closeHighscoreModal: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
 
   function renderSpeedPanel(): void {
@@ -149,13 +151,16 @@ function createCountPassengersGame(): MinigameModule {
     const level = selectedLevel;
     const outcome = getHighscoreOutcome(GAME_ID, diff, "lower-better", level.key);
     if (outcome !== "none") {
-      closeHighscoreModal = promptHighscoreName({
-        message: `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-        onDone: (name) => {
-          closeHighscoreModal = null;
-          highscoreBanner.update(recordHighscore(GAME_ID, name, diff, "lower-better", level.key));
-        },
-      });
+      highscoreTimer = setTimeout(() => {
+        highscoreTimer = null;
+        closeHighscoreModal = promptHighscoreName({
+          message: `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          onDone: (name) => {
+            closeHighscoreModal = null;
+            highscoreBanner.update(recordHighscore(GAME_ID, name, diff, "lower-better", level.key));
+          },
+        });
+      }, HIGHSCORE_POPUP_DELAY_MS);
     }
   }
 
@@ -395,6 +400,8 @@ function createCountPassengersGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
       closeIntro?.();
       closeIntro = null;
       closeHighscoreModal?.();

@@ -9,6 +9,7 @@ import { registerGame } from "../registry";
 
 const GAME_ID = "memory";
 const MISMATCH_DELAY = 0.8;
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
 
 function formatMoves(value: number): string {
   return `${value} Züge`;
@@ -67,6 +68,7 @@ function createMemoryGame(): MinigameModule {
   let playerScores: [number, number] = [0, 0];
   let resolveTimer = 0;
   let closeHighscoreModal: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
 
   let panel: HTMLDivElement;
@@ -306,13 +308,16 @@ function createMemoryGame(): MinigameModule {
     const outcome = getHighscoreOutcome(GAME_ID, moves, "lower-better", boardSize.key);
     if (outcome !== "none") {
       const size = boardSize;
-      closeHighscoreModal = promptHighscoreName({
-        message: `${moves} Züge auf ${size.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-        onDone: (name) => {
-          closeHighscoreModal = null;
-          highscoreBanner.update(recordHighscore(GAME_ID, name, moves, "lower-better", size.key));
-        },
-      });
+      highscoreTimer = setTimeout(() => {
+        highscoreTimer = null;
+        closeHighscoreModal = promptHighscoreName({
+          message: `${moves} Züge auf ${size.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          onDone: (name) => {
+            closeHighscoreModal = null;
+            highscoreBanner.update(recordHighscore(GAME_ID, name, moves, "lower-better", size.key));
+          },
+        });
+      }, HIGHSCORE_POPUP_DELAY_MS);
     }
   }
 
@@ -388,6 +393,8 @@ function createMemoryGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       highscoreBanner?.destroy();

@@ -32,7 +32,7 @@ export function mountHighscoreBanner(container: HTMLElement, formatValue: (value
     el.style.display = "flex";
     el.innerHTML = `
       <span class="stage-highscore-banner__pill">
-        <span class="stage-highscore-banner__label">Bestwert</span>
+        <span class="stage-highscore-banner__label">Highscore</span>
         <span class="stage-highscore-banner__value">${formatValue(board.value)}</span>
         <span class="stage-highscore-banner__names">${formatNames(board.entries)}</span>
       </span>

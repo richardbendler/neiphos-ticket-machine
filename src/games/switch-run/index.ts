@@ -12,6 +12,12 @@ const FORK_DURATION = 1.1;
 const OUTCOME_DURATION = 1.3;
 const BASE_COUNTDOWN = 10;
 const MIN_COUNTDOWN = 4;
+// Der Zug faehrt waehrend der "forking"-Phase nur bis knapp vor die Weichen-
+// Aeste (nicht bis zum rechnerischen Fluchtpunkt) -- dort ist er noch gross
+// genug, dass Zug UND (im Sackgassen-Fall) die Barriere davor gut sichtbar
+// sind. Erst in der Outcome-Phase entscheidet sich, ob er dort haengen
+// bleibt (Absperrung) oder weiter Richtung Horizont davonfaehrt.
+const FORK_MAX_T = 0.85;
 
 function formatSwitches(value: number): string {
   return `${value} Weiche${value === 1 ? "" : "n"}`;
@@ -55,6 +61,7 @@ function createSwitchRunGame(): MinigameModule {
   let highscoreBanner: HighscoreBannerHandle;
 
   let buttonBar: HTMLDivElement;
+  const laneButtons: Partial<Record<Lane, HTMLButtonElement>> = {};
   let choiceIndicator: HTMLDivElement;
   let gameOverPanel: HTMLDivElement;
 
@@ -64,6 +71,9 @@ function createSwitchRunGame(): MinigameModule {
     gameOverPanel.style.display = phase === "game-over" ? "flex" : "none";
 
     if (phase === "approaching") {
+      for (const lane of LANE_ORDER) {
+        laneButtons[lane]?.classList.toggle("btn--accent", lane === chosenLane);
+      }
       choiceIndicator.innerHTML = `
         <span class="switch-choice-banner__arrow">${LANE_ARROW[chosenLane]}</span>
         <span class="switch-choice-banner__text">Gewählt: ${LANE_LABEL[chosenLane]}</span>
@@ -274,33 +284,120 @@ function createSwitchRunGame(): MinigameModule {
     const junction: Point = { x: cx, y: junctionY };
     const end = endpoints[chosenLane];
     if (t < 0.4) return { x: lerp(start.x, junction.x, t / 0.4), y: lerp(start.y, junction.y, t / 0.4) };
-    const t2 = Math.min(1, (t - 0.4) / 0.6);
+    const t2 = (t - 0.4) / 0.6;
     return { x: lerp(junction.x, end.x, t2), y: lerp(junction.y, end.y, t2) };
   }
 
-  function drawTrainMarker(ctx: CanvasRenderingContext2D, p: Point): void {
-    ctx.beginPath();
-    ctx.fillStyle = theme.text;
-    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.fillStyle = theme.accent;
-    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = theme.accentDark;
-    ctx.stroke();
+  /** Halbe Gleisbreite an der Stelle t entlang derselben Strecke wie trainMarkerPosition -- bestimmt, wie gross Zug/Barriere dort gezeichnet werden. */
+  function trainHalfWidthAt(size: { width: number; height: number }, t: number): number {
+    const junctionHalfWidth = 22;
+    const topHalfWidth = 10;
+    const baseHalfWidth = size.width * 0.42;
+    if (t < 0.4) return lerp(baseHalfWidth, junctionHalfWidth, t / 0.4);
+    const t2 = Math.min(1, (t - 0.4) / 0.6);
+    return lerp(junctionHalfWidth, topHalfWidth, t2);
   }
 
-  function drawWall(ctx: CanvasRenderingContext2D, p: Point): void {
-    const w = 46;
-    const h = 14;
+  /** Stilisierte Rueckansicht eines Zugs -- Groesse folgt der lokalen Gleisbreite, damit er perspektivisch passt. */
+  function drawTrainBody(ctx: CanvasRenderingContext2D, p: Point, halfWidth: number, alpha: number): void {
+    if (alpha <= 0.01) return;
+    const w = Math.max(5, halfWidth * 1.7);
+    const h = w * 0.68;
+    const bodyTop = p.y - h;
+    const r = Math.min(6, w * 0.18);
+
     ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.fillStyle = "#7a1f1f";
-    ctx.fillRect(-w / 2, -h / 2, w, h);
-    ctx.strokeStyle = theme.accent;
+    ctx.globalAlpha = alpha;
+
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 1, w * 0.55, Math.max(1, w * 0.14), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = theme.primary;
+    ctx.beginPath();
+    ctx.moveTo(p.x - w / 2 + r, bodyTop);
+    ctx.arcTo(p.x + w / 2, bodyTop, p.x + w / 2, p.y, r);
+    ctx.arcTo(p.x + w / 2, p.y, p.x - w / 2, p.y, r);
+    ctx.arcTo(p.x - w / 2, p.y, p.x - w / 2, bodyTop, r);
+    ctx.arcTo(p.x - w / 2, bodyTop, p.x + w / 2, bodyTop, r);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = theme.accent;
+    ctx.fillRect(p.x - w / 2, bodyTop, w, Math.max(1, h * 0.12));
+
+    ctx.fillStyle = "#0d2b30";
+    const winW = w * 0.3;
+    const winH = h * 0.34;
+    ctx.beginPath();
+    ctx.roundRect(p.x - winW / 2, bodyTop + h * 0.22, winW, winH, Math.min(3, winW * 0.2));
+    ctx.fill();
+
+    ctx.fillStyle = "#ff4d4d";
+    const lightR = Math.max(1.4, w * 0.06);
+    ctx.beginPath();
+    ctx.arc(p.x - w * 0.36, p.y - h * 0.16, lightR, 0, Math.PI * 2);
+    ctx.arc(p.x + w * 0.36, p.y - h * 0.16, lightR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /** Rot-weiss gestreifte Absperrung quer zur Sackgasse -- der sichtbare Grund fuer den Crash. */
+  function drawBarrier(ctx: CanvasRenderingContext2D, p: Point, halfWidth: number): void {
+    const w = halfWidth * 3;
+    const h = Math.max(11, w * 0.2);
+    const topY = p.y - h - halfWidth * 1.35;
+    const left = p.x - w / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, topY, w, h);
+    ctx.clip();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(left, topY, w, h);
+    ctx.fillStyle = "#c62828";
+    const stripe = h * 0.9;
+    for (let sx = left - h; sx < left + w + h; sx += stripe * 2) {
+      ctx.beginPath();
+      ctx.moveTo(sx, topY + h);
+      ctx.lineTo(sx + stripe, topY + h);
+      ctx.lineTo(sx + stripe + h, topY);
+      ctx.lineTo(sx + h, topY);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = "#2b2004";
+    ctx.lineWidth = Math.max(1, h * 0.12);
+    ctx.strokeRect(left, topY, w, h);
+
+    // Zwei Pfosten, die die Absperrung sichtbar auf den Gleisen "verankern".
+    ctx.fillStyle = "#4a4640";
+    const postW = Math.max(2, h * 0.18);
+    ctx.fillRect(left + h * 0.6, topY + h * 0.6, postW, p.y - (topY + h * 0.6));
+    ctx.fillRect(left + w - h * 0.6 - postW, topY + h * 0.6, postW, p.y - (topY + h * 0.6));
+  }
+
+  /** Kurzer Funkenstoss im Aufprallmoment -- progress laeuft 0 (Einschlag) bis 1 (verklungen). */
+  function drawImpactSparks(ctx: CanvasRenderingContext2D, p: Point, halfWidth: number, progress: number): void {
+    if (progress >= 1) return;
+    const alpha = 1 - progress;
+    const count = 9;
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,214,79,${alpha})`;
     ctx.lineWidth = 2;
-    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    const originY = p.y - halfWidth * 0.5;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + progress * 3;
+      const len = (8 + 20 * progress) * (0.7 + 0.3 * Math.sin(i * 2.1));
+      ctx.beginPath();
+      ctx.moveTo(p.x, originY);
+      ctx.lineTo(p.x + Math.cos(angle) * len, originY + Math.sin(angle) * len * 0.6);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -310,7 +407,7 @@ function createSwitchRunGame(): MinigameModule {
     init(env: GameEnv) {
       buttonBar = document.createElement("div");
       buttonBar.style.display = "none";
-      buttonBar.style.gap = "10px";
+      buttonBar.style.gap = "12px";
       buttonBar.style.width = "100%";
 
       LANE_ORDER.forEach((lane) => {
@@ -318,10 +415,12 @@ function createSwitchRunGame(): MinigameModule {
         btn.type = "button";
         btn.className = "btn";
         btn.style.flex = "1";
-        btn.style.fontSize = "1.4rem";
+        btn.style.fontSize = "2rem";
+        btn.style.padding = "18px 0";
         btn.textContent = LANE_ARROW[lane];
         btn.addEventListener("click", () => chooseLane(lane));
         buttonBar.appendChild(btn);
+        laneButtons[lane] = btn;
       });
 
       choiceIndicator = document.createElement("div");
@@ -398,17 +497,35 @@ function createSwitchRunGame(): MinigameModule {
         let shakeY = 0;
         if (phase === "outcome" && crashed) {
           const decay = Math.max(0, 1 - outcomeTimer / 0.5);
-          shakeX = (Math.random() - 0.5) * 6 * decay;
-          shakeY = (Math.random() - 0.5) * 6 * decay;
+          shakeX = (Math.random() - 0.5) * 8 * decay;
+          shakeY = (Math.random() - 0.5) * 8 * decay;
         }
         ctx.save();
         ctx.translate(shakeX, shakeY);
         drawForkTrack(ctx, size);
 
-        const t = phase === "forking" ? Math.min(1, forkTimer / FORK_DURATION) : 1;
+        // Waehrend "forking" faehrt der Zug bis knapp vor die Weiche (siehe
+        // FORK_MAX_T). Erst in "outcome" entscheidet sich, ob er dort an
+        // einer Absperrung haengen bleibt oder weiter Richtung Horizont
+        // davonfaehrt (und dabei sichtbar kleiner wird und ausblendet).
+        let t: number;
+        let alpha = 1;
+        if (phase === "forking") {
+          t = Math.min(FORK_MAX_T, (forkTimer / FORK_DURATION) * FORK_MAX_T);
+        } else if (crashed) {
+          t = FORK_MAX_T;
+        } else {
+          const p = Math.min(1, outcomeTimer / OUTCOME_DURATION);
+          t = lerp(FORK_MAX_T, 1, p);
+          alpha = 1 - p;
+        }
         const markerPos = trainMarkerPosition(size, t);
-        if (phase === "outcome" && crashed) drawWall(ctx, markerPos);
-        drawTrainMarker(ctx, markerPos);
+        const markerHalfWidth = trainHalfWidthAt(size, t);
+        if (phase === "outcome" && crashed) {
+          drawBarrier(ctx, markerPos, markerHalfWidth);
+          drawImpactSparks(ctx, markerPos, markerHalfWidth, outcomeTimer / 0.4);
+        }
+        drawTrainBody(ctx, markerPos, markerHalfWidth, alpha);
         ctx.restore();
 
         if (phase === "outcome") {

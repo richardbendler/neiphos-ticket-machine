@@ -4,6 +4,7 @@ import { trainCards } from "../../data/trains";
 import { distractorImages } from "../../data/distractors";
 import { getHighscore, isNewHighscore, setHighscore, type HighscoreEntry } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-spotter";
@@ -11,7 +12,6 @@ const GRID_SIZE = 4;
 const CELL_COUNT = GRID_SIZE * GRID_SIZE;
 const MIN_TRAINS = 6;
 const MAX_TRAINS = 9;
-const INTRO_DURATION = 2.5;
 const WRONG_TAP_PENALTY = 1.5;
 
 interface Cell {
@@ -52,14 +52,13 @@ function formatTime(seconds: number): string {
 
 function createTrainSpotterGame(): MinigameModule {
   let phase: Phase = "intro";
-  let introTimer = 0;
   let elapsed = 0;
   let cells: Cell[] = [];
   let remainingTrains = 0;
   let highscore: HighscoreEntry | null = null;
   let closeHighscoreModal: (() => void) | null = null;
+  let closeIntro: (() => void) | null = null;
 
-  let banner: HTMLDivElement;
   let gridHost: HTMLDivElement;
   let doneOverlay: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
@@ -139,37 +138,29 @@ function createTrainSpotterGame(): MinigameModule {
     cells = buildGrid();
     remainingTrains = cells.filter((c) => c.isTrain).length;
     elapsed = 0;
-    introTimer = 0;
     phase = "intro";
     doneOverlay.style.display = "none";
     renderGrid();
-    updateBanner();
-  }
+    gridHost.style.visibility = "hidden";
 
-  function updateBanner(): void {
-    if (phase === "intro") {
-      banner.style.display = "block";
-      banner.textContent = highscore
-        ? `Bestzeit: ${highscore.name} — ${formatTime(highscore.value)}`
-        : "Noch keine Bestzeit — sei die/der Erste!";
-      gridHost.style.visibility = "hidden";
-    } else {
-      banner.style.display = "none";
-      gridHost.style.visibility = "visible";
-    }
+    closeIntro = showGameIntro({
+      title: "Zug-Spotter",
+      description:
+        (highscore ? `Bestzeit: ${highscore.name} — ${formatTime(highscore.value)}. ` : "Noch keine Bestzeit aufgestellt — sei die/der Erste! ") +
+        "Tippe im Raster so schnell wie möglich alle Bilder mit Zügen an. Falsche Tipps kosten Zeit.",
+      startLabel: "Los geht's",
+      onStart: () => {
+        closeIntro = null;
+        phase = "playing";
+        gridHost.style.visibility = "visible";
+      },
+    });
   }
 
   return {
     id: GAME_ID,
 
     init(env: GameEnv) {
-      banner = document.createElement("div");
-      banner.className = "ticket-card";
-      banner.style.textAlign = "center";
-      banner.style.fontFamily = "var(--font-display)";
-      banner.style.fontWeight = "700";
-      banner.style.marginBottom = "8px";
-
       gridHost = document.createElement("div");
       gridHost.className = "tile-grid";
 
@@ -182,7 +173,6 @@ function createTrainSpotterGame(): MinigameModule {
 
       const wrap = document.createElement("div");
       wrap.className = "stage-center-panel";
-      wrap.appendChild(banner);
       wrap.appendChild(gridHost);
       wrap.appendChild(doneOverlay);
       env.overlay.appendChild(wrap);
@@ -191,13 +181,7 @@ function createTrainSpotterGame(): MinigameModule {
     },
 
     update(dt: number) {
-      if (phase === "intro") {
-        introTimer += dt;
-        if (introTimer >= INTRO_DURATION) {
-          phase = "playing";
-          updateBanner();
-        }
-      } else if (phase === "playing") {
+      if (phase === "playing") {
         elapsed += dt;
       }
     },
@@ -224,7 +208,9 @@ function createTrainSpotterGame(): MinigameModule {
     cleanup() {
       closeHighscoreModal?.();
       closeHighscoreModal = null;
-      banner?.parentElement?.remove();
+      closeIntro?.();
+      closeIntro = null;
+      gridHost?.parentElement?.remove();
     },
   };
 }

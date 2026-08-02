@@ -13,12 +13,9 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
   const header = document.createElement("div");
   header.className = "menu-header";
   header.innerHTML = `
-    <div class="menu-header__brand">
-      <span class="menu-header__dot"></span>
-      <span class="menu-header__brand-text">Fahrschein &amp; Freizeit</span>
-    </div>
+    <span class="menu-header__brand-text">Fahrschein &amp; Freizeit — Automat Nr. 7</span>
     <h1>Neiphos Ticket Machine</h1>
-    <p>Wähle ein Spiel und tippe zum Starten</p>
+    <p>Spiel auswählen und antippen</p>
   `;
   screen.appendChild(header);
 

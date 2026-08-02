@@ -1,6 +1,7 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { SOUND_DEFS } from "./sounds";
+import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "dj-mixer";
@@ -17,6 +18,7 @@ interface ScheduledStep {
 
 function createDjMixerGame(): MinigameModule {
   let audioCtx: AudioContext | null = null;
+  let closeIntro: (() => void) | null = null;
   let masterGain: GainNode | null = null;
 
   let grid: boolean[][] = SOUND_DEFS.map(() => new Array(STEP_COUNT).fill(false));
@@ -208,6 +210,15 @@ function createDjMixerGame(): MinigameModule {
       panel.appendChild(controls2);
 
       env.overlay.appendChild(panel);
+
+      closeIntro = showGameIntro({
+        title: "DJ-Mischer",
+        description:
+          "Tippe im Raster Felder an: jede Zeile ist ein Zuggeräusch, jede Spalte ein Taktschritt. Mit „Abspielen” läuft dein Muster in einer Dauerschleife.",
+        onStart: () => {
+          closeIntro = null;
+        },
+      });
     },
 
     update() {
@@ -231,6 +242,8 @@ function createDjMixerGame(): MinigameModule {
     },
 
     cleanup() {
+      closeIntro?.();
+      closeIntro = null;
       playing = false;
       if (audioCtx) {
         void audioCtx.close();

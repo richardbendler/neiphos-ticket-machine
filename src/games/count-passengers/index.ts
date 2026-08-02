@@ -1,6 +1,7 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { OnScreenKeyboard } from "../../core/OnScreenKeyboard";
+import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "count-passengers";
@@ -10,7 +11,7 @@ const WINDOW_GAP = 12;
 const WINDOW_PITCH = WINDOW_WIDTH + WINDOW_GAP;
 const CAR_GAP_EVERY = 4; // zusaetzlicher Spalt alle N Fenster (Wagenuebergang)
 const CAR_GAP_EXTRA = 20;
-const SPEED_PX_S = 115;
+const SPEED_PX_S = 145;
 const COUNTDOWN_START = 3;
 
 type Phase = "countdown" | "running" | "input" | "result";
@@ -46,11 +47,13 @@ function createCountPassengersGame(): MinigameModule {
   let trainOffsetX = 0;
   let phase: Phase = "countdown";
   let countdown = COUNTDOWN_START;
+  let started = false;
 
   let panel: HTMLDivElement;
   let promptEl: HTMLDivElement;
   let keyboardHost: HTMLDivElement;
   let keyboard: OnScreenKeyboard | null = null;
+  let closeIntro: (() => void) | null = null;
 
   function resetRound(): void {
     windows = generateWindows();
@@ -222,9 +225,19 @@ function createCountPassengersGame(): MinigameModule {
       env.overlay.appendChild(panel);
 
       resetRound();
+      closeIntro = showGameIntro({
+        title: "Passagiere zählen",
+        description:
+          "Ein Zug fährt an dir vorbei. Zähle, wie viele Passagiere du hinter den Fenstern siehst, und gib deine Schätzung danach über die Tastatur ein.",
+        onStart: () => {
+          closeIntro = null;
+          started = true;
+        },
+      });
     },
 
     update(dt: number) {
+      if (!started) return;
       if (phase === "countdown") {
         countdown -= dt;
         if (countdown <= 0) phase = "running";
@@ -242,11 +255,16 @@ function createCountPassengersGame(): MinigameModule {
       const trackY = size.height * 0.6;
       drawTrack(ctx, size, trackY);
 
-      if (phase === "countdown") {
+      if (!started) {
+        // Warten, bis der Anleitungs-Dialog bestaetigt wurde.
+      } else if (phase === "countdown") {
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
-        ctx.font = `700 20px ${theme.fontDisplay}`;
-        ctx.fillText("Bereit? Der Zug kommt gleich...", size.width / 2, trackY - 130);
+        ctx.font = `700 18px ${theme.fontDisplay}`;
+        ctx.fillText("Zähle die Passagiere hinter den Fenstern!", size.width / 2, trackY - 150);
+        ctx.font = `600 15px ${theme.font}`;
+        ctx.fillStyle = theme.textMuted;
+        ctx.fillText("Der Zug kommt gleich...", size.width / 2, trackY - 120);
         ctx.font = `800 48px ${theme.fontDisplay}`;
         ctx.fillStyle = theme.accent;
         ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, trackY - 60);
@@ -264,6 +282,8 @@ function createCountPassengersGame(): MinigameModule {
     },
 
     cleanup() {
+      closeIntro?.();
+      closeIntro = null;
       keyboard?.destroy();
       panel?.remove();
     },

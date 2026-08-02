@@ -40,5 +40,17 @@ export function promptHighscoreName(opts: {
       },
     });
     kb.mount(panel);
+
+    const skipBtn = document.createElement("button");
+    skipBtn.type = "button";
+    skipBtn.className = "btn btn--ghost";
+    skipBtn.style.width = "100%";
+    skipBtn.style.marginTop = "8px";
+    skipBtn.textContent = "Ohne Namen speichern";
+    skipBtn.addEventListener("click", () => {
+      close();
+      opts.onDone("Anonym");
+    });
+    panel.appendChild(skipBtn);
   });
 }

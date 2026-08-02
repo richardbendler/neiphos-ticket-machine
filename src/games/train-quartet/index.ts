@@ -1,6 +1,7 @@
 import type { GameEnv, MinigameModule, PointerPoint } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { trainCards, STAT_LABELS, type TrainCard, type TrainStats } from "../../data/trains";
+import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-quartet";
@@ -54,6 +55,7 @@ function createTrainQuartetGame(): MinigameModule {
   let statRects: Array<{ stat: keyof TrainStats; rect: Rect }> = [];
   let continueBtn: HTMLButtonElement | null = null;
   let messageEl: HTMLDivElement | null = null;
+  let closeIntro: (() => void) | null = null;
 
   function newGame(): void {
     const deck = shuffle(trainCards);
@@ -322,6 +324,14 @@ function createTrainQuartetGame(): MinigameModule {
       env.overlay.appendChild(wrap);
 
       newGame();
+      closeIntro = showGameIntro({
+        title: "Zug-Quartett",
+        description:
+          "Du und der Computer bekommen je 10 Zugkarten. Wähle bei deiner obersten Karte eine Eigenschaft (z. B. Höchstgeschwindigkeit) — wer den höheren Wert hat, gewinnt die Runde und kassiert beide Karten. Wer alle Karten hat, gewinnt.",
+        onStart: () => {
+          closeIntro = null;
+        },
+      });
     },
 
     update(dt: number) {
@@ -338,7 +348,7 @@ function createTrainQuartetGame(): MinigameModule {
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
 
-      const topOffset = 60;
+      const topOffset = 68;
       const cardWidth = Math.min(size.width - 32, 300);
       const cardX = (size.width - cardWidth) / 2;
 
@@ -395,6 +405,8 @@ function createTrainQuartetGame(): MinigameModule {
     },
 
     cleanup() {
+      closeIntro?.();
+      closeIntro = null;
       continueBtn?.removeEventListener("click", handleContinue);
       continueBtn?.parentElement?.remove();
       messageEl = null;

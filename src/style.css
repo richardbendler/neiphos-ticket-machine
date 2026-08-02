@@ -2,7 +2,6 @@
 
 :root {
   --bg: #0a1d20;
-  --bg-gradient-top: #0d272b;
   --panel: #123338;
   --panel-alt: #163e44;
   --panel-border: #2a4d52;
@@ -31,9 +30,11 @@
   --font: "Barlow", sans-serif;
   --font-display: "Barlow Semi Condensed", sans-serif;
 
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
+  /* Bewusst zurueckhaltend gerundet -- an echten Fahrkartenautomaten sind
+     Tasten und Anzeigefelder eher flach/rechteckig als "App-rund". */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -87,8 +88,7 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  background:
-    radial-gradient(120% 90% at 50% -10%, var(--bg-gradient-top) 0%, var(--bg) 55%);
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -101,13 +101,15 @@ button {
   top: 0;
   left: 0;
   right: 0;
-  height: calc(52px + var(--safe-top));
+  height: calc(44px + var(--safe-top));
   padding-top: var(--safe-top);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-left: calc(16px + var(--safe-left));
   padding-right: calc(16px + var(--safe-right));
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
   z-index: 500;
   pointer-events: none;
 }
@@ -117,13 +119,11 @@ button {
   text-align: center;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: 0.04em;
-  color: var(--text);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
   text-transform: uppercase;
-  opacity: 0.9;
   pointer-events: none;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   /* Platz fuer den Exit-Button links freihalten, der als eigenes,
      unabhaengiges Overlay-Element ueber dem Canvas sitzt (siehe .exit-button). */
   padding-left: 56px;
@@ -131,27 +131,25 @@ button {
 
 .admin-trigger {
   pointer-events: auto;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: 1px solid var(--panel-border-light);
-  background: rgba(18, 51, 56, 0.75);
-  backdrop-filter: blur(4px);
+  background: var(--panel-alt);
   color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 .admin-trigger:active {
-  background: var(--panel-alt);
-  color: var(--accent);
+  background: var(--primary);
+  color: var(--text);
 }
 
 .admin-trigger svg {
-  width: 20px;
-  height: 20px;
+  width: 17px;
+  height: 17px;
 }
 
 /* ---------- Hauptmenue ---------- */
@@ -167,50 +165,35 @@ button {
 
 .menu-header {
   text-align: center;
-  margin-bottom: 18px;
-}
-
-.menu-header__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 18px;
-  border-radius: 999px;
-  border: 1px solid var(--panel-border-light);
-  background: linear-gradient(180deg, var(--panel-alt), var(--panel));
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-}
-
-.menu-header__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--panel-border);
 }
 
 .menu-header__brand-text {
+  display: block;
   font-family: var(--font-display);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  color: var(--text-faint);
   text-transform: uppercase;
 }
 
 .menu-header h1 {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  font-size: clamp(1.5rem, 5.5vw, 2.2rem);
   letter-spacing: 0.01em;
-  margin: 10px 0 4px;
+  margin: 2px 0 4px;
   color: var(--text);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
 .menu-header p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 .menu-grid {
@@ -232,40 +215,28 @@ button {
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 3px;
   aspect-ratio: 1 / 0.92;
-  padding: 14px;
-  border-radius: var(--radius-lg);
+  padding: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--panel-border-light);
-  background:
-    linear-gradient(150deg, var(--tile-accent, var(--primary)) 0%, var(--panel) 62%);
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-top: 4px solid var(--tile-accent, var(--primary));
+  background: var(--panel-alt);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
   color: var(--text);
   overflow: hidden;
 }
 
-.menu-tile::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.45) 100%);
-  pointer-events: none;
-}
-
 .menu-tile:active {
-  transform: scale(0.97);
-  filter: brightness(1.08);
+  transform: translateY(2px);
+  box-shadow: none;
+  background: var(--panel);
 }
 
 .menu-tile__icon {
-  position: relative;
-  z-index: 1;
-  width: 34px;
-  height: 34px;
-  color: var(--accent);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+  width: 30px;
+  height: 30px;
+  color: var(--tile-accent, var(--accent));
 }
 
 .menu-tile__icon svg {
@@ -274,20 +245,15 @@ button {
 }
 
 .menu-tile__title {
-  position: relative;
-  z-index: 1;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.98rem;
   line-height: 1.15;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .menu-tile__subtitle {
-  position: relative;
-  z-index: 1;
-  font-size: 0.72rem;
-  color: rgba(244, 247, 246, 0.82);
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .menu-footer {
@@ -350,10 +316,9 @@ button {
   align-items: center;
   gap: 6px;
   padding: 8px 14px 8px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border-light);
-  background: rgba(10, 29, 32, 0.72);
-  backdrop-filter: blur(4px);
+  background: var(--panel);
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
@@ -379,36 +344,28 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.02em;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   padding: 12px 22px;
   font-size: 1rem;
   color: var(--text);
-  background: linear-gradient(180deg, var(--primary-light), var(--primary));
-  box-shadow:
-    0 4px 0 var(--primary-dark),
-    0 8px 16px rgba(0, 0, 0, 0.35);
+  background: var(--primary);
+  box-shadow: 0 4px 0 var(--primary-dark);
   transition: transform 0.06s ease, box-shadow 0.06s ease;
 }
 
 .btn:active {
-  transform: translateY(3px);
-  box-shadow:
-    0 1px 0 var(--primary-dark),
-    0 3px 8px rgba(0, 0, 0, 0.3);
+  transform: translateY(4px);
+  box-shadow: none;
 }
 
 .btn--accent {
-  background: linear-gradient(180deg, #ffe08a, var(--accent));
+  background: var(--accent);
   color: #2b2004;
-  box-shadow:
-    0 4px 0 var(--accent-dark),
-    0 8px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 0 var(--accent-dark);
 }
 
 .btn--accent:active {
-  box-shadow:
-    0 1px 0 var(--accent-dark),
-    0 3px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 .btn--ghost {
@@ -433,8 +390,7 @@ button {
 .modal-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(4, 12, 13, 0.72);
-  backdrop-filter: blur(2px);
+  background: rgba(4, 12, 13, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -448,11 +404,11 @@ button {
   max-height: calc(100% - 40px);
   overflow-y: auto;
   touch-action: pan-y;
-  background: linear-gradient(180deg, var(--panel-alt), var(--panel));
+  background: var(--panel);
   border: 1px solid var(--panel-border-light);
   border-radius: var(--radius-lg);
   padding: 22px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 0 rgba(0, 0, 0, 0.3);
 }
 
 .modal-panel--wide {
@@ -509,7 +465,7 @@ button {
   border-radius: var(--radius-md);
   padding: 14px 16px;
   position: relative;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
 }
 
 .ticket-card::before {
@@ -568,7 +524,7 @@ button {
   justify-content: center;
   border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border-light);
-  background: linear-gradient(180deg, var(--panel-alt), var(--panel));
+  background: var(--panel-alt);
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
@@ -587,7 +543,7 @@ button {
 }
 
 .osk__key--accent {
-  background: linear-gradient(180deg, #ffe08a, var(--accent));
+  background: var(--accent);
   color: #2b2004;
 }
 
@@ -670,7 +626,7 @@ button {
 
 .stage-top-bar {
   position: absolute;
-  top: calc(52px + var(--safe-top));
+  top: calc(44px + var(--safe-top));
   left: 0;
   right: 0;
   z-index: 15;
@@ -689,12 +645,10 @@ button {
   max-height: 46%;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(18, 51, 56, 0.85), rgba(10, 29, 32, 0.96));
-  backdrop-filter: blur(6px);
-  border-top: 1px solid var(--panel-border-light);
+  background: var(--panel);
+  border-top: 2px solid var(--panel-border-light);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 12px 14px calc(12px + var(--safe-bottom));
-  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
 }
 
 .stage-center-panel {
@@ -725,14 +679,13 @@ button {
 .hud-badge {
   pointer-events: none;
   position: absolute;
-  top: calc(60px + var(--safe-top));
+  top: calc(52px + var(--safe-top));
   right: calc(8px + var(--safe-right));
   z-index: 20;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border-light);
-  background: rgba(10, 29, 32, 0.72);
-  backdrop-filter: blur(4px);
+  background: var(--panel);
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 0.82rem;
@@ -796,7 +749,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, var(--primary-light), var(--primary-dark));
+  background: var(--primary);
   color: rgba(244, 247, 246, 0.55);
   font-family: var(--font-display);
   font-weight: 800;

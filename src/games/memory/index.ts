@@ -72,8 +72,17 @@ function createMemoryGame(): MinigameModule {
     if (phase === "size-select") {
       const title = document.createElement("div");
       title.className = "stage-sheet__title";
-      title.textContent = "Wähle eine Spielfeldgröße";
+      title.style.fontSize = "1rem";
+      title.style.color = "var(--text)";
+      title.textContent = "Finde alle Zugpaare";
       panel.appendChild(title);
+
+      const desc = document.createElement("p");
+      desc.style.color = "var(--text-muted)";
+      desc.style.fontSize = "0.85rem";
+      desc.style.margin = "0 0 4px";
+      desc.textContent = "Decke immer zwei Karten auf. Zeigen beide denselben Zug, bleiben sie offen. Wähle zuerst eine Spielfeldgröße:";
+      panel.appendChild(desc);
 
       const row = document.createElement("div");
       row.style.display = "flex";

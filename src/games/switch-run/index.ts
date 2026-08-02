@@ -53,11 +53,14 @@ function createSwitchRunGame(): MinigameModule {
 
   function updateHud(): void {
     buttonBar.style.display = phase === "approaching" ? "flex" : "none";
-    choiceIndicator.style.display = phase === "approaching" ? "block" : "none";
+    choiceIndicator.style.display = phase === "approaching" ? "flex" : "none";
     gameOverPanel.style.display = phase === "game-over" ? "flex" : "none";
 
     if (phase === "approaching") {
-      choiceIndicator.innerHTML = `<span style="font-size:1.3rem">${LANE_ARROW[chosenLane]}</span> <span>Gewählt: ${LANE_LABEL[chosenLane]}</span>`;
+      choiceIndicator.innerHTML = `
+        <span class="switch-choice-banner__arrow">${LANE_ARROW[chosenLane]}</span>
+        <span class="switch-choice-banner__text">Gewählt: ${LANE_LABEL[chosenLane]}</span>
+      `;
     }
 
     if (phase === "game-over") {
@@ -313,12 +316,8 @@ function createSwitchRunGame(): MinigameModule {
       });
 
       choiceIndicator = document.createElement("div");
-      choiceIndicator.className = "stage-top-bar";
+      choiceIndicator.className = "switch-choice-banner";
       choiceIndicator.style.display = "none";
-      choiceIndicator.style.gap = "6px";
-      choiceIndicator.style.fontFamily = "var(--font-display)";
-      choiceIndicator.style.fontWeight = "700";
-      choiceIndicator.style.color = theme.accent;
       env.overlay.appendChild(choiceIndicator);
 
       gameOverPanel = document.createElement("div");
@@ -372,11 +371,7 @@ function createSwitchRunGame(): MinigameModule {
         ctx.textAlign = "center";
         ctx.fillStyle = theme.text;
         ctx.font = `800 40px ${theme.fontDisplay}`;
-        ctx.fillText(`${Math.max(0, Math.ceil(countdown))}`, size.width / 2, size.height * 0.2);
-
-        ctx.font = `600 12px ${theme.font}`;
-        ctx.fillStyle = theme.textMuted;
-        ctx.fillText(`${score} Weichen geschafft`, size.width / 2, size.height * 0.26);
+        ctx.fillText(`${Math.max(0, Math.ceil(countdown))}`, size.width / 2, size.height * 0.27);
       } else {
         // Bei einem Crash wackelt das Bild waehrend der Outcome-Phase kurz --
         // simuliert eine Vollbremsung.

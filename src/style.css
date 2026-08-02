@@ -752,6 +752,47 @@ button {
   color: var(--text-faint);
 }
 
+/* Weichenspiel: Anzeige der aktuell gewaehlten Richtung -- bewusst als
+   auffaellige, grosse Pille statt kleiner Kopfzeilen-Notiz, damit auf den
+   ersten Blick klar ist, welche Wahl gerade "scharf geschaltet" ist. */
+.switch-choice-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--header-h) + 10px + var(--safe-top));
+  z-index: 15;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-dark);
+  background: linear-gradient(180deg, #ffe08a, var(--accent));
+  color: #2b2004;
+  box-shadow: 0 3px 0 var(--accent-dark);
+  pointer-events: none;
+}
+
+.switch-choice-banner__arrow,
+.switch-choice-banner__text {
+  display: inline-flex;
+  align-items: center;
+}
+
+.switch-choice-banner__arrow {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.switch-choice-banner__text {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.3rem;
+  white-space: nowrap;
+}
+
 .stage-top-bar {
   position: absolute;
   top: calc(var(--header-h) + var(--safe-top));

@@ -6,7 +6,6 @@ import { registerGame } from "../registry";
 
 const GAME_ID = "train-quartet";
 const STAT_KEYS = Object.keys(STAT_LABELS) as (keyof TrainStats)[];
-const REVEAL_DELAY = 0.9;
 
 type Phase = "reveal-player" | "comparing" | "round-result" | "game-over";
 type Outcome = "player" | "cpu" | "tie";
@@ -51,7 +50,6 @@ function createTrainQuartetGame(): MinigameModule {
   let phase: Phase = "reveal-player";
   let chosenStat: keyof TrainStats | null = null;
   let outcome: Outcome | null = null;
-  let revealTimer = 0;
   let statRects: Array<{ stat: keyof TrainStats; rect: Rect }> = [];
   let continueBtn: HTMLButtonElement | null = null;
   let messageEl: HTMLDivElement | null = null;
@@ -65,13 +63,20 @@ function createTrainQuartetGame(): MinigameModule {
     phase = "reveal-player";
     chosenStat = null;
     outcome = null;
-    revealTimer = 0;
     updateOverlay();
   }
 
   function updateOverlay(): void {
     if (!messageEl || !continueBtn) return;
-    if (phase === "round-result" && outcome) {
+    if (phase === "comparing") {
+      // Bewusst kein automatischer Timer mehr: der Vergleich blieb sonst nur
+      // 0,9 Sekunden stehen, zu kurz um beide Karten in Ruhe zu vergleichen.
+      // Stattdessen wartet die Runde jetzt, bis der Spieler selbst weiter tippt.
+      messageEl.textContent = "Vergleiche in Ruhe beide Karten.";
+      messageEl.style.display = "block";
+      continueBtn.style.display = "block";
+      continueBtn.textContent = "Weiter";
+    } else if (phase === "round-result" && outcome) {
       const text =
         outcome === "player"
           ? "Du gewinnst diese Runde!"
@@ -98,7 +103,6 @@ function createTrainQuartetGame(): MinigameModule {
     if (phase !== "reveal-player") return;
     chosenStat = stat;
     phase = "comparing";
-    revealTimer = 0;
     updateOverlay();
   }
 
@@ -131,14 +135,16 @@ function createTrainQuartetGame(): MinigameModule {
   }
 
   function handleContinue(): void {
-    if (phase === "game-over") {
+    if (phase === "comparing") {
+      resolveRound();
+    } else if (phase === "game-over") {
       newGame();
-      return;
+    } else if (phase === "round-result") {
+      phase = "reveal-player";
+      chosenStat = null;
+      outcome = null;
+      updateOverlay();
     }
-    phase = "reveal-player";
-    chosenStat = null;
-    outcome = null;
-    updateOverlay();
   }
 
   function drawCardBack(ctx: CanvasRenderingContext2D, rect: Rect): void {
@@ -334,13 +340,10 @@ function createTrainQuartetGame(): MinigameModule {
       });
     },
 
-    update(dt: number) {
-      if (phase === "comparing") {
-        revealTimer += dt;
-        if (revealTimer >= REVEAL_DELAY) {
-          resolveRound();
-        }
-      }
+    update() {
+      // Der Uebergang von "comparing" zu "round-result" erfolgt jetzt ueber
+      // den "Weiter"-Button (siehe handleContinue), nicht mehr automatisch
+      // per Timer.
     },
 
     render(env: GameEnv) {

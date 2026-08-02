@@ -1,0 +1,365 @@
+import type { GameEnv, MinigameModule } from "../../core/Game";
+import { theme } from "../../core/theme";
+import { cityName, neighborsOf, type RailEdge } from "../../data/germanRailNetwork";
+import { showGameIntro } from "../../core/gameIntro";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
+import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { registerGame } from "../registry";
+
+const GAME_ID = "train-sim";
+const START_CITY = "berlin";
+const MAX_LEGS = 12;
+const MIN_SPEED = 20;
+const MAX_SPEED = 100;
+const SPEED_STEP = 10;
+const DEFAULT_SPEED = 45;
+
+type Phase = "choosing" | "traveling" | "finished";
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function formatCityCount(value: number): string {
+  return `${value} Städte`;
+}
+
+function createTrainSimGame(): MinigameModule {
+  let started = false;
+  let phase: Phase = "choosing";
+  let currentCityId = START_CITY;
+  let previousCityId: string | null = null;
+  let targetCityId: string | null = null;
+  let currentEdgeKm = 0;
+  let progressKm = 0;
+  let totalKm = 0;
+  let legsCompleted = 0;
+  let visited = new Set<string>([START_CITY]);
+  let speedKmS = DEFAULT_SPEED;
+  let tieOffset = 0;
+
+  let closeIntro: (() => void) | null = null;
+  let closeHighscoreModal: (() => void) | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
+
+  let topBar: HTMLDivElement;
+  let speedLabel: HTMLSpanElement;
+  let sheet: HTMLDivElement;
+  let choiceHost: HTMLDivElement;
+  let finishHost: HTMLDivElement;
+
+  function updateSpeedLabel(): void {
+    speedLabel.textContent = `${speedKmS} km/s`;
+  }
+
+  function setSpeed(next: number): void {
+    speedKmS = Math.min(MAX_SPEED, Math.max(MIN_SPEED, next));
+    updateSpeedLabel();
+  }
+
+  function renderChoiceButtons(options: RailEdge[]): void {
+    choiceHost.innerHTML = "";
+    for (const edge of options) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn";
+      btn.style.width = "100%";
+      btn.textContent = `→ ${cityName(edge.to)} (${edge.km} km)`;
+      btn.addEventListener("click", () => startLeg(edge));
+      choiceHost.appendChild(btn);
+    }
+    updateSheetVisibility();
+  }
+
+  function updateSheetVisibility(): void {
+    sheet.style.display = phase === "choosing" || phase === "finished" ? "flex" : "none";
+    choiceHost.style.display = phase === "choosing" ? "flex" : "none";
+    finishHost.style.display = phase === "finished" ? "flex" : "none";
+    topBar.style.display = phase === "finished" ? "none" : "flex";
+  }
+
+  function beginChoice(): void {
+    phase = "choosing";
+    const options = neighborsOf(currentCityId, previousCityId);
+    if (options.length === 0) {
+      finish();
+      return;
+    }
+    if (options.length === 1) {
+      startLeg(options[0]);
+      return;
+    }
+    renderChoiceButtons(options);
+  }
+
+  function startLeg(edge: RailEdge): void {
+    targetCityId = edge.to;
+    currentEdgeKm = edge.km;
+    progressKm = 0;
+    phase = "traveling";
+    updateSheetVisibility();
+  }
+
+  function arriveAtTarget(): void {
+    previousCityId = currentCityId;
+    currentCityId = targetCityId!;
+    targetCityId = null;
+    visited.add(currentCityId);
+    legsCompleted += 1;
+    if (legsCompleted >= MAX_LEGS) {
+      finish();
+    } else {
+      beginChoice();
+    }
+  }
+
+  function finish(): void {
+    phase = "finished";
+    updateSheetVisibility();
+    renderFinishPanel();
+
+    const cities = visited.size;
+    const outcome = getHighscoreOutcome(GAME_ID, cities, "higher-better");
+    if (outcome !== "none") {
+      closeHighscoreModal = promptHighscoreName({
+        message: `${formatCityCount(cities)} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        onDone: (name) => {
+          closeHighscoreModal = null;
+          highscoreBanner.update(recordHighscore(GAME_ID, name, cities, "higher-better"));
+        },
+      });
+    }
+  }
+
+  function renderFinishPanel(): void {
+    finishHost.innerHTML = "";
+
+    const title = document.createElement("div");
+    title.style.fontFamily = "var(--font-display)";
+    title.style.fontWeight = "800";
+    title.style.fontSize = "1.2rem";
+    title.style.color = theme.accent;
+    title.textContent = "Fahrt beendet!";
+    finishHost.appendChild(title);
+
+    const detail = document.createElement("div");
+    detail.style.color = "var(--text-muted)";
+    detail.style.fontSize = "0.88rem";
+    detail.style.margin = "6px 0 12px";
+    detail.textContent = `${formatCityCount(visited.size)} besucht · ${Math.round(totalKm)} km zurückgelegt.`;
+    finishHost.appendChild(detail);
+
+    const again = document.createElement("button");
+    again.type = "button";
+    again.className = "btn btn--accent";
+    again.textContent = "Nochmal";
+    again.addEventListener("click", resetRun);
+    finishHost.appendChild(again);
+  }
+
+  function resetRun(): void {
+    currentCityId = START_CITY;
+    previousCityId = null;
+    targetCityId = null;
+    currentEdgeKm = 0;
+    progressKm = 0;
+    totalKm = 0;
+    legsCompleted = 0;
+    visited = new Set<string>([START_CITY]);
+    highscoreBanner.update(getHighscoreBoard(GAME_ID));
+    beginChoice();
+  }
+
+  // ---------------------------------------------------------------- Zeichnen
+
+  function geometry(size: { width: number; height: number }) {
+    const horizonY = size.height * 0.36;
+    const baseY = size.height * 0.86;
+    const cx = size.width / 2;
+    return { horizonY, baseY, cx };
+  }
+
+  function drawTrack(ctx: CanvasRenderingContext2D, size: { width: number; height: number }): void {
+    const { horizonY, baseY, cx } = geometry(size);
+
+    const grad = ctx.createLinearGradient(0, horizonY, 0, baseY);
+    grad.addColorStop(0, "#173b40");
+    grad.addColorStop(1, theme.bg);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, horizonY, size.width, baseY - horizonY);
+
+    const topHalfWidth = 8;
+    const baseHalfWidth = size.width * 0.42;
+
+    ctx.fillStyle = "#0f2b2f";
+    ctx.beginPath();
+    ctx.moveTo(cx - topHalfWidth, horizonY);
+    ctx.lineTo(cx + topHalfWidth, horizonY);
+    ctx.lineTo(cx + baseHalfWidth, baseY);
+    ctx.lineTo(cx - baseHalfWidth, baseY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Schwellen, die im Fahrttempo auf den Betrachter zulaufen.
+    const tieCount = 10;
+    for (let i = 0; i < tieCount; i++) {
+      const d = (((i / tieCount + tieOffset) % 1) + 1) % 1;
+      const eased = d * d;
+      const y = lerp(horizonY, baseY, eased);
+      const halfW = lerp(topHalfWidth, baseHalfWidth, eased);
+      ctx.strokeStyle = `rgba(255,204,51,${0.15 + eased * 0.35})`;
+      ctx.lineWidth = 2 + eased * 3;
+      ctx.beginPath();
+      ctx.moveTo(cx - halfW * 0.9, y);
+      ctx.lineTo(cx + halfW * 0.9, y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - topHalfWidth, horizonY);
+    ctx.lineTo(cx - baseHalfWidth, baseY);
+    ctx.moveTo(cx + topHalfWidth, horizonY);
+    ctx.lineTo(cx + baseHalfWidth, baseY);
+    ctx.stroke();
+  }
+
+  return {
+    id: GAME_ID,
+
+    init(env: GameEnv) {
+      topBar = document.createElement("div");
+      topBar.className = "stage-top-bar";
+      topBar.style.gap = "10px";
+
+      const minusBtn = document.createElement("button");
+      minusBtn.type = "button";
+      minusBtn.className = "btn btn--ghost";
+      minusBtn.textContent = "−";
+      minusBtn.addEventListener("click", () => setSpeed(speedKmS - SPEED_STEP));
+
+      speedLabel = document.createElement("span");
+      speedLabel.style.fontFamily = "var(--font-display)";
+      speedLabel.style.fontWeight = "700";
+      speedLabel.style.minWidth = "76px";
+      speedLabel.style.textAlign = "center";
+      speedLabel.textContent = `${speedKmS} km/s`;
+
+      const plusBtn = document.createElement("button");
+      plusBtn.type = "button";
+      plusBtn.className = "btn btn--ghost";
+      plusBtn.textContent = "+";
+      plusBtn.addEventListener("click", () => setSpeed(speedKmS + SPEED_STEP));
+
+      topBar.append(minusBtn, speedLabel, plusBtn);
+      env.overlay.appendChild(topBar);
+
+      sheet = document.createElement("div");
+      sheet.className = "stage-sheet";
+      sheet.style.alignItems = "center";
+      sheet.style.textAlign = "center";
+      sheet.style.gap = "8px";
+
+      choiceHost = document.createElement("div");
+      choiceHost.style.display = "none";
+      choiceHost.style.flexDirection = "column";
+      choiceHost.style.gap = "8px";
+      choiceHost.style.width = "100%";
+
+      const choiceTitle = document.createElement("div");
+      choiceTitle.className = "stage-sheet__title";
+      choiceTitle.textContent = "Wohin geht die Fahrt?";
+      sheet.appendChild(choiceTitle);
+      sheet.appendChild(choiceHost);
+
+      finishHost = document.createElement("div");
+      finishHost.style.display = "none";
+      finishHost.style.flexDirection = "column";
+      finishHost.style.alignItems = "center";
+      finishHost.style.textAlign = "center";
+      sheet.appendChild(finishHost);
+
+      env.overlay.appendChild(sheet);
+
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatCityCount);
+      highscoreBanner.update(getHighscoreBoard(GAME_ID));
+
+      beginChoice();
+      updateSheetVisibility();
+
+      closeIntro = showGameIntro({
+        title: "Zugsimulator",
+        description:
+          "Rase im absurden Tempo durchs deutsche Streckennetz. An jeder Stadt entscheidest du, wohin die Fahrt weitergeht — die Geschwindigkeit kannst du oben jederzeit anpassen. Highscore: möglichst viele verschiedene Städte in einer Fahrt.",
+        onStart: () => {
+          closeIntro = null;
+          started = true;
+        },
+      });
+    },
+
+    update(dt: number) {
+      if (!started || phase !== "traveling") return;
+      const deltaKm = speedKmS * dt;
+      progressKm += deltaKm;
+      totalKm += deltaKm;
+      tieOffset += dt * (speedKmS / 25);
+      if (progressKm >= currentEdgeKm) {
+        arriveAtTarget();
+      }
+    },
+
+    render(env: GameEnv) {
+      const { ctx, size } = env;
+      ctx.fillStyle = theme.bg;
+      ctx.fillRect(0, 0, size.width, size.height);
+
+      if (!started) return;
+
+      drawTrack(ctx, size);
+
+      // Unterhalb der Geschwindigkeits-Controls (stage-top-bar) und oberhalb
+      // des Horizonts -- drei knappe Zeilen HUD-Text auf festen Pixel-
+      // Abstaenden, da die Controls selbst auch fest positioniert sind.
+      const hudTop = 210;
+      ctx.font = `600 13px ${theme.font}`;
+      ctx.fillStyle = theme.accent;
+      ctx.fillText(`${Math.round(totalKm)} km zurückgelegt`, size.width / 2, hudTop);
+
+      if (phase === "traveling" && targetCityId) {
+        ctx.font = `600 12px ${theme.font}`;
+        ctx.fillStyle = theme.textMuted;
+        const pct = Math.min(100, Math.round((progressKm / currentEdgeKm) * 100));
+        ctx.fillText(`→ ${cityName(targetCityId)} (${pct}%)`, size.width / 2, hudTop + 20);
+      }
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = theme.text;
+      ctx.font = `700 15px ${theme.fontDisplay}`;
+      ctx.fillText(cityName(currentCityId), size.width / 2, hudTop + 42);
+    },
+
+    cleanup() {
+      closeIntro?.();
+      closeIntro = null;
+      closeHighscoreModal?.();
+      closeHighscoreModal = null;
+      highscoreBanner?.destroy();
+      topBar?.remove();
+      sheet?.remove();
+    },
+  };
+}
+
+registerGame({
+  id: GAME_ID,
+  title: "Zugsimulator",
+  subtitle: "Rase durchs Streckennetz",
+  icon: "locomotive",
+  badge: "ZG",
+  accent: "#1f6f43",
+  create: createTrainSimGame,
+  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatCityCount }],
+});

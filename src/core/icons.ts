@@ -75,6 +75,12 @@ export const icons = {
     `<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/>
      <circle cx="12" cy="13.2" r="3.4"/>`,
   ),
+  locomotive: svg(
+    `<path d="M4 10a4 4 0 0 1 4-4h5a8 8 0 0 1 8 8v2H4v-6Z"/>
+     <line x1="4" y1="13" x2="21" y2="13"/>
+     <circle cx="8" cy="19" r="2"/>
+     <circle cx="17" cy="19" r="2"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -6,6 +6,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
+import { fitSquareToContainer } from "../../core/squareFit";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-spotter";
@@ -63,6 +64,7 @@ function createTrainSpotterGame(): MinigameModule {
   let gridHost: HTMLDivElement;
   let doneOverlay: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
+  let stopSquareFit: (() => void) | null = null;
 
   function renderGrid(): void {
     gridHost.innerHTML = "";
@@ -177,6 +179,12 @@ function createTrainSpotterGame(): MinigameModule {
       wrap.appendChild(doneOverlay);
       env.overlay.appendChild(wrap);
 
+      // Haelt das Raster quadratisch UND garantiert, dass es komplett in
+      // die verfuegbare Flaeche passt -- auf niedrigen Bildschirmen wuerde
+      // reines CSS (Breite bestimmt ueber aspect-ratio die Hoehe) sonst zum
+      // Scrollen zwingen, obwohl das Spiel eigentlich ohne Scrollen passen soll.
+      stopSquareFit = fitSquareToContainer(gridHost, wrap);
+
       highscoreBanner = mountHighscoreBanner(env.overlay, formatTime);
 
       restart();
@@ -213,6 +221,7 @@ function createTrainSpotterGame(): MinigameModule {
       highscoreBanner?.destroy();
       closeIntro?.();
       closeIntro = null;
+      stopSquareFit?.();
       gridHost?.parentElement?.remove();
     },
   };

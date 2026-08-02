@@ -5,6 +5,7 @@ import { distractorImages } from "../../data/distractors";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { fitSquareToContainer } from "../../core/squareFit";
 import { registerGame } from "../registry";
 
 const GAME_ID = "memory";
@@ -62,7 +63,9 @@ function createMemoryGame(): MinigameModule {
 
   let panel: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
+  let gridWrap: HTMLDivElement;
   let gridHost: HTMLDivElement;
+  let stopSquareFit: (() => void) | null = null;
 
   function renderPanel(): void {
     panel.innerHTML = "";
@@ -236,19 +239,31 @@ function createMemoryGame(): MinigameModule {
       panel = document.createElement("div");
       panel.className = "stage-center-panel";
 
+      // Wrapper definiert die verfuegbare Flaeche (oben/unten von Kopf- bzw.
+      // Fussleiste begrenzt); gridHost wird darin per fitSquareToContainer
+      // quadratisch UND garantiert passend skaliert, statt wie zuvor rein
+      // ueber die Breite (per aspect-ratio) -- das konnte auf niedrigen
+      // Bildschirmen ueber den verfuegbaren Platz hinauswachsen.
+      gridWrap = document.createElement("div");
+      gridWrap.style.position = "absolute";
+      gridWrap.style.left = "0";
+      gridWrap.style.right = "0";
+      gridWrap.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
+      gridWrap.style.bottom = "calc(var(--footer-h) + 16px + var(--safe-bottom))";
+      gridWrap.style.display = "flex";
+      gridWrap.style.alignItems = "center";
+      gridWrap.style.justifyContent = "center";
+      gridWrap.style.zIndex = "10";
+
       gridHost = document.createElement("div");
       gridHost.className = "tile-grid";
       gridHost.style.visibility = "hidden";
-      gridHost.style.position = "absolute";
-      gridHost.style.left = "0";
-      gridHost.style.right = "0";
-      gridHost.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
-      gridHost.style.margin = "0 auto";
-      gridHost.style.zIndex = "10";
-      gridHost.style.width = "min(92%, 460px)";
+      gridWrap.appendChild(gridHost);
 
-      env.overlay.appendChild(gridHost);
+      env.overlay.appendChild(gridWrap);
       env.overlay.appendChild(panel);
+
+      stopSquareFit = fitSquareToContainer(gridHost, gridWrap, 460);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatMoves);
 
@@ -283,7 +298,8 @@ function createMemoryGame(): MinigameModule {
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       highscoreBanner?.destroy();
-      gridHost?.remove();
+      stopSquareFit?.();
+      gridWrap?.remove();
       panel?.remove();
     },
   };

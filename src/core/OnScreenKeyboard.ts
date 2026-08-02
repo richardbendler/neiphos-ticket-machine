@@ -28,6 +28,7 @@ export class OnScreenKeyboard {
     onSubmit?: (value: string) => void;
   };
   private readonly clickHandler: (e: Event) => void;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(options: OnScreenKeyboardOptions) {
     this.opts = {
@@ -139,11 +140,42 @@ export class OnScreenKeyboard {
   }
 
   mount(parent: HTMLElement): void {
+    // Der Elternknoten ist meist ein schmuckloser Wrapper-Div in einem Flex-
+    // Container mit align-items:center (z.B. .stage-sheet) -- ohne stretch
+    // schrumpft dieser Wrapper auf seinen eigenen Inhalt zusammen, ein
+    // zirkulaerer Bezug (da .osk selbst width:100% seines Elternknotens
+    // ist), der fitNumericKeys() unten eine falsche, viel zu kleine Breite
+    // messen liesse.
+    parent.style.alignSelf = "stretch";
     parent.appendChild(this.el);
+    if (this.opts.layout === "numeric") {
+      // Feste Pixelgroessen (statt reinem CSS flex/aspect-ratio) garantieren
+      // hier zuverlaessig quadratische Tasten, die trotzdem nie breiter
+      // werden als der tatsaechlich verfuegbare Platz -- dieser Bereich
+      // steckt in einem "stage-sheet", dessen Breite je nach Geraet/
+      // Bildschirmausschnitt stark variiert.
+      this.fitNumericKeys();
+      this.resizeObserver = new ResizeObserver(() => this.fitNumericKeys());
+      this.resizeObserver.observe(this.el);
+    }
+  }
+
+  private fitNumericKeys(): void {
+    const cols = 3;
+    const rowGap = 6;
+    const colGap = 6;
+    const width = this.el.clientWidth;
+    if (width <= 0) return;
+    const size = Math.floor((width - colGap * (cols - 1)) / cols);
+    const clamped = Math.max(50, Math.min(110, size));
+    this.el.style.setProperty("--osk-key-size", `${clamped}px`);
+    this.el.style.setProperty("--osk-row-gap", `${rowGap}px`);
   }
 
   destroy(): void {
     this.el.removeEventListener("click", this.clickHandler);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.el.remove();
   }
 }

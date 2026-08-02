@@ -1,6 +1,6 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
-import { cityName, neighborsOf, type RailEdge } from "../../data/germanRailNetwork";
+import { cityName, neighborsOf, randomStartCity, FESTIVAL_CITY_ID, type RailEdge } from "../../data/germanRailNetwork";
 import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
@@ -8,8 +8,11 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-sim";
-const START_CITY = "berlin";
-const MAX_LEGS = 12;
+// Eigenes Board (statt "default"), da das alte Spielprinzip (meiste besuchte
+// Staedte, hoeher-ist-besser) unter demselben Key voellig andere Werte
+// gespeichert hat -- die waeren sonst als (falsch interpretierte) Zugzahlen
+// wieder aufgetaucht.
+const BOARD = "kyritz";
 const MIN_SPEED = 20;
 const MAX_SPEED = 100;
 const SPEED_STEP = 10;
@@ -21,23 +24,22 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-function formatCityCount(value: number): string {
-  return `${value} Städte`;
+function formatLegCount(value: number): string {
+  return value === 1 ? "1 Zug" : `${value} Züge`;
 }
 
 function createTrainSimGame(): MinigameModule {
   let started = false;
   let phase: Phase = "choosing";
-  let currentCityId = START_CITY;
+  let currentCityId = randomStartCity(FESTIVAL_CITY_ID);
   let previousCityId: string | null = null;
   let targetCityId: string | null = null;
   let currentEdgeKm = 0;
   let progressKm = 0;
-  let totalKm = 0;
   let legsCompleted = 0;
-  let visited = new Set<string>([START_CITY]);
   let speedKmS = DEFAULT_SPEED;
   let tieOffset = 0;
+  let reachedFestival = false;
 
   let closeIntro: (() => void) | null = null;
   let closeHighscoreModal: (() => void) | null = null;
@@ -65,7 +67,9 @@ function createTrainSimGame(): MinigameModule {
       btn.type = "button";
       btn.className = "btn";
       btn.style.width = "100%";
-      btn.textContent = `→ ${cityName(edge.to)} (${edge.km} km)`;
+      const isFestivalStop = edge.to === FESTIVAL_CITY_ID;
+      btn.textContent = `→ ${cityName(edge.to)} (${edge.km} km)${isFestivalStop ? " 🎪" : ""}`;
+      if (isFestivalStop) btn.classList.add("btn--accent");
       btn.addEventListener("click", () => startLeg(edge));
       choiceHost.appendChild(btn);
     }
@@ -83,7 +87,7 @@ function createTrainSimGame(): MinigameModule {
     phase = "choosing";
     const options = neighborsOf(currentCityId, previousCityId);
     if (options.length === 0) {
-      finish();
+      finish(false);
       return;
     }
     if (options.length === 1) {
@@ -105,28 +109,28 @@ function createTrainSimGame(): MinigameModule {
     previousCityId = currentCityId;
     currentCityId = targetCityId!;
     targetCityId = null;
-    visited.add(currentCityId);
     legsCompleted += 1;
-    if (legsCompleted >= MAX_LEGS) {
-      finish();
+    if (currentCityId === FESTIVAL_CITY_ID) {
+      finish(true);
     } else {
       beginChoice();
     }
   }
 
-  function finish(): void {
+  function finish(reached: boolean): void {
     phase = "finished";
+    reachedFestival = reached;
     updateSheetVisibility();
     renderFinishPanel();
 
-    const cities = visited.size;
-    const outcome = getHighscoreOutcome(GAME_ID, cities, "higher-better");
+    if (!reached) return;
+    const outcome = getHighscoreOutcome(GAME_ID, legsCompleted, "lower-better", BOARD);
     if (outcome !== "none") {
       closeHighscoreModal = promptHighscoreName({
-        message: `${formatCityCount(cities)} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        message: `${formatLegCount(legsCompleted)} bis nach Kyritz — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
         onDone: (name) => {
           closeHighscoreModal = null;
-          highscoreBanner.update(recordHighscore(GAME_ID, name, cities, "higher-better"));
+          highscoreBanner.update(recordHighscore(GAME_ID, name, legsCompleted, "lower-better", BOARD));
         },
       });
     }
@@ -140,14 +144,16 @@ function createTrainSimGame(): MinigameModule {
     title.style.fontWeight = "800";
     title.style.fontSize = "1.2rem";
     title.style.color = theme.accent;
-    title.textContent = "Fahrt beendet!";
+    title.textContent = reachedFestival ? "Willkommen in Kyritz! 🎪" : "Sackgasse!";
     finishHost.appendChild(title);
 
     const detail = document.createElement("div");
     detail.style.color = "var(--text-muted)";
     detail.style.fontSize = "0.88rem";
     detail.style.margin = "6px 0 12px";
-    detail.textContent = `${formatCityCount(visited.size)} besucht · ${Math.round(totalKm)} km zurückgelegt.`;
+    detail.textContent = reachedFestival
+      ? `Das Auto-Shuttle zum Neiphos Festival wartet — in ${formatLegCount(legsCompleted)} geschafft.`
+      : "Von hier führt keine Strecke weiter. Versuch eine andere Route.";
     finishHost.appendChild(detail);
 
     const again = document.createElement("button");
@@ -159,15 +165,14 @@ function createTrainSimGame(): MinigameModule {
   }
 
   function resetRun(): void {
-    currentCityId = START_CITY;
+    currentCityId = randomStartCity(FESTIVAL_CITY_ID);
     previousCityId = null;
     targetCityId = null;
     currentEdgeKm = 0;
     progressKm = 0;
-    totalKm = 0;
     legsCompleted = 0;
-    visited = new Set<string>([START_CITY]);
-    highscoreBanner.update(getHighscoreBoard(GAME_ID));
+    reachedFestival = false;
+    highscoreBanner.update(getHighscoreBoard(GAME_ID, BOARD));
     beginChoice();
   }
 
@@ -283,8 +288,8 @@ function createTrainSimGame(): MinigameModule {
 
       env.overlay.appendChild(sheet);
 
-      highscoreBanner = mountHighscoreBanner(env.overlay, formatCityCount);
-      highscoreBanner.update(getHighscoreBoard(GAME_ID));
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatLegCount);
+      highscoreBanner.update(getHighscoreBoard(GAME_ID, BOARD));
 
       beginChoice();
       updateSheetVisibility();
@@ -292,7 +297,7 @@ function createTrainSimGame(): MinigameModule {
       closeIntro = showGameIntro({
         title: "Zugsimulator",
         description:
-          "Rase im absurden Tempo durchs deutsche Streckennetz. An jeder Stadt entscheidest du, wohin die Fahrt weitergeht — die Geschwindigkeit kannst du oben jederzeit anpassen. Highscore: möglichst viele verschiedene Städte in einer Fahrt.",
+          "Du startest an einem zufälligen deutschen Bahnhof und musst nach Kyritz — dort wartet das Auto-Shuttle zum Neiphos Festival. An jeder Station entscheidest du, wohin die Fahrt weitergeht, die Geschwindigkeit kannst du oben jederzeit anpassen. Highscore: möglichst wenige Züge bis Kyritz.",
         onStart: () => {
           closeIntro = null;
           started = true;
@@ -304,7 +309,6 @@ function createTrainSimGame(): MinigameModule {
       if (!started || phase !== "traveling") return;
       const deltaKm = speedKmS * dt;
       progressKm += deltaKm;
-      totalKm += deltaKm;
       tieOffset += dt * (speedKmS / 25);
       if (progressKm >= currentEdgeKm) {
         arriveAtTarget();
@@ -326,7 +330,7 @@ function createTrainSimGame(): MinigameModule {
       const hudTop = 210;
       ctx.font = `600 13px ${theme.font}`;
       ctx.fillStyle = theme.accent;
-      ctx.fillText(`${Math.round(totalKm)} km zurückgelegt`, size.width / 2, hudTop);
+      ctx.fillText(`Ziel: Kyritz · ${formatLegCount(legsCompleted)} bisher`, size.width / 2, hudTop);
 
       if (phase === "traveling" && targetCityId) {
         ctx.font = `600 12px ${theme.font}`;
@@ -356,10 +360,10 @@ function createTrainSimGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Zugsimulator",
-  subtitle: "Rase durchs Streckennetz",
+  subtitle: "Finde den Weg nach Kyritz",
   icon: "locomotive",
   badge: "ZG",
   accent: "#1f6f43",
   create: createTrainSimGame,
-  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatCityCount }],
+  highscoreCategories: [{ board: BOARD, label: "Wenigste Züge", direction: "lower-better", formatValue: formatLegCount }],
 });

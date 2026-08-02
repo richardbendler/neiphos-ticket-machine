@@ -85,6 +85,11 @@ export function getHighscoreOutcome(
   return isBetter(value, current.value, direction) ? "new-best" : "none";
 }
 
+/** Loescht den Highscore-Eintrag eines einzelnen Spiels/Boards (siehe clearAllHighscores). */
+export function clearHighscoreBoard(gameId: string, board = "default"): void {
+  removeKey(["highscore", gameId, board]);
+}
+
 export function recordHighscore(
   gameId: string,
   name: string,

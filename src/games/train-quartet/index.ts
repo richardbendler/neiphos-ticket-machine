@@ -2,12 +2,25 @@ import type { GameEnv, MinigameModule, PointerPoint } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { trainCards, STAT_LABELS, type TrainCard, type TrainStats } from "../../data/trains";
 import { showGameIntro } from "../../core/gameIntro";
+import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
+import { promptHighscoreName } from "../../core/highscorePrompt";
+import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-quartet";
 const STAT_KEYS = Object.keys(STAT_LABELS) as (keyof TrainStats)[];
 const CARD_GAP = 12;
 const SLIDE_DURATION = 0.45;
+// Klar begrenztes Rundensystem statt "spiele, bis jemand alle Karten hat"
+// (kann sich sonst ueber sehr viele Runden ziehen bzw. theoretisch nie
+// enden) -- 10 Runden, eine je Startkarte, macht klar erkennbar, wie lange
+// das Spiel noch geht.
+const TOTAL_ROUNDS = 10;
+const HIGHSCORE_POPUP_DELAY_MS = 2000;
+
+function formatRoundWins(value: number): string {
+  return value === 1 ? "1 Runde" : `${value} Runden`;
+}
 
 // "sliding-in": die aufgedeckte Computer-Karte faehrt von rechts herein,
 // waehrend beide Karten gemeinsam in die Bildschirmmitte ruecken.
@@ -77,7 +90,16 @@ function createTrainQuartetGame(): MinigameModule {
   let statRects: Array<{ stat: keyof TrainStats; rect: Rect }> = [];
   let continueBtn: HTMLButtonElement | null = null;
   let messageEl: HTMLDivElement | null = null;
+  let evaluationEl: HTMLDivElement | null = null;
   let closeIntro: (() => void) | null = null;
+  let closeHighscoreModal: (() => void) | null = null;
+  let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
+  let highscoreBanner: HighscoreBannerHandle;
+
+  let roundsPlayed = 0;
+  let playerRoundWins = 0;
+  let cpuRoundWins = 0;
+  let tieRoundCount = 0;
 
   function newGame(): void {
     const deck = shuffle(trainCards);
@@ -89,11 +111,16 @@ function createTrainQuartetGame(): MinigameModule {
     outcome = null;
     displayedPlayerCard = null;
     displayedCpuCard = null;
+    roundsPlayed = 0;
+    playerRoundWins = 0;
+    cpuRoundWins = 0;
+    tieRoundCount = 0;
+    highscoreBanner?.update(getHighscoreBoard(GAME_ID));
     updateOverlay();
   }
 
   function updateOverlay(): void {
-    if (!messageEl || !continueBtn) return;
+    if (!messageEl || !continueBtn || !evaluationEl) return;
     if (phase === "comparing" && outcome) {
       const text =
         outcome === "player"
@@ -103,16 +130,25 @@ function createTrainQuartetGame(): MinigameModule {
             : "Unentschieden — die Karten wandern in den Pot.";
       messageEl.textContent = text;
       messageEl.style.display = "block";
+      evaluationEl.style.display = "none";
       continueBtn.style.display = "block";
       continueBtn.textContent = "Weiter";
     } else if (phase === "game-over") {
-      const won = playerDeck.length > 0;
-      messageEl.textContent = won ? "🏆 Du hast alle Karten gewonnen!" : "Du hast keine Karten mehr übrig.";
+      const summary =
+        playerRoundWins > cpuRoundWins
+          ? `🏆 Du gewinnst mit ${playerRoundWins} zu ${cpuRoundWins} Runden!`
+          : playerRoundWins < cpuRoundWins
+            ? `Der Computer gewinnt mit ${cpuRoundWins} zu ${playerRoundWins} Runden.`
+            : `Unentschieden: ${playerRoundWins} zu ${cpuRoundWins} Runden.`;
+      messageEl.textContent = summary;
       messageEl.style.display = "block";
+      evaluationEl.textContent = `${roundsPlayed} gespielte Runden — ${playerRoundWins} gewonnen, ${cpuRoundWins} verloren, ${tieRoundCount} unentschieden.`;
+      evaluationEl.style.display = "block";
       continueBtn.style.display = "block";
       continueBtn.textContent = "Nochmal spielen";
     } else {
       messageEl.style.display = "none";
+      evaluationEl.style.display = "none";
       continueBtn.style.display = "none";
     }
   }
@@ -140,16 +176,20 @@ function createTrainQuartetGame(): MinigameModule {
 
     playerDeck = playerDeck.slice(1);
     cpuDeck = cpuDeck.slice(1);
+    roundsPlayed += 1;
 
     if (pv === cv) {
       outcome = "tie";
+      tieRoundCount += 1;
       pot.push(playerCard, cpuCard);
     } else if (pv > cv) {
       outcome = "player";
+      playerRoundWins += 1;
       playerDeck.push(...pot, cpuCard, playerCard);
       pot = [];
     } else {
       outcome = "cpu";
+      cpuRoundWins += 1;
       cpuDeck.push(...pot, playerCard, cpuCard);
       pot = [];
     }
@@ -160,8 +200,25 @@ function createTrainQuartetGame(): MinigameModule {
     displayedCpuCard = null;
     chosenStat = null;
     outcome = null;
-    phase = playerDeck.length === 0 || cpuDeck.length === 0 ? "game-over" : "reveal-player";
+    const gameOver = playerDeck.length === 0 || cpuDeck.length === 0 || roundsPlayed >= TOTAL_ROUNDS;
+    phase = gameOver ? "game-over" : "reveal-player";
+    if (gameOver) finishGame();
     updateOverlay();
+  }
+
+  function finishGame(): void {
+    const outcomeResult = getHighscoreOutcome(GAME_ID, playerRoundWins, "higher-better");
+    if (outcomeResult === "none") return;
+    highscoreTimer = setTimeout(() => {
+      highscoreTimer = null;
+      closeHighscoreModal = promptHighscoreName({
+        message: `${formatRoundWins(playerRoundWins)} gewonnen — ${outcomeResult === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        onDone: (name) => {
+          closeHighscoreModal = null;
+          highscoreBanner.update(recordHighscore(GAME_ID, name, playerRoundWins, "higher-better"));
+        },
+      });
+    }, HIGHSCORE_POPUP_DELAY_MS);
   }
 
   function handleContinue(): void {
@@ -219,8 +276,14 @@ function createTrainQuartetGame(): MinigameModule {
       const scale = Math.max(imgRect.width / img.naturalWidth, imgRect.height / img.naturalHeight);
       const dw = img.naturalWidth * scale;
       const dh = img.naturalHeight * scale;
-      const dx = imgRect.x + (imgRect.width - dw) / 2;
-      const dy = imgRect.y + (imgRect.height - dh) / 2;
+      // Gleicher Bildausschnitt-Fokus wie bei Zug-Spotter/Memory (siehe
+      // TrainCard.focus) -- ohne den faellt der Zug bei Hochformat-Fotos
+      // (z. B. ICE3 vorm Koelner Dom) auch hier aus dem Zuschnitt.
+      const [fxRaw, fyRaw] = (card.focus ?? "50% 50%").split(" ");
+      const fx = parseFloat(fxRaw) / 100;
+      const fy = parseFloat(fyRaw) / 100;
+      const dx = imgRect.x - (dw - imgRect.width) * fx;
+      const dy = imgRect.y - (dh - imgRect.height) * fy;
       ctx.drawImage(img, dx, dy, dw, dh);
     }
     ctx.restore();
@@ -283,6 +346,12 @@ function createTrainQuartetGame(): MinigameModule {
       messageEl.style.fontWeight = "700";
       messageEl.style.display = "none";
 
+      evaluationEl = document.createElement("div");
+      evaluationEl.style.textAlign = "center";
+      evaluationEl.style.color = "var(--text-muted)";
+      evaluationEl.style.fontSize = "0.85rem";
+      evaluationEl.style.display = "none";
+
       continueBtn = document.createElement("button");
       continueBtn.type = "button";
       continueBtn.className = "btn btn--accent";
@@ -299,14 +368,18 @@ function createTrainQuartetGame(): MinigameModule {
       wrap.style.backdropFilter = "none";
       wrap.style.paddingBottom = "calc(20px + var(--safe-bottom))";
       wrap.appendChild(messageEl);
+      wrap.appendChild(evaluationEl);
       wrap.appendChild(continueBtn);
       env.overlay.appendChild(wrap);
+
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatRoundWins);
+      highscoreBanner.update(getHighscoreBoard(GAME_ID));
 
       newGame();
       closeIntro = showGameIntro({
         title: "Zug-Quartett",
         description:
-          "Du und der Computer bekommen je 10 Zugkarten. Wähle bei deiner obersten Karte eine Eigenschaft (z. B. Höchstgeschwindigkeit) — wer den höheren Wert hat, gewinnt die Runde und kassiert beide Karten. Wer alle Karten hat, gewinnt.",
+          "Du und der Computer bekommen je 10 Zugkarten und spielt 10 Runden. Wähle bei deiner obersten Karte eine Eigenschaft (z. B. Höchstgeschwindigkeit) — wer den höheren Wert hat, gewinnt die Runde und kassiert beide Karten. Wer nach 10 Runden mehr gewonnene Runden hat, gewinnt.",
         onStart: () => {
           closeIntro = null;
         },
@@ -335,14 +408,29 @@ function createTrainQuartetGame(): MinigameModule {
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
 
-      const topOffset = 122;
+      // Kartenblock wird innerhalb des verfuegbaren Platzes (unter der Kopf-
+      // zeile, ueber dem unteren Rand) vertikal zentriert, statt fest oben
+      // zu kleben -- auf hohen Bildschirmen blieb sonst darunter viel toter
+      // Platz.
+      const headerBottom = 150;
+      const bottomMargin = 70;
+      const availableHeight = Math.max(120, size.height - headerBottom - bottomMargin);
       const singleCardWidth = Math.min(size.width - 32, 300);
       const pairCardWidth = Math.min((size.width - 32 - CARD_GAP) / 2, 220);
-      const cardHeight = Math.min(size.height - topOffset - 70, 420);
+      const cardHeight = Math.min(availableHeight, 420);
+      const topOffset = headerBottom + (availableHeight - cardHeight) / 2;
       const singleX = (size.width - singleCardWidth) / 2;
       const pairTotalWidth = pairCardWidth * 2 + CARD_GAP;
       const pairLeftX = (size.width - pairTotalWidth) / 2;
       const pairRightX = pairLeftX + pairCardWidth + CARD_GAP;
+
+      // Rundenstand -- klar erkennbar, in welcher Runde man ist und wie
+      // lange das Spiel (bis TOTAL_ROUNDS) noch geht.
+      const roundNumber = Math.min(TOTAL_ROUNDS, roundsPlayed + (phase === "reveal-player" ? 1 : 0));
+      ctx.fillStyle = theme.accent;
+      ctx.font = `800 15px ${theme.fontDisplay}`;
+      ctx.textAlign = "center";
+      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, 96);
 
       ctx.fillStyle = theme.textMuted;
       ctx.font = `600 12px ${theme.font}`;
@@ -350,7 +438,7 @@ function createTrainQuartetGame(): MinigameModule {
       ctx.fillText(
         `Computer: ${cpuDeck.length} Karten${pot.length > 0 ? `  ·  Pot: ${pot.length}` : ""}  ·  Du: ${playerDeck.length} Karten`,
         size.width / 2,
-        topOffset - 12,
+        118,
       );
 
       const drawLabel = (text: string, rect: Rect) => {
@@ -421,11 +509,17 @@ function createTrainQuartetGame(): MinigameModule {
     },
 
     cleanup() {
+      if (highscoreTimer) clearTimeout(highscoreTimer);
+      highscoreTimer = null;
+      closeHighscoreModal?.();
+      closeHighscoreModal = null;
       closeIntro?.();
       closeIntro = null;
+      highscoreBanner?.destroy();
       continueBtn?.removeEventListener("click", handleContinue);
       continueBtn?.parentElement?.remove();
       messageEl = null;
+      evaluationEl = null;
       continueBtn = null;
     },
   };
@@ -439,4 +533,5 @@ registerGame({
   badge: "ZQ",
   accent: "#7e5330",
   create: createTrainQuartetGame,
+  highscoreCategories: [{ board: "default", label: "Meiste Rundensiege", direction: "higher-better", formatValue: formatRoundWins }],
 });

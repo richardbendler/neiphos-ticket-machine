@@ -1,12 +1,34 @@
 /**
- * Alle Sounds sind rein prozedural per Web Audio API synthetisiert (Oszillatoren
- * + gefiltertes Rauschen) -- keine Audiodateien noetig, dadurch garantiert
- * offline-tauglich und lizenzfrei. Jede Funktion plant ihren Klang exakt zum
- * uebergebenen AudioContext-Zeitpunkt (fuer sample-genaues Sequencer-Timing,
- * siehe index.ts).
+ * Der Grossteil der Sounds ist rein prozedural per Web Audio API synthetisiert
+ * (Oszillatoren + gefiltertes Rauschen) -- keine Audiodatei noetig, dadurch
+ * garantiert offline-tauglich und lizenzfrei. Jede Funktion plant ihren Klang
+ * exakt zum uebergebenen AudioContext-Zeitpunkt (fuer sample-genaues
+ * Sequencer-Timing, siehe index.ts).
+ *
+ * Zusaetzlich enthaelt das Board ein paar echte, kurze Bahn-Sample-Clips
+ * (Ansagen/Atmo, s. SAMPLE_SOUND_DEFS unten) -- auf ausdruecklichen Wunsch
+ * trotz Lizenzrisiko eingebunden, da die App nur lokal/privat laeuft und
+ * nicht oeffentlich verteilt wird. Anders als die synthetisierten Sounds sind
+ * das keine eigenen Kompositionen, siehe Quellenangaben dort.
  */
 
-export type SoundId = "doorChime" | "doorThud" | "switchClack" | "brakeHiss" | "horn" | "chime" | "announcement";
+export type SoundId =
+  | "doorChime"
+  | "doorThud"
+  | "switchClack"
+  | "brakeHiss"
+  | "horn"
+  | "chime"
+  | "announcement"
+  | "dbAnkuendigung"
+  | "deutscheBahn"
+  | "bahnhofsansage"
+  | "bahnhofAtmo"
+  | "ansageDb"
+  | "sBahn"
+  | "sBahnNeu"
+  | "bahnhofsszene"
+  | "zugbetrieb";
 
 type PlayFn = (ctx: AudioContext, time: number, destination: AudioNode) => void;
 
@@ -118,6 +140,79 @@ const playChime: PlayFn = (ctx, time, destination) => {
   }
 };
 
+// -------------------------------------------------------------- Sample-Clips
+//
+// Kurze, echte Bahn-Sound-Clips (Ansagen/Atmo), per fetch()+decodeAudioData()
+// als AudioBuffer geladen und wie die synthetisierten Sounds sample-genau
+// zum Sequencer-Takt abgespielt. Herkunft (jeweils Instant-Sound-Button auf
+// myinstants.com):
+//  - dbAnkuendigung: myinstants.com/en/instant/deutsche-bahn-ankundigung-45554
+//  - deutscheBahn:   myinstants.com/en/instant/deutsche-bahn-373
+//  - bahnhofsansage: myinstants.com/en/instant/bahnhofsansage-95498
+//  - bahnhofAtmo:    myinstants.com/en/instant/bahnhof-54632
+//  - ansageDb:       myinstants.com/en/instant/ansage-db-72287
+//  - sBahn:          myinstants.com/en/instant/s-bahn-90921
+//  - sBahnNeu:       myinstants.com/en/instant/s-bahn-neu-85653
+//  - bahnhofsszene:  myinstants.com/en/instant/bahnhofsszene-80547
+//  - zugbetrieb:     myinstants.com/en/instant/achtung-zugbetrieb-2674
+import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
+import deutscheBahnUrl from "../../assets/sounds/deutsche-bahn.mp3";
+import bahnhofsansageUrl from "../../assets/sounds/bahnhofsansage.mp3";
+import bahnhofUrl from "../../assets/sounds/bahnhof.mp3";
+import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
+import sBahnUrl from "../../assets/sounds/s-bahn.mp3";
+import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
+import bahnhofsszeneUrl from "../../assets/sounds/bahnhofsszene.mp3";
+import zugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
+
+const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
+
+async function loadSampleBuffer(ctx: AudioContext, url: string): Promise<AudioBuffer> {
+  let cached = sampleBufferCache.get(url);
+  if (!cached) {
+    cached = fetch(url)
+      .then((res) => res.arrayBuffer())
+      .then((data) => ctx.decodeAudioData(data));
+    sampleBufferCache.set(url, cached);
+  }
+  return cached;
+}
+
+/**
+ * Lauffaehiger Sound-Datei-Import (via Vite als URL gebuendelt) noch bevor
+ * er gebraucht wird -- vermeidet eine hoerbare Verzoegerung beim allerersten
+ * Antippen eines Sample-Sounds waehrend des Spiels.
+ */
+export function preloadSamples(ctx: AudioContext): void {
+  for (const url of SAMPLE_URLS) void loadSampleBuffer(ctx, url);
+}
+
+function makeSamplePlayFn(url: string): PlayFn {
+  return (ctx, time, destination) => {
+    void loadSampleBuffer(ctx, url).then((buffer) => {
+      // Der Sequencer kann bis zur Fertigstellung des Decodings schon
+      // weitergelaufen sein -- ein bereits verstrichener Zielzeitpunkt
+      // wuerde AudioBufferSourceNode.start() sonst mit einem Fehler abbrechen.
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(destination);
+      src.start(Math.max(time, ctx.currentTime));
+    });
+  };
+}
+
+const SAMPLE_URLS = [
+  dbAnkuendigungUrl,
+  deutscheBahnUrl,
+  bahnhofsansageUrl,
+  bahnhofUrl,
+  ansageDbUrl,
+  sBahnUrl,
+  sBahnNeuUrl,
+  bahnhofsszeneUrl,
+  zugbetriebUrl,
+];
+
 export interface SoundDef {
   id: SoundId;
   label: string;
@@ -135,6 +230,15 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "horn", label: "Signalhorn", hint: "Zweiklang-Signal", play: playHorn },
   { id: "chime", label: "Ankunft", hint: "Ding-Dong-Ansage-Chime", play: playChime },
   { id: "announcement", label: "Ansage", hint: '„Bitte die Fahrkarten bereithalten" (Sprachausgabe)', text: "Bitte die Fahrkarten bereithalten." },
+  { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl) },
+  { id: "deutscheBahn", label: "DB-Sound", hint: "Deutsche-Bahn-Sound (Sample-Clip)", play: makeSamplePlayFn(deutscheBahnUrl) },
+  { id: "bahnhofsansage", label: "Bahnsteig-Ansage", hint: "Ansage vom Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnhofsansageUrl) },
+  { id: "bahnhofAtmo", label: "Bahnhof", hint: "Bahnhofsgeräusch (Sample-Clip)", play: makeSamplePlayFn(bahnhofUrl) },
+  { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
+  { id: "sBahn", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnUrl) },
+  { id: "sBahnNeu", label: "S-Bahn 2", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl) },
+  { id: "bahnhofsszene", label: "Bahnsteig-Atmo", hint: "Geräuschkulisse Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnhofsszeneUrl) },
+  { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl) },
 ];
 
 /**

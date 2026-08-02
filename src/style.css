@@ -839,6 +839,10 @@ button {
 
 .tile-grid__cell {
   position: relative;
+  /* Erzwingt quadratische Kacheln unabhaengig vom Seitenverhaeltnis des
+     jeweiligen Zugfotos (Quer- vs. Hochformat) -- sonst bestimmt sonst die
+     hoechste Zelle je Reihe die (uneinheitliche) Zeilenhoehe. */
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -967,6 +971,14 @@ button {
   font-weight: 700;
   min-width: 64px;
   text-align: center;
+}
+
+.seq-controls__volume {
+  flex: 1;
+  max-width: 200px;
+  height: 28px;
+  accent-color: var(--primary);
+  touch-action: pan-x;
 }
 
 /* .menu-grid nutzt grid-auto-fill mit minmax() (siehe oben) und passt die

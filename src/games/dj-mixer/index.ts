@@ -1,6 +1,6 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
-import { SOUND_DEFS, speakPhrase, stopSpeech } from "./sounds";
+import { SOUND_DEFS, speakPhrase, stopSpeech, preloadSamples } from "./sounds";
 import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
@@ -10,6 +10,7 @@ const LOOKAHEAD_S = 0.12;
 const MIN_BPM = 60;
 const MAX_BPM = 160;
 const DEFAULT_BPM = 100;
+const DEFAULT_VOLUME = 0.8;
 
 interface ScheduledStep {
   step: number;
@@ -26,6 +27,7 @@ function createDjMixerGame(): MinigameModule {
   let currentSchedulerStep = 0;
   let nextStepTime = 0;
   let bpm = DEFAULT_BPM;
+  let volume = DEFAULT_VOLUME;
   let stepQueue: ScheduledStep[] = [];
   let visualStep = -1;
 
@@ -33,6 +35,7 @@ function createDjMixerGame(): MinigameModule {
   let seqHost: HTMLDivElement;
   let playBtn: HTMLButtonElement;
   let bpmLabel: HTMLSpanElement;
+  let volumeLabel: HTMLSpanElement;
   let cellEls: HTMLButtonElement[][] = [];
 
   function ensureAudio(): AudioContext {
@@ -40,11 +43,18 @@ function createDjMixerGame(): MinigameModule {
       audioCtx = new AudioContext();
       const compressor = audioCtx.createDynamicsCompressor();
       masterGain = audioCtx.createGain();
-      masterGain.gain.value = 0.85;
+      masterGain.gain.value = volume;
       masterGain.connect(compressor).connect(audioCtx.destination);
+      preloadSamples(audioCtx);
     }
     if (audioCtx.state === "suspended") void audioCtx.resume();
     return audioCtx;
+  }
+
+  function setVolume(next: number): void {
+    volume = Math.min(1, Math.max(0, next));
+    if (masterGain) masterGain.gain.value = volume;
+    if (volumeLabel) volumeLabel.textContent = `${Math.round(volume * 100)}%`;
   }
 
   function secondsPerStep(): number {
@@ -200,6 +210,29 @@ function createDjMixerGame(): MinigameModule {
 
       controls.append(minusBtn, bpmLabel, plusBtn);
       panel.appendChild(controls);
+
+      const volumeRow = document.createElement("div");
+      volumeRow.className = "seq-controls";
+
+      const volumeIcon = document.createElement("span");
+      volumeIcon.textContent = "🔊";
+      volumeIcon.style.fontSize = "1rem";
+
+      const volumeSlider = document.createElement("input");
+      volumeSlider.type = "range";
+      volumeSlider.min = "0";
+      volumeSlider.max = "100";
+      volumeSlider.value = String(Math.round(DEFAULT_VOLUME * 100));
+      volumeSlider.className = "seq-controls__volume";
+      volumeSlider.setAttribute("aria-label", "Lautstärke");
+      volumeSlider.addEventListener("input", () => setVolume(Number(volumeSlider.value) / 100));
+
+      volumeLabel = document.createElement("span");
+      volumeLabel.className = "seq-controls__bpm";
+      volumeLabel.textContent = `${Math.round(DEFAULT_VOLUME * 100)}%`;
+
+      volumeRow.append(volumeIcon, volumeSlider, volumeLabel);
+      panel.appendChild(volumeRow);
 
       const controls2 = document.createElement("div");
       controls2.className = "seq-controls";

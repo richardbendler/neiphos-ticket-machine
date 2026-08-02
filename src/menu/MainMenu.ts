@@ -2,9 +2,14 @@ import { icons } from "../core/icons";
 import type { GameMeta } from "../games/registry";
 
 const GRID_GAP = 12;
-// Kachelhoehe kommt rein aus .menu-tile { aspect-ratio: 2.35/1 } in
-// style.css -- hier wird nur noch die Breite berechnet (siehe
-// tileWidthForCols), die Hoehe ergibt sich daraus automatisch per CSS.
+// Seitenverhaeltnis der Kacheln -- muss mit .menu-tile { aspect-ratio: ... }
+// in style.css uebereinstimmen. Die Hoehe wird trotzdem zusaetzlich explizit
+// per grid-auto-rows gesetzt (nicht nur aus aspect-ratio abgeleitet): bei
+// sehr kurzen Kachelhoehen kollidierte reines CSS aspect-ratio mit der
+// flex-basierten Zentrierung des Kachelinhalts (align-items:center) in
+// Kombination mit overflow:hidden -- Titel/Icon wurden dann ausserhalb der
+// sichtbaren Kachel gerendert und wirkten wie fehlender Text.
+const TILE_ASPECT = 2.35;
 const MAX_TILE_WIDTH = 620;
 const MIN_TILE_WIDTH = 40;
 // Querformat (Breite >= Hoehe): immer 3 Spalten (bei aktuell 9 Spielen
@@ -107,7 +112,9 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
     const rect = grid.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1 || games.length === 0) return;
     const { cols, tileWidth } = computeGridLayout(rect.width, rect.height, games.length);
+    const tileHeight = Math.floor(tileWidth / TILE_ASPECT);
     grid.style.gridTemplateColumns = `repeat(${cols}, ${tileWidth}px)`;
+    grid.style.gridAutoRows = `${tileHeight}px`;
     const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, tileWidth / REFERENCE_TILE_WIDTH));
     grid.style.setProperty("--menu-tile-scale", String(scale));
   };

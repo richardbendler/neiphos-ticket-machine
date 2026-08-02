@@ -11,7 +11,7 @@ const GAME_ID = "train-photo";
 const COUNTDOWN_START = 3;
 const MIN_WAIT_S = 3;
 const MAX_WAIT_S = 7;
-const SPEED_PX_S = 950; // absurd schnell -- deutlich schneller als die schnellste Stufe bei "Passagiere zählen"
+const SPEED_PX_S = 1900; // absurd schnell -- nochmal doppelt so schnell wie zuvor
 const TRAIN_WIDTH = 260;
 const TRAIN_HEIGHT = 84;
 const RESULT_REVEAL_DELAY = 2;
@@ -297,6 +297,26 @@ function createTrainPhotoGame(): MinigameModule {
     ctx.lineTo(size.width / 2, size.height);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Fadenkreuz-Markierung genau in der Bildmitte -- wie der Fokuspunkt
+    // eines echten Kamerasuchers, damit sofort klar ist, wo "mittig" liegt.
+    const reticleR = 22;
+    const tick = 9;
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, focusY, reticleR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - reticleR - tick, focusY);
+    ctx.lineTo(cx - reticleR + tick, focusY);
+    ctx.moveTo(cx + reticleR - tick, focusY);
+    ctx.lineTo(cx + reticleR + tick, focusY);
+    ctx.moveTo(cx, focusY - reticleR - tick);
+    ctx.lineTo(cx, focusY - reticleR + tick);
+    ctx.moveTo(cx, focusY + reticleR - tick);
+    ctx.lineTo(cx, focusY + reticleR + tick);
+    ctx.stroke();
   }
 
   return {

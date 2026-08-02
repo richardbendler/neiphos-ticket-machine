@@ -378,8 +378,13 @@ function createTrainQuartetGame(): MinigameModule {
       newGame();
       closeIntro = showGameIntro({
         title: "Zug-Quartett",
-        description:
-          "Du und der Computer bekommen je 10 Zugkarten und spielt 10 Runden. Wähle bei deiner obersten Karte eine Eigenschaft (z. B. Höchstgeschwindigkeit) — wer den höheren Wert hat, gewinnt die Runde und kassiert beide Karten. Wer nach 10 Runden mehr gewonnene Runden hat, gewinnt.",
+        description: [
+          "Du und der Computer bekommt je 10 Zugkarten",
+          "Ihr spielt 10 Runden",
+          "Wähle bei deiner Karte eine Eigenschaft, z. B. Höchstgeschwindigkeit",
+          "Der höhere Wert gewinnt die Runde und kassiert beide Karten",
+          "Wer nach 10 Runden mehr gewonnen hat, gewinnt",
+        ],
         onStart: () => {
           closeIntro = null;
         },

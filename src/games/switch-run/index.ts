@@ -115,8 +115,12 @@ function createSwitchRunGame(): MinigameModule {
 
     closeIntro = showGameIntro({
       title: "Weichenspiel",
-      description:
-        "Vor jeder Weiche läuft ein Countdown. Wähle Links, Mitte oder Rechts — eine Richtung ist immer eine Sackgasse. Ohne Wahl fährst du automatisch Mitte.",
+      description: [
+        "Vor jeder Weiche läuft ein Countdown",
+        "Wähle Links, Mitte oder Rechts",
+        "Eine Richtung ist immer eine Sackgasse",
+        "Ohne Wahl fährst du automatisch Mitte",
+      ],
       onStart: () => {
         closeIntro = null;
         started = true;

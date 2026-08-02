@@ -331,8 +331,12 @@ function createTrainSimGame(): MinigameModule {
 
       closeIntro = showGameIntro({
         title: "Zugsimulator",
-        description:
-          "Du startest an einem zufälligen deutschen Bahnhof und musst nach Kyritz — dort wartet das Auto-Shuttle zum Neiphos Festival. An jeder Station entscheidest du, wohin die Fahrt weitergeht. Highscore: möglichst wenige Züge bis Kyritz.",
+        description: [
+          "Start an einem zufälligen deutschen Bahnhof",
+          "Ziel: Kyritz — dort wartet das Shuttle zum Neiphos Festival",
+          "An jeder Station wählst du die nächste Strecke",
+          "Highscore: möglichst wenige Züge bis Kyritz",
+        ],
         onStart: () => {
           closeIntro = null;
           started = true;

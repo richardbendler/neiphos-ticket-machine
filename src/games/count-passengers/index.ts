@@ -344,8 +344,12 @@ function createCountPassengersGame(): MinigameModule {
 
       closeIntro = showGameIntro({
         title: "Passagiere zählen",
-        description:
-          "Wähle zuerst eine Geschwindigkeitsstufe. Dann fährt ein Zug an dir vorbei — zähle, wie viele Passagiere du hinter den Fenstern siehst, und gib deine Schätzung danach über die Tastatur ein.",
+        description: [
+          "Wähle zuerst eine Geschwindigkeitsstufe",
+          "Ein Zug fährt an dir vorbei",
+          "Zähle die Passagiere hinter den Fenstern",
+          "Tippe deine Schätzung danach ein",
+        ],
         onStart: () => {
           closeIntro = null;
           started = true;

@@ -348,8 +348,11 @@ function createTrainPhotoGame(): MinigameModule {
 
       closeIntro = showGameIntro({
         title: "Zugfoto",
-        description:
-          "Ein Zug rast in absurdem Tempo vorbei. Tippe im richtigen Moment auf den Kamera-Auslöser — je mittiger der Zug auf dem Foto landet, desto mehr Punkte bekommst du.",
+        description: [
+          "Ein Zug rast in absurdem Tempo vorbei",
+          "Tippe im richtigen Moment auf den Auslöser",
+          "Je mittiger der Zug im Foto, desto mehr Punkte",
+        ],
         onStart: () => {
           closeIntro = null;
           started = true;

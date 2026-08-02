@@ -158,7 +158,7 @@ function createTrainSpotterGame(): MinigameModule {
 
     closeIntro = showGameIntro({
       title: "Zug-Spotter",
-      description: "Tippe im Raster so schnell wie möglich alle Bilder mit Zügen an. Falsche Tipps kosten Zeit.",
+      description: ["Tippe alle Bilder mit Zügen an", "So schnell wie möglich", "Falsche Tipps kosten Zeit"],
       startLabel: "Los geht's",
       onStart: () => {
         closeIntro = null;

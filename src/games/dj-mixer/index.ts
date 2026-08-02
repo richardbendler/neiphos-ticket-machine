@@ -217,6 +217,12 @@ function createDjMixerGame(): MinigameModule {
     const available = seqHost.clientHeight - (rows - 1) * rowGap;
     const rowHeight = Math.max(18, Math.floor(available / rows));
     seqHost.style.setProperty("--seq-row-height", `${rowHeight}px`);
+    // Zeilenbeschriftung (teils zweizeilig, z.B. "Bahnübergang") skaliert mit
+    // der Zeilenhoehe -- bei niedrigen Zeilen (viele Takte/kleiner Bildschirm)
+    // sonst nicht genug Platz fuer zwei Zeilen, Text ragte dann sichtbar in
+    // die naechste Zeile hinein.
+    const labelFont = Math.max(8, Math.min(11, Math.floor(rowHeight * 0.3)));
+    seqHost.style.setProperty("--seq-label-font", `${labelFont}px`);
   }
 
   return {

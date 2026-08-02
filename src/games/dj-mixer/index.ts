@@ -359,8 +359,12 @@ function createDjMixerGame(): MinigameModule {
 
       closeIntro = showGameIntro({
         title: "DJ-Mischer",
-        description:
-          "Tippe im Raster Felder an: jede Zeile ist ein Zuggeräusch, jede Spalte ein Taktschritt. Mit „Abspielen” läuft dein Muster in einer Dauerschleife.",
+        description: [
+          "Jede Zeile ist ein Zuggeräusch",
+          "Jede Spalte ist ein Taktschritt",
+          "Tippe Felder an, um sie ein- oder auszuschalten",
+          "„Abspielen” lässt dein Muster in Dauerschleife laufen",
+        ],
         onStart: () => {
           closeIntro = null;
         },

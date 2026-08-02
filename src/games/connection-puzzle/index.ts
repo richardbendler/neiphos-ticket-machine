@@ -214,8 +214,12 @@ function createConnectionPuzzleGame(): MinigameModule {
 
       closeIntro = showGameIntro({
         title: "Verbindungssuche",
-        description:
-          "Oben stehen Start und Ziel. Tippe unten alle Linien in der richtigen Reihenfolge an, mit denen du (halbwegs direkt) von Start nach Ziel kommst — es zählt nur die Reihenfolge der Linien, keine einzelnen Stationen. Aufeinanderfolgende Linien müssen sich irgendwo begegnen, um umsteigen zu können.",
+        description: [
+          "Oben stehen Start und Ziel",
+          "Tippe die Linien in der richtigen Reihenfolge an",
+          "Nur die Linien zählen, nicht die einzelnen Stationen",
+          "Zwei Linien nacheinander müssen sich irgendwo treffen",
+        ],
         onStart: () => {
           closeIntro = null;
         },

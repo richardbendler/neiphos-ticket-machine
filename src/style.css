@@ -674,6 +674,25 @@ button {
   line-height: 1.4;
 }
 
+/* Spiel-Anleitungen (showGameIntro): deutlich groesserer Text als normale
+   Modal-Absaetze und als Stichpunkte statt Fliesstext -- soll sich auf dem
+   Kiosk-Bildschirm in ein paar Sekunden ueberfliegen lassen. */
+.game-intro-list {
+  margin: 10px 0 0;
+  padding-left: 24px;
+  color: var(--text-muted);
+  font-size: 1.35rem;
+  line-height: 1.45;
+}
+
+.game-intro-list li {
+  margin-bottom: 8px;
+}
+
+.game-intro-list li::marker {
+  color: var(--accent-dark);
+}
+
 .field-input {
   width: 100%;
   padding: 12px 14px;

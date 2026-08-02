@@ -12,7 +12,23 @@
  * das keine eigenen Kompositionen, siehe Quellenangaben dort.
  */
 
-export type SoundId = "kick" | "snare" | "hiHat" | "horn" | "chime" | "announcement" | "dbAnkuendigung" | "ansageDb" | "sBahnNeu" | "zugbetrieb";
+export type SoundId =
+  | "kick"
+  | "snare"
+  | "hiHat"
+  | "horn"
+  | "chime"
+  | "announcement"
+  | "dbAnkuendigung"
+  | "ansageDb"
+  | "sBahnNeu"
+  | "zugbetrieb"
+  | "railroadBell"
+  | "emergencyBrake"
+  | "steamBrake"
+  | "trainRumble"
+  | "doorKorail"
+  | "chooChoo";
 
 /**
  * playbackRate ist nur fuer die Sample-Clips relevant (siehe
@@ -112,12 +128,24 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
 //                     statt der vorherigen, zu kuenstlich klingenden
 //                     Web-Audio-Synthese)
 //  - chime:          myinstants.com/en/instant/ankunft-1-32312
+//  - railroadBell:   myinstants.com/en/instant/bells-railroad-crossing-18898
+//  - emergencyBrake: myinstants.com/en/instant/zwangsbremsung-76081
+//  - steamBrake:     myinstants.com/en/instant/steam-locomotive-brakes-screaming-67672
+//  - trainRumble:    myinstants.com/en/instant/anderes-zugsgerausch-7741
+//  - doorKorail:     myinstants.com/en/instant/korail-door-sound-87012
+//  - chooChoo:       myinstants.com/en/instant/choo-choo-11509
 import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
 import zugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
 import hornUrl from "../../assets/sounds/train-horn.mp3";
 import chimeUrl from "../../assets/sounds/ankunft.mp3";
+import railroadBellUrl from "../../assets/sounds/railroad-bell.mp3";
+import emergencyBrakeUrl from "../../assets/sounds/zwangsbremsung.mp3";
+import steamBrakeUrl from "../../assets/sounds/steam-brake.mp3";
+import trainRumbleUrl from "../../assets/sounds/zugsgeraeusch.mp3";
+import doorKorailUrl from "../../assets/sounds/tuer-korail.mp3";
+import chooChooUrl from "../../assets/sounds/choo-choo.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -146,8 +174,13 @@ export function preloadSamples(ctx: AudioContext): void {
  * abgemischt sind (manche Instant-Sound-Buttons sind kaum hoerbar leise,
  * andere fast Vollausschlag) -- Faktoren unten sind anhand des tatsaechlichen
  * Spitzenpegels jedes Clips bestimmt, damit im Mix alle etwa gleich laut sind.
+ *
+ * maxDuration kappt Clips, die im Original mehrere Sekunden lang sind (z. B.
+ * Atmo-Aufnahmen) -- als Sequencer-Schritt soll nur der knackige Anfang
+ * antriggern, nicht die ganze Aufnahme durchlaufen und sich mit den
+ * naechsten Schritten ueberlagern.
  */
-function makeSamplePlayFn(url: string, gainBoost = 1): PlayFn {
+function makeSamplePlayFn(url: string, gainBoost = 1, maxDuration?: number): PlayFn {
   return (ctx, time, destination, playbackRate) => {
     void loadSampleBuffer(ctx, url).then((buffer) => {
       // Der Sequencer kann bis zur Fertigstellung des Decodings schon
@@ -166,12 +199,27 @@ function makeSamplePlayFn(url: string, gainBoost = 1): PlayFn {
         gain.gain.value = gainBoost;
         src.connect(gain).connect(destination);
       }
-      src.start(Math.max(time, ctx.currentTime));
+      const startAt = Math.max(time, ctx.currentTime);
+      src.start(startAt);
+      if (maxDuration) src.stop(startAt + maxDuration);
     });
   };
 }
 
-const SAMPLE_URLS = [dbAnkuendigungUrl, ansageDbUrl, sBahnNeuUrl, zugbetriebUrl, hornUrl, chimeUrl];
+const SAMPLE_URLS = [
+  dbAnkuendigungUrl,
+  ansageDbUrl,
+  sBahnNeuUrl,
+  zugbetriebUrl,
+  hornUrl,
+  chimeUrl,
+  railroadBellUrl,
+  emergencyBrakeUrl,
+  steamBrakeUrl,
+  trainRumbleUrl,
+  doorKorailUrl,
+  chooChooUrl,
+];
 
 export interface SoundDef {
   id: SoundId;
@@ -193,6 +241,12 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
   { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2) },
   { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl, 6) },
+  { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 3, 1.1) },
+  { id: "emergencyBrake", label: "Notbremse", hint: "Zwangsbremsung (Sample-Clip)", play: makeSamplePlayFn(emergencyBrakeUrl, 1.1, 1.2) },
+  { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.8, 0.8) },
+  { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.5, 1) },
+  { id: "doorKorail", label: "Zugtür", hint: "Zugtür-Signal (Sample-Clip)", play: makeSamplePlayFn(doorKorailUrl, 1.1, 0.6) },
+  { id: "chooChoo", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(chooChooUrl, 3, 1) },
 ];
 
 /**

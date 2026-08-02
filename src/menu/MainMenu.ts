@@ -1,3 +1,4 @@
+import { icons } from "../core/icons";
 import type { GameMeta } from "../games/registry";
 
 const GRID_GAP = 12;
@@ -6,7 +7,7 @@ const GRID_GAP = 12;
 // kleines Farb-Icon rechts). Muss mit .menu-tile { aspect-ratio: ... } in
 // style.css uebereinstimmen, sonst rechnet computeGridLayout mit einer
 // anderen Kachelform, als tatsaechlich gerendert wird.
-const TILE_ASPECT = 1.8;
+const TILE_ASPECT = 2.35;
 const MIN_TILE_WIDTH = 200;
 const MAX_TILE_WIDTH = 460;
 
@@ -83,7 +84,7 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
         <span class="menu-tile__title">${game.title}</span>
         <span class="menu-tile__subtitle">${game.subtitle}</span>
       </span>
-      <span class="menu-tile__icon">${game.badge}</span>
+      <span class="menu-tile__icon">${icons[game.icon]}</span>
     `;
     tile.addEventListener("click", () => onSelect(game.id));
     grid.appendChild(tile);

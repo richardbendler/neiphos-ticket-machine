@@ -58,7 +58,7 @@
   /* Hoehe der fixen Kopf-/Fussleiste (ohne Safe-Area-Inset) -- zentral
      definiert, damit Spielbuehnen-Layouts (stage-top-bar, stage-center-panel,
      ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. */
-  --header-h: 72px;
+  --header-h: 86px;
   --footer-h: 46px;
 
   color-scheme: light;
@@ -189,8 +189,8 @@ button {
 }
 
 .chrome-bar__logo {
-  width: 60px;
-  height: 60px;
+  width: 74px;
+  height: 74px;
   flex-shrink: 0;
 }
 
@@ -354,14 +354,17 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 10px 16px;
   /* Muss mit TILE_ASPECT in menu/MainMenu.ts uebereinstimmen -- die
      Spaltenzahl wird dort anhand genau dieses Seitenverhaeltnisses berechnet. */
-  aspect-ratio: 1.8 / 1;
-  border-radius: var(--radius-md);
+  aspect-ratio: 2.35 / 1;
+  /* Staerker gerundet und diagonal-glaenzender Verlauf, angelehnt an die
+     "pillenfoermigen" Tasten der Vorlage statt der vorherigen, eher
+     flachen Buerokachel. */
+  border-radius: 16px;
   border: 1px solid var(--btn-border);
-  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  background: linear-gradient(135deg, var(--btn-face-top) 0%, var(--btn-face-bottom) 100%);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.75);
   color: var(--text);
   overflow: hidden;
   text-align: left;
@@ -369,59 +372,54 @@ button {
 
 .menu-tile:active {
   transform: translateY(1px);
-  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
+  background: linear-gradient(135deg, var(--btn-face-active-top) 0%, var(--btn-face-active-bottom) 100%);
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .menu-tile__text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .menu-tile__title {
   font-family: var(--font);
   font-weight: 800;
-  font-size: 0.98rem;
-  line-height: 1.15;
+  font-size: 1.08rem;
+  line-height: 1.18;
   color: var(--text);
+  /* Lange, ungetrennte Woerter (z. B. "Verbindungssuche") haben sonst
+     keine Umbruchstelle und wuerden am Kachelrand einfach abgeschnitten
+     statt in eine zweite Zeile umzubrechen. */
+  overflow-wrap: break-word;
 }
 
 .menu-tile__subtitle {
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Zweifarbiges Zonen-Schild-Badge, angelehnt an die "AB"/"BC"/"ABC"
-   Tarifzonen-Schilder echter Fahrkartenautomaten -- diagonal zweigeteilte
-   Akzentfarbe statt eines Icon-Glyphs. */
 .menu-tile__icon {
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(
-    135deg,
-    var(--tile-accent, var(--primary)) 0%,
-    var(--tile-accent, var(--primary)) 50%,
-    color-mix(in srgb, var(--tile-accent, var(--primary)) 60%, black) 50%,
-    color-mix(in srgb, var(--tile-accent, var(--primary)) 60%, black) 100%
-  );
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: var(--tile-accent, var(--primary));
   border: 1px solid rgba(0, 0, 0, 0.25);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 0.92rem;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.menu-tile__icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 /* ---------- Spielbuehne ---------- */

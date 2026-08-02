@@ -226,7 +226,10 @@ function createConnectionPuzzleGame(): MinigameModule {
 
 registerGame({
   id: GAME_ID,
-  title: "Verbindungssuche",
+  // Weiches Trennzeichen (U+00AD) an der Wortfuge -- ohne das bricht der
+  // Browser das lange, zusammengesetzte Wort in der schmalen Menu-Kachel
+  // an einer zufaelligen Stelle statt an der Silbengrenze um.
+  title: "Verbindungs­suche",
   subtitle: "Finde die schnellste Route",
   icon: "route",
   badge: "VS",

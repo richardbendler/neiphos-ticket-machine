@@ -351,7 +351,7 @@ function createTrainQuartetGame(): MinigameModule {
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
 
-      const topOffset = 68;
+      const topOffset = 122;
       const cardWidth = Math.min(size.width - 32, 300);
       const cardX = (size.width - cardWidth) / 2;
 
@@ -367,10 +367,17 @@ function createTrainQuartetGame(): MinigameModule {
       const opponentRect: Rect = { x: cardX, y: topOffset, width: cardWidth, height: 92 };
       const cpuCard = cpuDeck[0];
       if (cpuCard) {
-        if (phase === "reveal-player") {
-          drawCardBack(ctx, opponentRect);
-        } else {
+        if (phase !== "reveal-player") {
+          // Eindeutige Beschriftung, damit auf den ersten Blick klar ist,
+          // dass hier wirklich BEIDE Karten -- deine und die des Computers --
+          // gleichzeitig zu sehen sind, nicht nur deine eigene.
+          ctx.fillStyle = theme.textFaint;
+          ctx.font = `700 10px ${theme.font}`;
+          ctx.textAlign = "left";
+          ctx.fillText("COMPUTER", opponentRect.x + 4, opponentRect.y - 4);
           drawMiniCard(ctx, opponentRect, cpuCard, chosenStat);
+        } else {
+          drawCardBack(ctx, opponentRect);
         }
       }
 
@@ -382,6 +389,12 @@ function createTrainQuartetGame(): MinigameModule {
           width: cardWidth,
           height: Math.min(size.height - opponentRect.y - opponentRect.height - 44, 380),
         };
+        if (phase !== "reveal-player") {
+          ctx.fillStyle = theme.textFaint;
+          ctx.font = `700 10px ${theme.font}`;
+          ctx.textAlign = "left";
+          ctx.fillText("DU", playerRect.x + 4, playerRect.y - 6);
+        }
         drawCardFace(ctx, playerRect, playerCard, {
           interactive: phase === "reveal-player",
           opponent: phase !== "reveal-player" ? cpuCard : undefined,

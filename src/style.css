@@ -1119,6 +1119,13 @@ button {
   gap: 6px;
 }
 
+.seq-row__labelcol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+}
+
 .seq-row__label {
   appearance: none;
   border: 1px solid var(--btn-border);
@@ -1130,7 +1137,19 @@ button {
   font-size: 0.66rem;
   line-height: 1.15;
   padding: 4px;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Winzig, nur zur Feinabstimmung dieser einen Zeile gegenueber den
+   anderen -- kein vollwertiger Regler wie der globale Lautstaerkeregler
+   oben in den Controls. */
+.seq-row__volume {
+  width: 100%;
+  height: 10px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  touch-action: pan-x;
 }
 
 .seq-row__label:active {

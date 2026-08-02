@@ -27,6 +27,8 @@ function createDjMixerGame(): MinigameModule {
   let audioCtx: AudioContext | null = null;
   let closeIntro: (() => void) | null = null;
   let masterGain: GainNode | null = null;
+  let rowGains: GainNode[] = [];
+  let rowVolumes: number[] = SOUND_DEFS.map(() => 1);
 
   let bars = DEFAULT_BARS;
   let grid: boolean[][] = SOUND_DEFS.map(() => new Array(bars * STEPS_PER_BAR).fill(false));
@@ -57,6 +59,15 @@ function createDjMixerGame(): MinigameModule {
       masterGain = audioCtx.createGain();
       masterGain.gain.value = volume;
       masterGain.connect(compressor).connect(audioCtx.destination);
+      // Ein Gain-Knoten pro Sound-Zeile, dazwischengeschaltet vor dem
+      // Master-Gain -- so laesst sich jede Zeile einzeln leiser/lauter
+      // regeln, unabhaengig von der Gesamtlautstaerke.
+      rowGains = SOUND_DEFS.map((_, i) => {
+        const gain = audioCtx!.createGain();
+        gain.gain.value = rowVolumes[i];
+        gain.connect(masterGain!);
+        return gain;
+      });
       preloadSamples(audioCtx);
     }
     if (audioCtx.state === "suspended") void audioCtx.resume();
@@ -69,6 +80,11 @@ function createDjMixerGame(): MinigameModule {
     if (volumeLabel) volumeLabel.textContent = `${Math.round(volume * 100)}%`;
   }
 
+  function setRowVolume(row: number, next: number): void {
+    rowVolumes[row] = Math.min(1, Math.max(0, next));
+    if (rowGains[row]) rowGains[row].gain.value = rowVolumes[row];
+  }
+
   function secondsPerStep(): number {
     return 60 / bpm / 4; // 16tel-Noten
   }
@@ -79,10 +95,12 @@ function createDjMixerGame(): MinigameModule {
     if (sound.play) {
       // Die Sample-Clips werden relativ zum Referenztempo gestreckt/gestaucht,
       // damit sie beim Aendern des Tempos im Takt bleiben (siehe sounds.ts).
-      sound.play(ctx, time, masterGain!, bpm / DEFAULT_BPM);
+      // Ueber den Zeilen-eigenen Gain-Knoten geroutet, damit der
+      // Lautstaerkeregler dieser Zeile greift.
+      sound.play(ctx, time, rowGains[trackIndex] ?? masterGain!, bpm / DEFAULT_BPM);
     } else if (sound.text) {
       const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
-      setTimeout(() => speakPhrase(sound.text!), delayMs);
+      setTimeout(() => speakPhrase(sound.text!, rowVolumes[trackIndex]), delayMs);
     }
   }
 
@@ -161,13 +179,30 @@ function createDjMixerGame(): MinigameModule {
       const rowEl = document.createElement("div");
       rowEl.className = "seq-row";
 
+      const labelCol = document.createElement("div");
+      labelCol.className = "seq-row__labelcol";
+
       const label = document.createElement("button");
       label.type = "button";
       label.className = "seq-row__label";
       label.textContent = sound.label;
       label.title = sound.hint;
       label.addEventListener("click", () => previewSound(r));
-      rowEl.appendChild(label);
+      labelCol.appendChild(label);
+
+      // Bewusst winzig -- nur fuer die Feinabstimmung dieser einen Zeile
+      // gegenueber den anderen, nicht als vollwertiger Regler gedacht.
+      const rowVolume = document.createElement("input");
+      rowVolume.type = "range";
+      rowVolume.min = "0";
+      rowVolume.max = "100";
+      rowVolume.value = String(Math.round(rowVolumes[r] * 100));
+      rowVolume.className = "seq-row__volume";
+      rowVolume.setAttribute("aria-label", `Lautstärke ${sound.label}`);
+      rowVolume.addEventListener("input", () => setRowVolume(r, Number(rowVolume.value) / 100));
+      labelCol.appendChild(rowVolume);
+
+      rowEl.appendChild(labelCol);
 
       const cellsWrap = document.createElement("div");
       cellsWrap.className = "seq-row__cells";

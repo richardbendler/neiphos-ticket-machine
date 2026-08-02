@@ -141,7 +141,13 @@ export function preloadSamples(ctx: AudioContext): void {
   for (const url of SAMPLE_URLS) void loadSampleBuffer(ctx, url);
 }
 
-function makeSamplePlayFn(url: string): PlayFn {
+/**
+ * gainBoost gleicht aus, dass die Original-Clips sehr unterschiedlich laut
+ * abgemischt sind (manche Instant-Sound-Buttons sind kaum hoerbar leise,
+ * andere fast Vollausschlag) -- Faktoren unten sind anhand des tatsaechlichen
+ * Spitzenpegels jedes Clips bestimmt, damit im Mix alle etwa gleich laut sind.
+ */
+function makeSamplePlayFn(url: string, gainBoost = 1): PlayFn {
   return (ctx, time, destination, playbackRate) => {
     void loadSampleBuffer(ctx, url).then((buffer) => {
       // Der Sequencer kann bis zur Fertigstellung des Decodings schon
@@ -153,7 +159,13 @@ function makeSamplePlayFn(url: string): PlayFn {
       // index.ts), damit die Sample-Clips nicht immer gleich lang klingen,
       // egal wie schnell der Beat gerade laeuft.
       src.playbackRate.value = playbackRate;
-      src.connect(destination);
+      if (gainBoost === 1) {
+        src.connect(destination);
+      } else {
+        const gain = ctx.createGain();
+        gain.gain.value = gainBoost;
+        src.connect(gain).connect(destination);
+      }
       src.start(Math.max(time, ctx.currentTime));
     });
   };
@@ -175,12 +187,12 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
   { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
   { id: "horn", label: "Signalhorn", hint: "Echtes Zug-Signalhorn (Sample-Clip)", play: makeSamplePlayFn(hornUrl) },
-  { id: "chime", label: "Ankunft", hint: "Ankunfts-Ansage-Chime (Sample-Clip)", play: makeSamplePlayFn(chimeUrl) },
+  { id: "chime", label: "Ankunft", hint: "Ankunfts-Ansage-Chime (Sample-Clip)", play: makeSamplePlayFn(chimeUrl, 6) },
   { id: "announcement", label: "Ansage", hint: '„Bitte die Fahrkarten bereithalten" (Sprachausgabe)', text: "Bitte die Fahrkarten bereithalten." },
-  { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl) },
+  { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl, 2) },
   { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
-  { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl) },
-  { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl) },
+  { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2) },
+  { id: "zugbetrieb", label: "Achtung", hint: '„Achtung am Gleis" (Sample-Clip)', play: makeSamplePlayFn(zugbetriebUrl, 6) },
 ];
 
 /**
@@ -215,7 +227,7 @@ function getGermanVoice(): SpeechSynthesisVoice | null {
   return cachedGermanVoice;
 }
 
-export function speakPhrase(text: string): void {
+export function speakPhrase(text: string, volume = 1): void {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   try {
     const utterance = new SpeechSynthesisUtterance(text);
@@ -224,6 +236,7 @@ export function speakPhrase(text: string): void {
     if (voice) utterance.voice = voice;
     utterance.rate = 1.05;
     utterance.pitch = 1;
+    utterance.volume = Math.min(1, Math.max(0, volume));
     window.speechSynthesis.speak(utterance);
   } catch {
     // Keine Sprachausgabe verfuegbar -- Track bleibt einfach stumm.

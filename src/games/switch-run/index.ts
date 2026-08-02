@@ -375,9 +375,17 @@ function createSwitchRunGame(): MinigameModule {
       if (phase === "approaching") {
         drawApproachingTrack(ctx, size);
         ctx.textAlign = "center";
-        ctx.fillStyle = theme.text;
         ctx.font = `800 40px ${theme.fontDisplay}`;
-        ctx.fillText(`${Math.max(0, Math.ceil(countdown))}`, size.width / 2, size.height * 0.32);
+        const countdownText = `${Math.max(0, Math.ceil(countdown))}`;
+        const countdownY = size.height * 0.27;
+        // Weisser Umriss + dunkle Fuellung: bleibt so sowohl vor dem hellen
+        // Hintergrund oben als auch vor der dunklen Gleis-Grafik lesbar,
+        // statt vor dem dunklen Bereich foermlich zu verschwinden.
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "#ffffff";
+        ctx.strokeText(countdownText, size.width / 2, countdownY);
+        ctx.fillStyle = theme.text;
+        ctx.fillText(countdownText, size.width / 2, countdownY);
       } else {
         // Bei einem Crash wackelt das Bild waehrend der Outcome-Phase kurz --
         // simuliert eine Vollbremsung.

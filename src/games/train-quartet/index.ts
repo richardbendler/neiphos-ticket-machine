@@ -6,9 +6,25 @@ import { registerGame } from "../registry";
 
 const GAME_ID = "train-quartet";
 const STAT_KEYS = Object.keys(STAT_LABELS) as (keyof TrainStats)[];
+const CARD_GAP = 12;
+const SLIDE_DURATION = 0.45;
 
-type Phase = "reveal-player" | "comparing" | "round-result" | "game-over";
+// "sliding-in": die aufgedeckte Computer-Karte faehrt von rechts herein,
+// waehrend beide Karten gemeinsam in die Bildschirmmitte ruecken.
+// "comparing": beide Karten stehen in voller Groesse nebeneinander, die
+// gewaehlte Eigenschaft ist markiert, das Ergebnis steht fest.
+// "sliding-out": nach "Weiter" verschwindet die linke (alte) Karte nach
+// links, die rechte wandert in die Mitte und wird zur naechsten Karte.
+type Phase = "reveal-player" | "sliding-in" | "comparing" | "sliding-out" | "game-over";
 type Outcome = "player" | "cpu" | "tie";
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
 
 interface Rect {
   x: number;
@@ -50,6 +66,14 @@ function createTrainQuartetGame(): MinigameModule {
   let phase: Phase = "reveal-player";
   let chosenStat: keyof TrainStats | null = null;
   let outcome: Outcome | null = null;
+  let animTimer = 0;
+  // Schnappschuss der beiden Karten, die gerade verglichen werden --
+  // getrennt vom "lebenden" Deck-Zustand (der schon direkt beim Aufdecken
+  // mutiert wird), damit sliding-in/comparing/sliding-out immer noch die
+  // richtigen Karten zeigen, auch wenn playerDeck[0]/cpuDeck[0] inzwischen
+  // schon die naechste Runde meinen.
+  let displayedPlayerCard: TrainCard | null = null;
+  let displayedCpuCard: TrainCard | null = null;
   let statRects: Array<{ stat: keyof TrainStats; rect: Rect }> = [];
   let continueBtn: HTMLButtonElement | null = null;
   let messageEl: HTMLDivElement | null = null;
@@ -63,20 +87,14 @@ function createTrainQuartetGame(): MinigameModule {
     phase = "reveal-player";
     chosenStat = null;
     outcome = null;
+    displayedPlayerCard = null;
+    displayedCpuCard = null;
     updateOverlay();
   }
 
   function updateOverlay(): void {
     if (!messageEl || !continueBtn) return;
-    if (phase === "comparing") {
-      // Bewusst kein automatischer Timer mehr: der Vergleich blieb sonst nur
-      // 0,9 Sekunden stehen, zu kurz um beide Karten in Ruhe zu vergleichen.
-      // Stattdessen wartet die Runde jetzt, bis der Spieler selbst weiter tippt.
-      messageEl.textContent = "Vergleiche in Ruhe beide Karten.";
-      messageEl.style.display = "block";
-      continueBtn.style.display = "block";
-      continueBtn.textContent = "Weiter";
-    } else if (phase === "round-result" && outcome) {
+    if (phase === "comparing" && outcome) {
       const text =
         outcome === "player"
           ? "Du gewinnst diese Runde!"
@@ -86,7 +104,7 @@ function createTrainQuartetGame(): MinigameModule {
       messageEl.textContent = text;
       messageEl.style.display = "block";
       continueBtn.style.display = "block";
-      continueBtn.textContent = "Nächste Runde";
+      continueBtn.textContent = "Weiter";
     } else if (phase === "game-over") {
       const won = playerDeck.length > 0;
       messageEl.textContent = won ? "🏆 Du hast alle Karten gewonnen!" : "Du hast keine Karten mehr übrig.";
@@ -101,18 +119,24 @@ function createTrainQuartetGame(): MinigameModule {
 
   function handleStatChoice(stat: keyof TrainStats): void {
     if (phase !== "reveal-player") return;
+    const playerCard = playerDeck[0];
+    const cpuCard = cpuDeck[0];
+    if (!playerCard || !cpuCard) return;
+
     chosenStat = stat;
-    phase = "comparing";
+    displayedPlayerCard = playerCard;
+    displayedCpuCard = cpuCard;
+    resolveRound(playerCard, cpuCard, stat);
+
+    phase = "sliding-in";
+    animTimer = 0;
     updateOverlay();
   }
 
-  function resolveRound(): void {
-    const playerCard = playerDeck[0];
-    const cpuCard = cpuDeck[0];
-    if (!playerCard || !cpuCard || !chosenStat) return;
-
-    const pv = playerCard.stats[chosenStat];
-    const cv = cpuCard.stats[chosenStat];
+  /** Mutiert die Decks sofort -- die Animation zeigt weiterhin die per displayedPlayerCard/displayedCpuCard eingefrorenen Karten. */
+  function resolveRound(playerCard: TrainCard, cpuCard: TrainCard, stat: keyof TrainStats): void {
+    const pv = playerCard.stats[stat];
+    const cv = cpuCard.stats[stat];
 
     playerDeck = playerDeck.slice(1);
     cpuDeck = cpuDeck.slice(1);
@@ -129,41 +153,25 @@ function createTrainQuartetGame(): MinigameModule {
       cpuDeck.push(...pot, playerCard, cpuCard);
       pot = [];
     }
+  }
 
-    phase = playerDeck.length === 0 || cpuDeck.length === 0 ? "game-over" : "round-result";
+  function finishTransition(): void {
+    displayedPlayerCard = null;
+    displayedCpuCard = null;
+    chosenStat = null;
+    outcome = null;
+    phase = playerDeck.length === 0 || cpuDeck.length === 0 ? "game-over" : "reveal-player";
     updateOverlay();
   }
 
   function handleContinue(): void {
     if (phase === "comparing") {
-      resolveRound();
+      phase = "sliding-out";
+      animTimer = 0;
+      updateOverlay();
     } else if (phase === "game-over") {
       newGame();
-    } else if (phase === "round-result") {
-      phase = "reveal-player";
-      chosenStat = null;
-      outcome = null;
-      updateOverlay();
     }
-  }
-
-  function drawCardBack(ctx: CanvasRenderingContext2D, rect: Rect): void {
-    const grad = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height);
-    grad.addColorStop(0, theme.primaryLight);
-    grad.addColorStop(1, theme.primaryDark);
-    ctx.fillStyle = grad;
-    roundRect(ctx, rect.x, rect.y, rect.width, rect.height, 12);
-    ctx.fill();
-    ctx.strokeStyle = theme.panelBorderLight;
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, rect.x, rect.y, rect.width, rect.height, 12);
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(244,247,246,0.85)";
-    ctx.font = `700 ${Math.round(rect.height * 0.28)}px ${theme.fontDisplay}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("NTM", rect.x + rect.width / 2, rect.y + rect.height / 2);
   }
 
   function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -262,41 +270,6 @@ function createTrainQuartetGame(): MinigameModule {
     });
   }
 
-  function drawMiniCard(ctx: CanvasRenderingContext2D, rect: Rect, card: TrainCard, highlightStat: keyof TrainStats | null): void {
-    ctx.fillStyle = theme.paper;
-    roundRect(ctx, rect.x, rect.y, rect.width, rect.height, 12);
-    ctx.fill();
-
-    const imgRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: 76, height: rect.height - 16 };
-    ctx.save();
-    roundRect(ctx, imgRect.x, imgRect.y, imgRect.width, imgRect.height, 6);
-    ctx.clip();
-    ctx.fillStyle = "#0a1d20";
-    ctx.fillRect(imgRect.x, imgRect.y, imgRect.width, imgRect.height);
-    const img = getImage(card.image);
-    if (img.complete && img.naturalWidth > 0) {
-      const scale = Math.max(imgRect.width / img.naturalWidth, imgRect.height / img.naturalHeight);
-      const dw = img.naturalWidth * scale;
-      const dh = img.naturalHeight * scale;
-      ctx.drawImage(img, imgRect.x + (imgRect.width - dw) / 2, imgRect.y + (imgRect.height - dh) / 2, dw, dh);
-    }
-    ctx.restore();
-
-    ctx.fillStyle = theme.paperText;
-    ctx.textAlign = "left";
-    ctx.font = `700 13px ${theme.fontDisplay}`;
-    ctx.fillText(card.name, imgRect.x + imgRect.width + 10, rect.y + 20);
-
-    if (highlightStat) {
-      ctx.font = `600 11px ${theme.font}`;
-      ctx.fillStyle = theme.paperMuted;
-      ctx.fillText(STAT_LABELS[highlightStat].label, imgRect.x + imgRect.width + 10, rect.y + 40);
-      ctx.font = `700 15px ${theme.fontDisplay}`;
-      ctx.fillStyle = theme.paperText;
-      ctx.fillText(formatStatValue(highlightStat, card.stats[highlightStat]), imgRect.x + imgRect.width + 10, rect.y + 60);
-    }
-  }
-
   return {
     id: GAME_ID,
 
@@ -340,10 +313,21 @@ function createTrainQuartetGame(): MinigameModule {
       });
     },
 
-    update() {
-      // Der Uebergang von "comparing" zu "round-result" erfolgt jetzt ueber
-      // den "Weiter"-Button (siehe handleContinue), nicht mehr automatisch
-      // per Timer.
+    update(dt: number) {
+      if (phase === "sliding-in") {
+        animTimer += dt;
+        if (animTimer >= SLIDE_DURATION) {
+          animTimer = SLIDE_DURATION;
+          phase = "comparing";
+          updateOverlay();
+        }
+      } else if (phase === "sliding-out") {
+        animTimer += dt;
+        if (animTimer >= SLIDE_DURATION) {
+          animTimer = SLIDE_DURATION;
+          finishTransition();
+        }
+      }
     },
 
     render(env: GameEnv) {
@@ -352,8 +336,13 @@ function createTrainQuartetGame(): MinigameModule {
       ctx.fillRect(0, 0, size.width, size.height);
 
       const topOffset = 122;
-      const cardWidth = Math.min(size.width - 32, 300);
-      const cardX = (size.width - cardWidth) / 2;
+      const singleCardWidth = Math.min(size.width - 32, 300);
+      const pairCardWidth = Math.min((size.width - 32 - CARD_GAP) / 2, 220);
+      const cardHeight = Math.min(size.height - topOffset - 70, 420);
+      const singleX = (size.width - singleCardWidth) / 2;
+      const pairTotalWidth = pairCardWidth * 2 + CARD_GAP;
+      const pairLeftX = (size.width - pairTotalWidth) / 2;
+      const pairRightX = pairLeftX + pairCardWidth + CARD_GAP;
 
       ctx.fillStyle = theme.textMuted;
       ctx.font = `600 12px ${theme.font}`;
@@ -364,49 +353,60 @@ function createTrainQuartetGame(): MinigameModule {
         topOffset - 12,
       );
 
-      const opponentRect: Rect = { x: cardX, y: topOffset, width: cardWidth, height: 92 };
-      const cpuCard = cpuDeck[0];
-      if (cpuCard) {
-        if (phase !== "reveal-player") {
-          // Eindeutige Beschriftung, damit auf den ersten Blick klar ist,
-          // dass hier wirklich BEIDE Karten -- deine und die des Computers --
-          // gleichzeitig zu sehen sind, nicht nur deine eigene.
-          ctx.fillStyle = theme.textFaint;
-          ctx.font = `700 10px ${theme.font}`;
-          ctx.textAlign = "left";
-          ctx.fillText("COMPUTER", opponentRect.x + 4, opponentRect.y - 4);
-          drawMiniCard(ctx, opponentRect, cpuCard, chosenStat);
-        } else {
-          drawCardBack(ctx, opponentRect);
-        }
-      }
+      const drawLabel = (text: string, rect: Rect) => {
+        ctx.fillStyle = theme.textFaint;
+        ctx.font = `700 10px ${theme.font}`;
+        ctx.textAlign = "left";
+        ctx.fillText(text, rect.x + 4, rect.y - 6);
+      };
 
-      const playerCard = playerDeck[0];
-      if (playerCard) {
-        const playerRect: Rect = {
-          x: cardX,
-          y: opponentRect.y + opponentRect.height + 16,
-          width: cardWidth,
-          height: Math.min(size.height - opponentRect.y - opponentRect.height - 44, 380),
-        };
-        if (phase !== "reveal-player") {
-          ctx.fillStyle = theme.textFaint;
-          ctx.font = `700 10px ${theme.font}`;
-          ctx.textAlign = "left";
-          ctx.fillText("DU", playerRect.x + 4, playerRect.y - 6);
-        }
-        drawCardFace(ctx, playerRect, playerCard, {
-          interactive: phase === "reveal-player",
-          opponent: phase !== "reveal-player" ? cpuCard : undefined,
-          highlightStat: chosenStat,
-        });
-
-        if (phase === "reveal-player") {
+      if (phase === "reveal-player") {
+        const playerCard = playerDeck[0];
+        if (playerCard) {
+          const rect: Rect = { x: singleX, y: topOffset, width: singleCardWidth, height: cardHeight };
+          drawCardFace(ctx, rect, playerCard, { interactive: true, highlightStat: null });
           ctx.fillStyle = theme.textFaint;
           ctx.font = `500 11px ${theme.font}`;
           ctx.textAlign = "center";
-          ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, playerRect.y + playerRect.height + 20);
+          ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 20);
         }
+        return;
+      }
+
+      if (phase === "game-over") return;
+      if (!displayedPlayerCard || !displayedCpuCard) return;
+
+      if (phase === "sliding-in") {
+        const t = easeOutCubic(animTimer / SLIDE_DURATION);
+        const playerRect: Rect = {
+          x: lerp(singleX, pairLeftX, t),
+          y: topOffset,
+          width: lerp(singleCardWidth, pairCardWidth, t),
+          height: cardHeight,
+        };
+        const cpuRect: Rect = { x: lerp(size.width, pairRightX, t), y: topOffset, width: pairCardWidth, height: cardHeight };
+        drawLabel("DU", playerRect);
+        drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, highlightStat: null });
+        drawLabel("COMPUTER", cpuRect);
+        drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, highlightStat: null });
+      } else if (phase === "comparing") {
+        const playerRect: Rect = { x: pairLeftX, y: topOffset, width: pairCardWidth, height: cardHeight };
+        const cpuRect: Rect = { x: pairRightX, y: topOffset, width: pairCardWidth, height: cardHeight };
+        drawLabel("DU", playerRect);
+        drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, opponent: displayedCpuCard, highlightStat: chosenStat });
+        drawLabel("COMPUTER", cpuRect);
+        drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, opponent: displayedPlayerCard, highlightStat: chosenStat });
+      } else if (phase === "sliding-out") {
+        const t = easeOutCubic(animTimer / SLIDE_DURATION);
+        const playerRect: Rect = { x: lerp(pairLeftX, -pairCardWidth - 30, t), y: topOffset, width: pairCardWidth, height: cardHeight };
+        const cpuRect: Rect = {
+          x: lerp(pairRightX, singleX, t),
+          y: topOffset,
+          width: lerp(pairCardWidth, singleCardWidth, t),
+          height: cardHeight,
+        };
+        drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, opponent: displayedCpuCard, highlightStat: chosenStat });
+        drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, opponent: displayedPlayerCard, highlightStat: chosenStat });
       }
     },
 

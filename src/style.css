@@ -1,11 +1,11 @@
 @import "./assets/fonts/fonts.css";
 
 :root {
-  --bg: #0a1d20;
-  --panel: #123338;
-  --panel-alt: #163e44;
-  --panel-border: #2a4d52;
-  --panel-border-light: #3a6067;
+  --bg: #eef0f1;
+  --panel: #ffffff;
+  --panel-alt: #f2f3f4;
+  --panel-border: #d5d8da;
+  --panel-border-light: #9aa0a6;
 
   --primary: #0f7a86;
   --primary-light: #1fb3c4;
@@ -16,16 +16,28 @@
 
   --magenta: #e2007a;
 
-  --text: #f4f7f6;
-  --text-muted: #a9c0c0;
-  --text-faint: #6f8a8a;
+  --text: #181b1d;
+  --text-muted: #54595d;
+  --text-faint: #82888d;
 
-  --success: #35c47b;
-  --danger: #ef5657;
+  --success: #1f8a4c;
+  --danger: #c62828;
 
   --paper: #f5efe0;
   --paper-text: #241f14;
   --paper-muted: #6b6248;
+
+  /* Aeusseres "Geraetegehaeuse" -- an echten Automaten der Rahmen ausserhalb
+     der weissen Bildschirm-Karte. */
+  --bezel: #b7bbbf;
+  --bezel-dark: #7d8288;
+
+  /* Silberne 3D-Taste, wie am echten Fahrkartenautomaten. */
+  --btn-face-top: #f7f8f9;
+  --btn-face-bottom: #d8dbdd;
+  --btn-face-active-top: #cdd0d3;
+  --btn-face-active-bottom: #babdc0;
+  --btn-border: #9aa0a6;
 
   --font: "Barlow", sans-serif;
   --font-display: "Barlow Semi Condensed", sans-serif;
@@ -34,14 +46,14 @@
      Tasten und Anzeigefelder eher flach/rechteckig als "App-rund". */
   --radius-sm: 4px;
   --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-lg: 10px;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -56,7 +68,7 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  background: var(--bg);
+  background: var(--bezel);
   color: var(--text);
   font-family: var(--font);
   -webkit-tap-highlight-color: transparent;
@@ -88,7 +100,7 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: var(--bg);
+  background: var(--bezel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -101,15 +113,15 @@ button {
   top: 0;
   left: 0;
   right: 0;
-  height: calc(44px + var(--safe-top));
+  height: calc(46px + var(--safe-top));
   padding-top: var(--safe-top);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding-left: calc(10px + var(--safe-left));
-  padding-right: calc(16px + var(--safe-right));
-  background: var(--panel);
+  padding-right: calc(12px + var(--safe-right));
+  background: var(--panel-alt);
   border-bottom: 1px solid var(--panel-border);
   /* Hoeher als .modal-scrim (1000): der Zurueck-Button muss IMMER erreichbar
      bleiben, auch waehrend gerade ein Dialog (Spiel-Anleitung, Highscore-
@@ -127,8 +139,8 @@ button {
   height: 32px;
   padding: 0 12px 0 8px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--panel-border-light);
-  background: var(--panel-alt);
+  border: 1px solid var(--btn-border);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
@@ -136,7 +148,7 @@ button {
 }
 
 .chrome-menu-btn:active {
-  background: var(--primary);
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
 .chrome-menu-btn svg {
@@ -149,24 +161,48 @@ button {
   min-width: 0;
   text-align: center;
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
   color: var(--text-muted);
-  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
 }
 
+.chrome-bar__brand {
+  pointer-events: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chrome-bar__logo {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.chrome-bar__wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 .admin-trigger {
   pointer-events: auto;
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid var(--panel-border-light);
-  background: var(--panel-alt);
+  border: 1px solid var(--btn-border);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -174,8 +210,8 @@ button {
 }
 
 .admin-trigger:active {
-  background: var(--primary);
-  color: var(--text);
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
+  color: var(--primary);
 }
 
 .admin-trigger svg {
@@ -190,127 +226,159 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: calc(64px + var(--safe-top)) calc(20px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(20px + var(--safe-left));
+  justify-content: center;
+  gap: 10px;
+  padding: calc(58px + var(--safe-top)) calc(12px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(12px + var(--safe-left));
+  overflow: hidden;
+}
+
+.menu-card {
+  width: 100%;
+  max-width: 1200px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12), 0 10px 26px rgba(0, 0, 0, 0.18);
+  padding: 16px calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left));
   overflow: hidden;
 }
 
 .menu-header {
-  text-align: center;
-  width: 100%;
-  max-width: 720px;
-  margin-bottom: 16px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--panel-border);
-}
-
-.menu-header__brand-text {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.24em;
-  color: var(--text-faint);
-  text-transform: uppercase;
+  margin-bottom: 12px;
 }
 
 .menu-header h1 {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.5rem, 5.5vw, 2.2rem);
-  letter-spacing: 0.01em;
-  margin: 2px 0 4px;
-  color: var(--text);
-}
-
-.menu-header p {
+  font-size: clamp(1.15rem, 4.4vw, 1.5rem);
+  letter-spacing: 0.005em;
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.88rem;
+  color: var(--text);
 }
 
 .menu-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
-  gap: 14px;
+  /* Spaltenzahl + Kachelbreite werden per JS anhand der tatsaechlich
+     verfuegbaren Breite UND Hoehe berechnet (siehe menu/MainMenu.ts,
+     computeGridLayout) und hier als konkrete px-Werte gesetzt -- reines
+     CSS-Grid kennt keine verfuegbare Hoehe, das reicht nicht, wenn die
+     Kacheln den Bildschirm wirklich ausfuellen sollen. Der Wert hier ist
+     nur ein Platzhalter, bis der erste ResizeObserver-Callback feuert. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  justify-content: center;
+  align-content: center;
+  gap: 12px;
   width: 100%;
-  max-width: 720px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   touch-action: pan-y;
-  padding-bottom: 12px;
-  align-content: start;
 }
 
 .menu-tile {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 3px;
-  aspect-ratio: 1 / 0.92;
-  padding: 12px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  /* Muss mit TILE_ASPECT in menu/MainMenu.ts uebereinstimmen -- die
+     Spaltenzahl wird dort anhand genau dieses Seitenverhaeltnisses berechnet. */
+  aspect-ratio: 1.8 / 1;
   border-radius: var(--radius-md);
-  border: 1px solid var(--panel-border-light);
-  border-top: 4px solid var(--tile-accent, var(--primary));
-  background: var(--panel-alt);
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--btn-border);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   color: var(--text);
   overflow: hidden;
+  text-align: left;
 }
 
 .menu-tile:active {
-  transform: translateY(2px);
-  box-shadow: none;
-  background: var(--panel);
+  transform: translateY(1px);
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
-.menu-tile__icon {
-  width: 30px;
-  height: 30px;
-  color: var(--tile-accent, var(--accent));
-}
-
-.menu-tile__icon svg {
-  width: 100%;
-  height: 100%;
+.menu-tile__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .menu-tile__title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.98rem;
+  font-size: 0.95rem;
   line-height: 1.15;
+  color: var(--text);
 }
 
 .menu-tile__subtitle {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-tile__icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--tile-accent, var(--primary));
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+
+.menu-tile__icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.menu-footer-bar {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px calc(4px + var(--safe-right)) calc(4px + var(--safe-bottom)) calc(4px + var(--safe-left));
 }
 
 .menu-feedback-btn {
   appearance: none;
-  border: 1px solid var(--panel-border-light);
-  background: var(--panel-alt);
+  border: 1px solid var(--btn-border);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text-muted);
   border-radius: var(--radius-sm);
-  margin-top: 14px;
   padding: 8px 16px;
   display: flex;
   align-items: center;
   gap: 7px;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .menu-feedback-btn:active {
-  background: var(--primary);
-  color: var(--text);
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
 .menu-feedback-btn__icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   display: inline-flex;
 }
 
@@ -320,18 +388,17 @@ button {
 }
 
 .menu-footer {
-  margin-top: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-faint);
-  font-size: 0.72rem;
-  letter-spacing: 0.03em;
+  gap: 6px;
+  color: var(--bezel-dark);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
 }
 
 .menu-footer strong {
-  color: var(--text-muted);
-  font-weight: 600;
+  color: #4a4e51;
+  font-weight: 700;
 }
 
 /* ---------- Spielbuehne ---------- */
@@ -373,7 +440,7 @@ button {
 
 .btn {
   appearance: none;
-  border: none;
+  border: 1px solid var(--btn-border);
   cursor: pointer;
   font-family: var(--font-display);
   font-weight: 700;
@@ -382,30 +449,33 @@ button {
   padding: 12px 22px;
   font-size: 1rem;
   color: var(--text);
-  background: var(--primary);
-  box-shadow: 0 4px 0 var(--primary-dark);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
   transition: transform 0.06s ease, box-shadow 0.06s ease;
 }
 
 .btn:active {
-  transform: translateY(4px);
+  transform: translateY(3px);
   box-shadow: none;
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
 .btn--accent {
-  background: var(--accent);
+  background: linear-gradient(180deg, #ffe08a, var(--accent));
   color: #2b2004;
-  box-shadow: 0 4px 0 var(--accent-dark);
+  border-color: var(--accent-dark);
+  box-shadow: 0 3px 0 var(--accent-dark);
 }
 
 .btn--accent:active {
   box-shadow: none;
+  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
 }
 
 .btn--ghost {
   background: transparent;
   box-shadow: none;
-  border: 1px solid var(--panel-border-light);
+  border: 1px solid var(--btn-border);
   color: var(--text-muted);
 }
 
@@ -424,7 +494,7 @@ button {
 .modal-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(4, 12, 13, 0.8);
+  background: rgba(30, 34, 37, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -439,10 +509,10 @@ button {
   overflow-y: auto;
   touch-action: pan-y;
   background: var(--panel);
-  border: 1px solid var(--panel-border-light);
+  border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   padding: 22px;
-  box-shadow: 0 12px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15), 0 16px 40px rgba(0, 0, 0, 0.3);
 }
 
 .modal-panel--wide {
@@ -453,6 +523,7 @@ button {
   font-family: var(--font-display);
   margin: 0 0 4px;
   font-size: 1.3rem;
+  color: var(--text);
 }
 
 .modal-panel p {
@@ -465,8 +536,8 @@ button {
   width: 100%;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--panel-border-light);
-  background: rgba(10, 29, 32, 0.6);
+  border: 1px solid var(--btn-border);
+  background: var(--panel-alt);
   color: var(--text);
   font-family: var(--font-display);
   font-size: 1.1rem;
@@ -475,7 +546,7 @@ button {
 }
 
 .field-input:focus {
-  border-color: var(--primary-light);
+  border-color: var(--primary);
 }
 
 .field-error {
@@ -496,10 +567,11 @@ button {
 .ticket-card {
   background: var(--paper);
   color: var(--paper-text);
+  border: 1px solid #e2d9bd;
   border-radius: var(--radius-md);
   padding: 14px 16px;
   position: relative;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
 }
 
 .ticket-card::before {
@@ -525,7 +597,7 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--panel-border-light);
+  background: var(--btn-border);
   border-radius: 3px;
 }
 
@@ -557,19 +629,19 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--panel-border-light);
-  background: var(--panel-alt);
+  border: 1px solid var(--btn-border);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 0.95rem;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
 }
 
 .osk__key:active {
   transform: translateY(2px);
   box-shadow: none;
-  background: var(--primary);
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
 .osk__key--wide {
@@ -577,8 +649,9 @@ button {
 }
 
 .osk__key--accent {
-  background: var(--accent);
+  background: linear-gradient(180deg, #ffe08a, var(--accent));
   color: #2b2004;
+  border-color: var(--accent-dark);
 }
 
 /* ---------- Generische Bausteine fuer Spiel-UIs (Chips, Listen, Breadcrumb) ---------- */
@@ -597,7 +670,7 @@ button {
 
 .chip {
   appearance: none;
-  border: 1px solid var(--panel-border-light);
+  border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 999px;
   padding: 7px 13px;
   font-family: var(--font-display);
@@ -605,7 +678,7 @@ button {
   font-size: 0.82rem;
   color: #ffffff;
   background: var(--chip-color, var(--primary));
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
   white-space: nowrap;
 }
 
@@ -660,7 +733,7 @@ button {
 
 .stage-top-bar {
   position: absolute;
-  top: calc(44px + var(--safe-top));
+  top: calc(46px + var(--safe-top));
   left: 0;
   right: 0;
   z-index: 15;
@@ -681,16 +754,17 @@ button {
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border-top: 2px solid var(--panel-border-light);
+  border-top: 1px solid var(--panel-border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 12px 14px calc(12px + var(--safe-bottom));
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
 }
 
 .stage-center-panel {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100px + var(--safe-top));
+  top: calc(102px + var(--safe-top));
   bottom: calc(16px + var(--safe-bottom));
   z-index: 15;
   display: flex;
@@ -714,20 +788,21 @@ button {
 .hud-badge {
   pointer-events: none;
   position: absolute;
-  top: calc(52px + var(--safe-top));
+  top: calc(54px + var(--safe-top));
   right: calc(8px + var(--safe-right));
   z-index: 20;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--panel-border-light);
+  border: 1px solid var(--panel-border);
   background: var(--panel);
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 0.82rem;
-  color: var(--accent);
+  color: var(--accent-dark);
   display: flex;
   align-items: center;
   gap: 6px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
 }
 
 /* ---------- Kachel-Raster (Zug-Spotter, Memory) ---------- */
@@ -743,12 +818,12 @@ button {
 
 .tile-grid__cell {
   position: relative;
-  border: none;
+  border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
   padding: 0;
   background: var(--panel-alt);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
 }
 
 .tile-grid__cell img {
@@ -773,7 +848,7 @@ button {
 }
 
 .tile-grid__cell--matched {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--accent-dark);
   outline-offset: -3px;
   opacity: 0.55;
 }
@@ -784,8 +859,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary);
-  color: rgba(244, 247, 246, 0.55);
+  background: linear-gradient(180deg, var(--primary-light), var(--primary));
+  color: rgba(255, 255, 255, 0.75);
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 1.1rem;
@@ -813,9 +888,9 @@ button {
 
 .seq-row__label {
   appearance: none;
-  border: 1px solid var(--panel-border-light);
+  border: 1px solid var(--btn-border);
   border-radius: var(--radius-sm);
-  background: var(--panel-alt);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 700;
@@ -826,7 +901,7 @@ button {
 }
 
 .seq-row__label:active {
-  background: var(--primary);
+  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
 .seq-row__cells {
@@ -845,7 +920,7 @@ button {
 }
 
 .seq-cell--downbeat {
-  background: rgba(169, 192, 192, 0.12);
+  background: #e6e8ea;
 }
 
 .seq-cell--active {
@@ -854,7 +929,7 @@ button {
 }
 
 .seq-cell--playhead {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-dark);
   outline-offset: 1px;
 }
 

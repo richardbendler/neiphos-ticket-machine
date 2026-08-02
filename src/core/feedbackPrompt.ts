@@ -9,7 +9,7 @@ export function openFeedbackDialog(): void {
     h2.textContent = "Feedback geben";
 
     const p = document.createElement("p");
-    p.textContent = "Was können wir besser machen? Deine Nachricht wird auf diesem Gerät gespeichert.";
+    p.textContent = "Was können wir besser machen?";
 
     const status = document.createElement("div");
     status.style.minHeight = "1.2em";

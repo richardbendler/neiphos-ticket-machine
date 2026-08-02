@@ -7,7 +7,18 @@ import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { renderMainMenu } from "../menu/MainMenu";
 import { openAdminPanel } from "../admin/AdminPanel";
+import brandLogo from "../assets/brand/neiphos-logo.png";
 import type { GameEnv, MinigameModule } from "./Game";
+
+function formatClock(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  const ss = String(date.getSeconds()).padStart(2, "0");
+  return `${dd}.${mm}.${yyyy} · ${hh}:${min}:${ss}`;
+}
 
 /**
  * Router: einzige Instanz, die zwischen Hauptmenue und einem laufenden
@@ -20,6 +31,8 @@ export class Router {
   private readonly chromeTitle: HTMLElement;
   private readonly menuBtn: HTMLButtonElement;
   private screenEl: HTMLElement | null = null;
+  private screenCleanup: (() => void) | null = null;
+  private clockInterval: number | null = null;
 
   private activeGame: MinigameModule | null = null;
   private activeLoop: GameLoop | null = null;
@@ -62,6 +75,14 @@ export class Router {
     const title = document.createElement("div");
     title.className = "chrome-bar__title";
 
+    const brand = document.createElement("div");
+    brand.className = "chrome-bar__brand";
+    const logo = document.createElement("img");
+    logo.className = "chrome-bar__logo";
+    logo.src = brandLogo;
+    logo.alt = "Neiphos";
+    brand.appendChild(logo);
+
     const adminBtn = document.createElement("button");
     adminBtn.type = "button";
     adminBtn.className = "admin-trigger";
@@ -69,11 +90,29 @@ export class Router {
     adminBtn.innerHTML = icons.gear;
     adminBtn.addEventListener("click", () => openAdminPanel());
 
-    bar.append(menuBtn, title, adminBtn);
+    bar.append(menuBtn, title, brand, adminBtn);
     return bar;
   }
 
+  private startClock(): void {
+    if (this.clockInterval !== null) return;
+    const tick = () => {
+      this.chromeTitle.textContent = formatClock(new Date());
+    };
+    tick();
+    this.clockInterval = window.setInterval(tick, 1000);
+  }
+
+  private stopClock(): void {
+    if (this.clockInterval !== null) {
+      window.clearInterval(this.clockInterval);
+      this.clockInterval = null;
+    }
+  }
+
   private clearScreen(): void {
+    this.screenCleanup?.();
+    this.screenCleanup = null;
     if (this.screenEl) {
       this.screenEl.remove();
       this.screenEl = null;
@@ -83,11 +122,12 @@ export class Router {
   showMenu(): void {
     this.teardownActiveGame();
     this.clearScreen();
-    this.chromeTitle.textContent = "";
     this.menuBtn.style.visibility = "hidden";
-    const screen = renderMainMenu(gameRegistry, (id) => this.startGame(id));
-    this.root.appendChild(screen);
-    this.screenEl = screen;
+    this.startClock();
+    const { element, destroy } = renderMainMenu(gameRegistry, (id) => this.startGame(id));
+    this.root.appendChild(element);
+    this.screenEl = element;
+    this.screenCleanup = destroy;
   }
 
   private startGame(id: string): void {
@@ -98,6 +138,7 @@ export class Router {
     }
 
     this.clearScreen();
+    this.stopClock();
     this.chromeTitle.textContent = meta.title;
     this.menuBtn.style.visibility = "visible";
 

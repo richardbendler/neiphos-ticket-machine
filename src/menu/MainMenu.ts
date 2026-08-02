@@ -1,5 +1,3 @@
-import { icons } from "../core/icons";
-import { openFeedbackDialog } from "../core/feedbackPrompt";
 import type { GameMeta } from "../games/registry";
 
 const GRID_GAP = 12;
@@ -93,23 +91,6 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
 
   card.appendChild(grid);
   screen.appendChild(card);
-
-  const footerBar = document.createElement("div");
-  footerBar.className = "menu-footer-bar";
-
-  const feedbackBtn = document.createElement("button");
-  feedbackBtn.type = "button";
-  feedbackBtn.className = "menu-feedback-btn";
-  feedbackBtn.innerHTML = `<span class="menu-feedback-btn__icon">${icons.feedback}</span><span>Feedback geben</span>`;
-  feedbackBtn.addEventListener("click", () => openFeedbackDialog());
-  footerBar.appendChild(feedbackBtn);
-
-  const footer = document.createElement("div");
-  footer.className = "menu-footer";
-  footer.innerHTML = `<span>präsentiert von</span> <strong>DJ Flipper</strong>`;
-  footerBar.appendChild(footer);
-
-  screen.appendChild(footerBar);
 
   // Spaltenzahl/Kachelgroesse an die tatsaechlich verfuegbare Breite UND
   // Hoehe anpassen (nicht nur an die Breite wie bei reinem CSS-Grid) --

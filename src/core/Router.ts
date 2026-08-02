@@ -7,6 +7,7 @@ import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { renderMainMenu } from "../menu/MainMenu";
 import { openAdminPanel } from "../admin/AdminPanel";
+import { openFeedbackDialog } from "./feedbackPrompt";
 import brandLogo from "../assets/brand/neiphos-logo.png";
 import type { GameEnv, MinigameModule } from "./Game";
 
@@ -51,6 +52,7 @@ export class Router {
     // core/modal.ts) gewinnen kann. Auf Body-Ebene konkurriert die Kopfleiste
     // z-index-technisch auf Augenhoehe mit jedem Modal-Scrim.
     document.body.appendChild(chromeBar);
+    document.body.appendChild(this.buildChromeFooterBar());
     this.showMenu();
   }
 
@@ -83,14 +85,40 @@ export class Router {
     logo.alt = "Neiphos";
     brand.appendChild(logo);
 
+    bar.append(menuBtn, title, brand);
+    return bar;
+  }
+
+  /**
+   * Fussleiste, ebenfalls dauerhaft an document.body gehaengt (siehe
+   * buildChromeBar) -- Feedback und Admin-Zugang sollen auch waehrend eines
+   * laufenden Spiels erreichbar bleiben, nicht nur im Hauptmenue.
+   */
+  private buildChromeFooterBar(): HTMLElement {
+    const bar = document.createElement("div");
+    bar.className = "chrome-footer-bar";
+
+    const feedbackBtn = document.createElement("button");
+    feedbackBtn.type = "button";
+    feedbackBtn.className = "chrome-footer-btn";
+    feedbackBtn.innerHTML = `<span class="chrome-footer-btn__icon">${icons.feedback}</span><span>Feedback geben</span>`;
+    feedbackBtn.addEventListener("click", () => openFeedbackDialog());
+
+    const credit = document.createElement("div");
+    credit.className = "chrome-footer-credit";
+    credit.innerHTML = `<span>präsentiert von</span> <strong>DJ Flipper</strong>`;
+
+    // Design bewusst an den "Tarifinfo"-Button der Vorlage angelehnt (silbern
+    // umrandete Taste), aber deutlich kleiner -- es ist nur der Einstieg
+    // hinter dem Passwortschutz, kein prominentes Hauptfeature.
     const adminBtn = document.createElement("button");
     adminBtn.type = "button";
-    adminBtn.className = "admin-trigger";
+    adminBtn.className = "chrome-footer-btn chrome-footer-admin-btn";
     adminBtn.setAttribute("aria-label", "Admin-Bereich");
-    adminBtn.innerHTML = icons.gear;
+    adminBtn.innerHTML = `<span class="chrome-footer-btn__icon">${icons.gear}</span><span>Admin</span>`;
     adminBtn.addEventListener("click", () => openAdminPanel());
 
-    bar.append(menuBtn, title, brand, adminBtn);
+    bar.append(feedbackBtn, credit, adminBtn);
     return bar;
   }
 

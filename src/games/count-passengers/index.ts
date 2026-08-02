@@ -11,7 +11,7 @@ const WINDOW_GAP = 12;
 const WINDOW_PITCH = WINDOW_WIDTH + WINDOW_GAP;
 const CAR_GAP_EVERY = 4; // zusaetzlicher Spalt alle N Fenster (Wagenuebergang)
 const CAR_GAP_EXTRA = 20;
-const SPEED_PX_S = 145;
+const SPEED_PX_S = 180;
 const COUNTDOWN_START = 3;
 
 type Phase = "countdown" | "running" | "input" | "result";

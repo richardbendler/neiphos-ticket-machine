@@ -55,6 +55,12 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
+  /* Hoehe der fixen Kopf-/Fussleiste (ohne Safe-Area-Inset) -- zentral
+     definiert, damit Spielbuehnen-Layouts (stage-top-bar, stage-center-panel,
+     ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. */
+  --header-h: 72px;
+  --footer-h: 46px;
+
   color-scheme: light;
 }
 
@@ -115,7 +121,7 @@ button {
   top: 0;
   left: 0;
   right: 0;
-  height: calc(56px + var(--safe-top));
+  height: calc(var(--header-h) + var(--safe-top));
   padding-top: var(--safe-top);
   display: flex;
   align-items: center;
@@ -183,8 +189,8 @@ button {
 }
 
 .chrome-bar__logo {
-  width: 42px;
-  height: 42px;
+  width: 60px;
+  height: 60px;
   flex-shrink: 0;
 }
 
@@ -197,28 +203,87 @@ button {
   white-space: nowrap;
 }
 
-.admin-trigger {
+/* ---------- Fussleiste (immer sichtbar, auch waehrend eines Spiels) ---------- */
+
+.chrome-footer-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--footer-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: calc(10px + var(--safe-left));
+  padding-right: calc(10px + var(--safe-right));
+  background: var(--panel-alt);
+  border-top: 1px solid var(--panel-border);
+  /* Gleiche Ueberlegung wie bei .chrome-bar: muss ueber jedem Modal-Scrim
+     (1000) und jedem Spiel-Bottom-Sheet erreichbar bleiben. */
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.chrome-footer-bar > * {
   pointer-events: auto;
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+}
+
+.chrome-footer-btn {
+  appearance: none;
   border: 1px solid var(--btn-border);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.78rem;
+  flex-shrink: 0;
 }
 
-.admin-trigger:active {
+.chrome-footer-btn:active {
   background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
-  color: var(--primary);
 }
 
-.admin-trigger svg {
-  width: 17px;
-  height: 17px;
+.chrome-footer-btn__icon {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+}
+
+.chrome-footer-btn__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Admin-Zugang, bewusst im gleichen "silbernen" Tastendesign wie die
+   uebrigen Tasten der Vorlage (Tarifinfo-Button), aber deutlich kleiner --
+   er ist nur ein Einstiegspunkt hinter dem Passwortschutz, kein
+   Haupt-Feature. */
+.chrome-footer-admin-btn {
+  color: var(--text-faint);
+}
+
+.chrome-footer-credit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bezel-dark);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chrome-footer-credit strong {
+  color: #4a4e51;
+  font-weight: 700;
 }
 
 /* ---------- Hauptmenue ---------- */
@@ -230,7 +295,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: calc(58px + var(--safe-top)) calc(12px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(12px + var(--safe-left));
+  padding: calc(var(--header-h) + 10px + var(--safe-top)) calc(12px + var(--safe-right))
+    calc(var(--footer-h) + 10px + var(--safe-bottom)) calc(12px + var(--safe-left));
   overflow: hidden;
 }
 
@@ -356,61 +422,6 @@ button {
   letter-spacing: 0.01em;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.menu-footer-bar {
-  flex-shrink: 0;
-  width: 100%;
-  max-width: 1200px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px calc(4px + var(--safe-right)) calc(4px + var(--safe-bottom)) calc(4px + var(--safe-left));
-}
-
-.menu-feedback-btn {
-  appearance: none;
-  border: 1px solid var(--btn-border);
-  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.8rem;
-}
-
-.menu-feedback-btn:active {
-  background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
-}
-
-.menu-feedback-btn__icon {
-  width: 15px;
-  height: 15px;
-  display: inline-flex;
-}
-
-.menu-feedback-btn__icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.menu-footer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--bezel-dark);
-  font-size: 0.68rem;
-  letter-spacing: 0.02em;
-}
-
-.menu-footer strong {
-  color: #4a4e51;
-  font-weight: 700;
 }
 
 /* ---------- Spielbuehne ---------- */
@@ -745,7 +756,7 @@ button {
 
 .stage-top-bar {
   position: absolute;
-  top: calc(46px + var(--safe-top));
+  top: calc(var(--header-h) + var(--safe-top));
   left: 0;
   right: 0;
   z-index: 15;
@@ -760,7 +771,7 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: calc(var(--footer-h) + var(--safe-bottom));
   z-index: 15;
   max-height: 46%;
   display: flex;
@@ -768,7 +779,7 @@ button {
   background: var(--panel);
   border-top: 1px solid var(--panel-border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  padding: 12px 14px calc(12px + var(--safe-bottom));
+  padding: 12px 14px 12px;
   box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
 }
 
@@ -776,8 +787,8 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(102px + var(--safe-top));
-  bottom: calc(16px + var(--safe-bottom));
+  top: calc(var(--header-h) + 30px + var(--safe-top));
+  bottom: calc(var(--footer-h) + 16px + var(--safe-bottom));
   z-index: 15;
   display: flex;
   flex-direction: column;

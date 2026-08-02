@@ -250,7 +250,7 @@ function createMemoryGame(): MinigameModule {
       gridHost.style.position = "absolute";
       gridHost.style.left = "0";
       gridHost.style.right = "0";
-      gridHost.style.top = "calc(100px + var(--safe-top))";
+      gridHost.style.top = "calc(var(--header-h) + 30px + var(--safe-top))";
       gridHost.style.margin = "0 auto";
       gridHost.style.zIndex = "10";
       gridHost.style.width = "min(92%, 460px)";

@@ -958,7 +958,9 @@ button {
 
 .stage-top-bar {
   position: absolute;
-  top: calc(var(--header-h) + var(--safe-top));
+  /* Platz fuer die globale Highscore-Anzeige lassen (siehe
+     core/highscoreBanner.ts), die direkt unter der Kopfleiste sitzt. */
+  top: calc(var(--header-h) + 46px + var(--safe-top));
   left: 0;
   right: 0;
   z-index: 15;

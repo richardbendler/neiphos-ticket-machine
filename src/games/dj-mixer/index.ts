@@ -194,6 +194,12 @@ function createDjMixerGame(): MinigameModule {
       rowEl.appendChild(cellsWrap);
       seqHost.appendChild(rowEl);
     });
+    // Neu erzeugte Zellen starten alle ohne "aktiv"-Klasse -- das bestehende
+    // Muster (grid) muss nach jedem Neuaufbau (z.B. beim Aendern der
+    // Taktzahl) explizit wieder auf die DOM-Zellen uebertragen werden,
+    // sonst SIEHT es so aus, als waere alles geloescht worden, obwohl die
+    // Daten in "grid" tatsaechlich erhalten blieben.
+    syncCellVisuals();
     fitGridToContainer();
   }
 

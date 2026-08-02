@@ -6,6 +6,7 @@ import { recordSession } from "./stats";
 import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { renderMainMenu } from "../menu/MainMenu";
+import { renderHighscoreBoard } from "../menu/HighscoreBoard";
 import { openAdminPanel } from "../admin/AdminPanel";
 import { openFeedbackDialog } from "./feedbackPrompt";
 import brandLogo from "../assets/brand/neiphos-logo.png";
@@ -74,6 +75,19 @@ export class Router {
       this.showMenu();
     });
 
+    // Golden/pokalfarben statt im silbernen Tasten-Look der uebrigen
+    // Kopfleisten-Buttons, damit er als eigene Kategorie ("hier siehst du
+    // dir was an" statt "hier navigierst du") sofort ins Auge faellt.
+    const highscoreBtn = document.createElement("button");
+    highscoreBtn.type = "button";
+    highscoreBtn.className = "chrome-highscore-btn";
+    highscoreBtn.setAttribute("aria-label", "Highscores");
+    highscoreBtn.innerHTML = `${icons.trophy}<span>Highscores</span>`;
+    highscoreBtn.addEventListener("click", () => {
+      closeAllModals();
+      this.showHighscores();
+    });
+
     const title = document.createElement("div");
     title.className = "chrome-bar__title";
 
@@ -85,7 +99,12 @@ export class Router {
     logo.alt = "Neiphos";
     brand.appendChild(logo);
 
-    bar.append(menuBtn, title, brand);
+    // highscoreBtn bewusst VOR menuBtn: menuBtn ist auf dem Hauptmenue-
+    // Bildschirm per visibility:hidden ausgeblendet, behaelt dabei aber
+    // seinen Platz im Fluss -- staende highscoreBtn dahinter, waere er
+    // dadurch immer nach rechts eingerueckt statt buendig mit dem
+    // Feedback-Button in der Fussleiste zu stehen.
+    bar.append(highscoreBtn, menuBtn, title, brand);
     return bar;
   }
 
@@ -156,6 +175,17 @@ export class Router {
     this.root.appendChild(element);
     this.screenEl = element;
     this.screenCleanup = destroy;
+  }
+
+  private showHighscores(): void {
+    this.teardownActiveGame();
+    this.clearScreen();
+    this.stopClock();
+    this.chromeTitle.textContent = "Highscores";
+    this.menuBtn.style.visibility = "visible";
+    const element = renderHighscoreBoard();
+    this.root.appendChild(element);
+    this.screenEl = element;
   }
 
   private startGame(id: string): void {

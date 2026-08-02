@@ -164,9 +164,47 @@ button {
   height: 16px;
 }
 
+/* Golden/pokalfarben statt im silbernen Look der uebrigen Kopfleisten-
+   Buttons -- soll als eigene Kategorie ("hier siehst du dir was an" statt
+   "hier navigierst du") sofort auffallen. */
+.chrome-highscore-btn {
+  pointer-events: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-dark);
+  background: linear-gradient(180deg, #ffe08a, var(--accent));
+  color: #2b2004;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.chrome-highscore-btn:active {
+  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+}
+
+.chrome-highscore-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .chrome-bar__title {
-  flex: 1;
-  min-width: 0;
+  /* Bewusst aus dem Flex-Fluss herausgeloest und absolut mittig positioniert
+     -- sonst zentriert flex:1 nur die LUECKE zwischen den Nachbar-Elementen,
+     und die ist nicht symmetrisch (links stehen zwei Buttons unterschied-
+     licher Breite, rechts nur das Logo). So bleibt die Uhrzeit/der Spiel-
+     titel immer exakt mittig auf dem Bildschirm, unabhaengig davon, wie
+     breit die Buttons links/rechts gerade sind. */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, calc(-50% + var(--safe-top) / 2));
+  max-width: min(50%, 320px);
   text-align: center;
   font-family: var(--font-display);
   font-weight: 600;
@@ -270,15 +308,25 @@ button {
 }
 
 .chrome-footer-credit {
+  /* Aus dem gleichen Grund absolut mittig wie .chrome-bar__title -- links
+     steht der Feedback-Button, rechts der (schmalere) Admin-Button, flex-
+     zentrierung wuerde also die Luecke zwischen unterschiedlich breiten
+     Nachbarn zentrieren statt wirklich die Bildschirmmitte zu treffen. */
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) / 2);
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   gap: 6px;
+  max-width: min(46%, 260px);
   color: var(--bezel-dark);
   font-size: 0.68rem;
   letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .chrome-footer-credit strong {
@@ -420,6 +468,71 @@ button {
 .menu-tile__icon svg {
   width: 24px;
   height: 24px;
+}
+
+/* ---------- Bestenliste ---------- */
+
+.highscore-board {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.highscore-board__game {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.highscore-board__game-title {
+  padding: 8px 12px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #ffffff;
+  background: var(--tile-accent, var(--primary));
+}
+
+.highscore-board__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 0.85rem;
+}
+
+.highscore-board__row:first-of-type {
+  border-top: none;
+}
+
+.highscore-board__label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.highscore-board__value {
+  text-align: right;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.highscore-board__value strong {
+  font-family: var(--font-display);
+  color: var(--accent-dark);
+}
+
+.highscore-board__value--empty {
+  color: var(--text-faint);
+  font-style: italic;
 }
 
 /* ---------- Spielbuehne ---------- */

@@ -33,11 +33,21 @@ export const RAIL_CITIES: RailCity[] = [
   { id: "nuernberg", name: "Nürnberg" },
   { id: "leipzig", name: "Leipzig" },
   { id: "dresden", name: "Dresden" },
+  { id: "neustadtDosse", name: "Neustadt (Dosse)" },
+  { id: "kyritz", name: "Kyritz" },
 ];
+
+/** Zielbahnhof des Zugsimulators -- hier wartet das Shuttle zum Neiphos Festival. */
+export const FESTIVAL_CITY_ID = "kyritz";
 
 // Ungerichtet gemeint -- gilt in beide Richtungen (siehe neighborsOf).
 export const RAIL_EDGES: RailEdge[] = [
-  { from: "berlin", to: "hamburg", km: 290 },
+  // Original direkte Berlin-Hamburg-Strecke ist hier ueber den echten
+  // Zwischenhalt Neustadt (Dosse) aufgesplittet, von dem aus die kurze
+  // Stichstrecke nach Kyritz abzweigt (70+220 ≈ die alten 290 km).
+  { from: "berlin", to: "neustadtDosse", km: 70 },
+  { from: "neustadtDosse", to: "hamburg", km: 220 },
+  { from: "neustadtDosse", to: "kyritz", km: 20 },
   { from: "berlin", to: "hannover", km: 250 },
   { from: "berlin", to: "leipzig", km: 190 },
   { from: "berlin", to: "dresden", km: 180 },
@@ -78,4 +88,10 @@ export function neighborsOf(cityId: string, excludeCityId?: string | null): Rail
     else if (edge.to === cityId && edge.from !== excludeCityId) result.push({ from: cityId, to: edge.from, km: edge.km });
   }
   return result;
+}
+
+/** Zufaelliger Startbahnhof fuer eine neue Fahrt -- irgendwo ausser dem Ziel selbst. */
+export function randomStartCity(excludeCityId: string): string {
+  const options = RAIL_CITIES.filter((c) => c.id !== excludeCityId);
+  return options[Math.floor(Math.random() * options.length)].id;
 }

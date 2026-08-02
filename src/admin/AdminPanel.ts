@@ -2,6 +2,7 @@ import { openModal } from "../core/modal";
 import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
 import { enterFullscreen, exitFullscreen, isFullscreenActive } from "../core/kiosk";
 import { getSummaryByGame, getSessionsForGame, clearAllStats, type GameSummary } from "../core/stats";
+import { clearHighscoreBoard } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
 import { gameRegistry } from "../games/registry";
 
@@ -184,6 +185,29 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   feedbackBtn.addEventListener("click", () => {
     renderFeedbackView(panel, close);
   });
+
+  // --- Highscores ----------------------------------------------------------
+  const highscoreTitle = document.createElement("p");
+  highscoreTitle.style.color = "var(--text-muted)";
+  highscoreTitle.style.margin = "18px 0 8px";
+  highscoreTitle.textContent = "Highscores:";
+  panel.appendChild(highscoreTitle);
+
+  const highscoreResetBtn = document.createElement("button");
+  highscoreResetBtn.type = "button";
+  highscoreResetBtn.className = "btn btn--ghost";
+  highscoreResetBtn.style.fontSize = "0.8rem";
+  highscoreResetBtn.textContent = "Alle Highscores zurücksetzen";
+  highscoreResetBtn.addEventListener("click", () => {
+    for (const game of gameRegistry) {
+      for (const category of game.highscoreCategories ?? []) {
+        clearHighscoreBoard(game.id, category.board);
+      }
+    }
+    highscoreResetBtn.textContent = "Highscores zurückgesetzt.";
+    highscoreResetBtn.disabled = true;
+  });
+  panel.appendChild(highscoreResetBtn);
 
   // --- Schliessen --------------------------------------------------------
   const actions = document.createElement("div");

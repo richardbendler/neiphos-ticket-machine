@@ -14,6 +14,14 @@ const MAX_WAIT_S = 7;
 const SPEED_PX_S = 950; // absurd schnell -- deutlich schneller als die schnellste Stufe bei "Passagiere zählen"
 const TRAIN_WIDTH = 260;
 const TRAIN_HEIGHT = 84;
+const RESULT_REVEAL_DELAY = 2;
+// Etwas breiter als der Zug selbst (TRAIN_WIDTH) -- ein wirklich mittiges
+// Foto zeigt den kompletten Zug mit ein wenig Luft, ein daneben ausgeloestes
+// Foto schneidet ihn sichtbar am Fotorand ab.
+const PHOTO_WIDTH = 300;
+const PHOTO_HEIGHT = 150;
+const POLAROID_BORDER = 12;
+const POLAROID_BOTTOM_BORDER = 44;
 
 type Phase = "countdown" | "waiting" | "running" | "result";
 
@@ -39,6 +47,8 @@ function createTrainPhotoGame(): MinigameModule {
   let score = 0;
   let missed = false;
   let flashTimer = 0;
+  let revealTimer = 0;
+  let resultRevealed = false;
   let currentSize = { width: 480, height: 800 };
 
   let sheet: HTMLDivElement;
@@ -95,7 +105,19 @@ function createTrainPhotoGame(): MinigameModule {
 
   function finishRound(): void {
     phase = "result";
+    resultRevealed = false;
+    revealTimer = 0;
     updateShutterVisibility();
+    renderSheet();
+  }
+
+  /**
+   * Erst wird nur das Polaroid gezeigt (siehe drawPolaroid) -- Punktzahl und
+   * ein moeglicher Highscore-Dialog kommen erst ein paar Sekunden spaeter,
+   * damit man erstmal in Ruhe das Foto selbst begutachten kann.
+   */
+  function revealResult(): void {
+    resultRevealed = true;
     renderSheet();
 
     const outcome = getHighscoreOutcome(GAME_ID, score, "higher-better");
@@ -112,7 +134,7 @@ function createTrainPhotoGame(): MinigameModule {
 
   function renderSheet(): void {
     sheet.innerHTML = "";
-    if (phase !== "result") {
+    if (phase !== "result" || !resultRevealed) {
       sheet.style.display = "none";
       return;
     }
@@ -180,6 +202,56 @@ function createTrainPhotoGame(): MinigameModule {
       ctx.arc(wx, bodyY + TRAIN_HEIGHT, 8, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  /**
+   * Zeigt das gerade "entwickelte" Foto als Polaroid: weisser Rahmen (unten
+   * dicker, wie beim echten Vorbild), Motiv exakt auf den Rahmen zugeschnitten
+   * -- steht der Zug nicht mittig genug, wird er am Fotorand sichtbar
+   * abgeschnitten, statt weiterhin ueber den ganzen Bildschirm zu laufen.
+   */
+  function drawPolaroid(ctx: CanvasRenderingContext2D, size: { width: number; height: number }): void {
+    const cardW = PHOTO_WIDTH + POLAROID_BORDER * 2;
+    const cardH = PHOTO_HEIGHT + POLAROID_BORDER + POLAROID_BOTTOM_BORDER;
+    const cardX = (size.width - cardW) / 2;
+    const cardY = (size.height - cardH) / 2;
+    const photoX = cardX + POLAROID_BORDER;
+    const photoY = cardY + POLAROID_BORDER;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 8;
+    ctx.fillStyle = "#fdfdfa";
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(photoX, photoY, PHOTO_WIDTH, PHOTO_HEIGHT);
+    ctx.clip();
+
+    const skyGrad = ctx.createLinearGradient(0, photoY, 0, photoY + PHOTO_HEIGHT);
+    skyGrad.addColorStop(0, "#bcd7e6");
+    skyGrad.addColorStop(0.62, "#dce6e0");
+    skyGrad.addColorStop(0.62, "#8b9a90");
+    skyGrad.addColorStop(1, "#5f6d64");
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(photoX, photoY, PHOTO_WIDTH, PHOTO_HEIGHT);
+
+    // Die Foto-Mitte liegt (weil beides mittig zum Bildschirm ausgerichtet
+    // ist) exakt auf der Bildschirmmitte -- der Zug wird darum einfach mit
+    // seiner tatsaechlichen Ausloese-Position gezeichnet, der Zuschnitt
+    // ergibt sich automatisch aus dem clip() oben.
+    const localTrackY = photoY + PHOTO_HEIGHT * 0.78;
+    if (!missed) {
+      drawTrain(ctx, capturedOffsetX, localTrackY);
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(photoX + 0.5, photoY + 0.5, PHOTO_WIDTH - 1, PHOTO_HEIGHT - 1);
   }
 
   /**
@@ -287,8 +359,12 @@ function createTrainPhotoGame(): MinigameModule {
           capturedOffsetX = currentSize.width; // ausserhalb des Bilds, siehe render()
           finishRound();
         }
-      } else if (phase === "result" && flashTimer < 1) {
-        flashTimer += dt * 4;
+      } else if (phase === "result") {
+        if (flashTimer < 1) flashTimer += dt * 4;
+        if (!resultRevealed) {
+          revealTimer += dt;
+          if (revealTimer >= RESULT_REVEAL_DELAY) revealResult();
+        }
       }
     },
 
@@ -331,18 +407,22 @@ function createTrainPhotoGame(): MinigameModule {
         ctx.fillText("Bereithalten!", size.width / 2, y - 120);
       } else if (phase === "running") {
         drawTrain(ctx, trainOffsetX, y);
-      } else if (phase === "result") {
-        if (!missed) {
-          drawTrain(ctx, capturedOffsetX, y);
-        }
       }
 
-      if (phase !== "countdown") {
+      if (phase !== "countdown" && phase !== "result") {
         drawCameraLens(ctx, size, y - TRAIN_HEIGHT / 2);
       }
-      if (phase === "result" && flashTimer < 1) {
-        ctx.fillStyle = `rgba(255,255,255,${(1 - flashTimer) * 0.7})`;
+
+      if (phase === "result") {
+        // Dunkler "Tisch"-Hintergrund statt der Kamerasucher-Optik -- das
+        // frisch "entwickelte" Foto soll im Fokus stehen.
+        ctx.fillStyle = "#20211f";
         ctx.fillRect(0, 0, size.width, size.height);
+        drawPolaroid(ctx, size);
+        if (flashTimer < 1) {
+          ctx.fillStyle = `rgba(255,255,255,${(1 - flashTimer) * 0.7})`;
+          ctx.fillRect(0, 0, size.width, size.height);
+        }
       }
     },
 

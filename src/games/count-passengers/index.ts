@@ -25,7 +25,7 @@ interface SpeedLevel {
 // 10 Geschwindigkeitsstufen, von gut zaehlbar bis kaum noch zu erfassen --
 // jede Stufe hat ihren eigenen Highscore (kleinste Abweichung), siehe
 // highscoreCategories unten.
-const SPEED_LEVELS: SpeedLevel[] = [110, 130, 150, 170, 190, 215, 240, 270, 305, 345].map((speedPxS, i) => ({
+const SPEED_LEVELS: SpeedLevel[] = [110, 140, 180, 230, 290, 370, 470, 600, 760, 970].map((speedPxS, i) => ({
   key: String(i + 1),
   label: `Stufe ${i + 1}`,
   speedPxS,

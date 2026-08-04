@@ -753,14 +753,15 @@ GPU-Speicher-Split über `sudo raspi-config` → „Performance Options" →
 bringt einem reinen 2D-Canvas ohnehin nichts, kommt aber dem restlichen
 System zugute).
 
-### 2. `dist/` auf den Pi bringen
+### 2. `dist/` und `server/` auf den Pi bringen
 
-Auf dem Entwicklungsrechner bauen (braucht Internet), dann z. B. per `scp`
-oder USB-Stick auf den Pi kopieren:
+Auf dem Entwicklungsrechner bauen (braucht Internet), dann **beide** Ordner
+z. B. per `scp` oder USB-Stick auf den Pi kopieren – `server/` nicht
+vergessen, siehe Schritt 3 unten:
 
 ```bash
 npm run build
-scp -r dist flipper@neiphos-ticket-machine.local:/home/flipper/neiphos-ticket-machine
+scp -r dist server flipper@neiphos-ticket-machine.local:/home/flipper/neiphos-ticket-machine
 ```
 
 ### 3. Lokalen Webserver auf dem Pi einrichten
@@ -781,10 +782,11 @@ cd /home/flipper/neiphos-ticket-machine
 node server/serve.js dist 8080
 ```
 
-Das komplette Projekt (inkl. `server/`, `package.json`) muss dafür auf dem Pi
-liegen, nicht nur `dist/` – am einfachsten das ganze Repository klonen/kopieren
-und dort `npm run build` laufen lassen, dann `npm run serve` (ruft
-`node server/serve.js dist 8080` auf).
+Dafür reichen **genau diese beiden Ordner** (`dist/` + `server/`, siehe
+Schritt 2) – kein komplettes Repository/`git clone`, kein `npm install`
+nötig. `server/package.json` (liegt bereits im `server/`-Ordner) sorgt
+dafür, dass Node die `import`-Syntax in `serve.js` versteht, auch ohne die
+Projekt-Wurzel-`package.json`.
 
 Alternativ genügt für reines Ausprobieren ohne Feedback-Funktion auch jeder
 andere statische Webserver (z. B. `python3 -m http.server` oder ein

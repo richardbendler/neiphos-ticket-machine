@@ -21,7 +21,7 @@ const GAME_ID = "train-sim";
 // Staedte, hoeher-ist-besser) unter demselben Key voellig andere Werte
 // gespeichert hat -- die waeren sonst als (falsch interpretierte) Zugzahlen
 // wieder aufgetaucht.
-const BOARD = "kyritz";
+const BOARD = "breddin";
 const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
 const SPEED_KM_S = 45;
 
@@ -207,7 +207,7 @@ function createTrainSimGame(): MinigameModule {
    * dass das die aktuelle Station ist, von der aus die Wahl unten gilt.
    */
   function updateLabels(): void {
-    goalLine.textContent = `Ziel: Kyritz · ${formatLegCount(legsCompleted)} bisher`;
+    goalLine.textContent = `Ziel: Breddin · ${formatLegCount(legsCompleted)} bisher`;
     currentCityLabel.textContent = `Du bist in: ${cityName(currentCityId)}`;
   }
 
@@ -289,7 +289,7 @@ function createTrainSimGame(): MinigameModule {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatLegCount(legsCompleted)} bis nach Kyritz — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          message: `${formatLegCount(legsCompleted)} bis nach Breddin — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
@@ -308,7 +308,7 @@ function createTrainSimGame(): MinigameModule {
     title.style.fontWeight = "800";
     title.style.fontSize = "1.2rem";
     title.style.color = theme.accent;
-    title.textContent = reachedFestival ? "Willkommen in Kyritz! 🎪" : "Sackgasse!";
+    title.textContent = reachedFestival ? "Willkommen in Breddin! 🎪" : "Sackgasse!";
     finishHost.appendChild(title);
 
     const detail = document.createElement("div");
@@ -400,7 +400,7 @@ function createTrainSimGame(): MinigameModule {
    * die aktuelle Station + ihre direkt erreichbaren Nachbarn ausgerichtet,
    * per Ziehen/Pinch aber frei verschieb-/zoombar (siehe onPointerMove).
    * Bewusst wird NUR die aktuelle Station namentlich beschriftet -- alle
-   * anderen Staedte (auch das eigentliche Ziel Kyritz, sobald es nicht
+   * anderen Staedte (auch das eigentliche Ziel Breddin, sobald es nicht
    * gerade selbst eine Option ist) bleiben stumme Punkte, damit man sich
    * nicht die ganze Route im Voraus von der Karte ablesen kann.
    */
@@ -700,9 +700,9 @@ function createTrainSimGame(): MinigameModule {
         title: "Zugsimulator",
         description: [
           "Start an einem zufälligen deutschen Bahnhof",
-          "Ziel: Kyritz — dort wartet das Shuttle zum Neiphos Festival",
+          "Ziel: Breddin — dort wartet das Shuttle zum Neiphos Festival",
           "An jeder Station wählst du die nächste Strecke",
-          "Highscore: möglichst wenige Züge bis Kyritz",
+          "Highscore: möglichst wenige Züge bis Breddin",
         ],
         onStart: () => {
           closeIntro = null;
@@ -866,7 +866,7 @@ function createTrainSimGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Zugsimulator",
-  subtitle: "Finde den Weg nach Kyritz",
+  subtitle: "Finde den Weg nach Breddin",
   icon: "locomotive",
   badge: "ZG",
   accent: "#1f6f43",

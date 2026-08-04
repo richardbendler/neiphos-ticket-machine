@@ -1110,6 +1110,19 @@ button {
   box-shadow: none;
 }
 
+/* Bewusst NICHT die echte Linienfarbe (--chip-color, siehe ui.ts) fuer die
+   Auswahl-Buttons der Verbindungssuche -- sonst liesse sich die Aufgabe rein
+   durch Farbabgleich mit der Streckenkarte oben loesen, ohne die Karte
+   wirklich zu "lesen" (Tester-Feedback). Die Karte selbst bleibt bewusst bunt
+   (siehe core/berlinMap.ts), nur diese Buttons werden neutral -- muss NACH
+   .chip stehen, um dessen background-Regel zu ueberschreiben (beide Klassen
+   haben gleiche Spezifitaet). */
+.chip--picker {
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
+  color: var(--text);
+  border: 1px solid var(--btn-border);
+}
+
 .chip--outline {
   background: transparent;
   color: var(--text-muted);
@@ -1390,6 +1403,36 @@ button {
   outline: 3px solid var(--accent-dark);
   outline-offset: -3px;
   opacity: 0.55;
+}
+
+@keyframes tileGridPenaltyFloat {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -22px);
+  }
+}
+
+.tile-grid__penalty-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  background: var(--danger);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: tileGridPenaltyFloat 700ms ease-out forwards;
 }
 
 .memory-back {

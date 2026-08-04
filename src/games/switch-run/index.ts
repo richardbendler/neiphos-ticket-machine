@@ -216,26 +216,6 @@ function createSwitchRunGame(): MinigameModule {
     ctx.stroke();
   }
 
-  function drawApproachingTrack(ctx: CanvasRenderingContext2D, size: { width: number; height: number }): void {
-    const { horizonY, baseY, cx } = geometry(size);
-    drawBackground(ctx, size, horizonY, baseY);
-
-    const topHalfWidth = 10;
-    const baseHalfWidth = size.width * 0.42;
-
-    ctx.fillStyle = "#0f2b2f";
-    ctx.beginPath();
-    ctx.moveTo(cx - topHalfWidth, horizonY);
-    ctx.lineTo(cx + topHalfWidth, horizonY);
-    ctx.lineTo(cx + baseHalfWidth, baseY);
-    ctx.lineTo(cx - baseHalfWidth, baseY);
-    ctx.closePath();
-    ctx.fill();
-
-    drawRailPair(ctx, { x: cx, y: horizonY }, { x: cx, y: baseY }, topHalfWidth, baseHalfWidth, theme.accent, 3);
-    drawTies(ctx, { x: cx, y: horizonY }, { x: cx, y: baseY }, topHalfWidth, baseHalfWidth);
-  }
-
   function drawTies(ctx: CanvasRenderingContext2D, from: Point, to: Point, topHalfWidth: number, baseHalfWidth: number): void {
     const tieCount = 8;
     for (let i = 0; i < tieCount; i++) {
@@ -494,7 +474,16 @@ function createSwitchRunGame(): MinigameModule {
       if (!started) return;
 
       if (phase === "approaching") {
-        drawApproachingTrack(ctx, size);
+        // Zeigt die Weichen-Verzweigung bereits waehrend der Entscheidung
+        // (nicht erst danach, wie vorher) -- sonst haben die drei Knoepfe
+        // (Links/Mitte/Rechts) keinerlei sichtbare Entsprechung auf der
+        // Strecke, waehrend man sich entscheiden soll (Tester-Feedback: "hab
+        // ich nicht ganz verstanden"). Welcher Ast die Sackgasse ist, bleibt
+        // bewusst weiterhin unsichtbar -- nur DASS es drei echte, waehlbare
+        // Gleise gibt, wird jetzt sofort klar. drawForkTrack hebt den gerade
+        // gewaehlten Ast automatisch hervor (chosenLane), reagiert also live
+        // auf Antippen, auch vor Ablauf des Countdowns.
+        drawForkTrack(ctx, size);
         ctx.textAlign = "center";
         ctx.font = `800 40px ${theme.fontDisplay}`;
         const countdownText = `${Math.max(0, Math.ceil(countdown))}`;

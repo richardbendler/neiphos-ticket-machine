@@ -127,7 +127,23 @@ function createTrainSpotterGame(): MinigameModule {
       elapsed += WRONG_TAP_PENALTY;
       cellButtons[index].classList.add("tile-grid__cell--wrong");
       setTimeout(() => cellButtons[index]?.classList.remove("tile-grid__cell--wrong"), 350);
+      showPenaltyBadge(cellButtons[index]);
     }
+  }
+
+  /**
+   * Macht die Zeitstrafe fuer einen Fehltipp sichtbar (statt nur den roten
+   * Rahmen) -- sonst wirkt der spuerbare Zeitsprung beim naechsten Blick auf
+   * die Uhr wie eine Verzoegerung/ein Bug, war in Tester-Feedback so
+   * missverstanden worden (WRONG_TAP_PENALTY ist eine echte Spielmechanik,
+   * kein Input-Lag).
+   */
+  function showPenaltyBadge(cellBtn: HTMLButtonElement): void {
+    const badge = document.createElement("span");
+    badge.className = "tile-grid__penalty-badge";
+    badge.textContent = `+${WRONG_TAP_PENALTY.toString().replace(".", ",")} s`;
+    cellBtn.appendChild(badge);
+    setTimeout(() => badge.remove(), 700);
   }
 
   function finish(): void {

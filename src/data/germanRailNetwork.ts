@@ -41,7 +41,7 @@ export const RAIL_CITIES: RailCity[] = [
   { id: "leipzig", name: "Leipzig", lat: 51.34, lon: 12.37 },
   { id: "dresden", name: "Dresden", lat: 51.05, lon: 13.74 },
   { id: "neustadtDosse", name: "Neustadt (Dosse)", lat: 52.85, lon: 12.4 },
-  { id: "kyritz", name: "Kyritz", lat: 52.94, lon: 12.4 },
+  { id: "breddin", name: "Breddin", lat: 52.94, lon: 12.4 },
   // Kleine Startorte ("Kaffs") -- jeweils per kurzer Stichstrecke an eine
   // der grossen Staedte angebunden (siehe RAIL_EDGES unten). Die eigentliche
   // Fahrt startet IMMER an einem dieser Orte, nie direkt in einer Grossstadt
@@ -61,16 +61,16 @@ export const RAIL_CITIES: RailCity[] = [
 ];
 
 /** Zielbahnhof des Zugsimulators -- hier wartet das Shuttle zum Neiphos Festival. */
-export const FESTIVAL_CITY_ID = "kyritz";
+export const FESTIVAL_CITY_ID = "breddin";
 
 // Ungerichtet gemeint -- gilt in beide Richtungen (siehe neighborsOf).
 export const RAIL_EDGES: RailEdge[] = [
   // Original direkte Berlin-Hamburg-Strecke ist hier ueber den echten
   // Zwischenhalt Neustadt (Dosse) aufgesplittet, von dem aus die kurze
-  // Stichstrecke nach Kyritz abzweigt (70+220 ≈ die alten 290 km).
+  // Stichstrecke nach Breddin abzweigt (70+220 ≈ die alten 290 km).
   { from: "berlin", to: "neustadtDosse", km: 70 },
   { from: "neustadtDosse", to: "hamburg", km: 220 },
-  { from: "neustadtDosse", to: "kyritz", km: 20 },
+  { from: "neustadtDosse", to: "breddin", km: 20 },
   { from: "berlin", to: "hannover", km: 250 },
   { from: "berlin", to: "leipzig", km: 190 },
   { from: "berlin", to: "dresden", km: 180 },

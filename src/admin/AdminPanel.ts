@@ -283,6 +283,60 @@ start "" "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk --
   });
 }
 
+/**
+ * Zweite Bestaetigung fuer unwiderrufliche Aktionen (Statistik/Highscores
+ * zuruecksetzen) -- eigenes Modal MIT erneuter Passworteingabe (nicht nur
+ * ein simples "Wirklich?"-Popup), damit ein versehentlicher Doppel-Klick auf
+ * den eigentlichen Button allein nichts loeschen kann. Oeffnet ueber dem
+ * bestehenden Admin-Home-Modal ein weiteres, schliesst sich danach wieder
+ * dorthin zurueck (kein Verlassen des Admin-Bereichs noetig).
+ */
+function confirmWithPassword(warningText: string, onConfirmed: () => void): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "Sicher?";
+    const warning = paragraph(warningText);
+    warning.style.color = "var(--danger)";
+    warning.style.fontWeight = "600";
+    const p = document.createElement("p");
+    p.textContent = "Zur Bestätigung Admin-Passwort erneut eingeben:";
+    const error = document.createElement("div");
+    error.className = "field-error";
+    panel.append(h2, warning, p, error);
+
+    const kb = new OnScreenKeyboard({
+      layout: "alphanumeric",
+      maxLength: 32,
+      placeholder: "Passwort",
+      submitLabel: "Endgültig löschen",
+      mask: true,
+      extraKeys: true,
+      caseToggle: true,
+      onSubmit: (value) => {
+        if (value === ADMIN_PASSWORD) {
+          close();
+          onConfirmed();
+        } else {
+          error.textContent = "Falsches Passwort.";
+          kb.setValue("");
+        }
+      },
+    });
+    kb.mount(panel);
+
+    const cancel = document.createElement("div");
+    cancel.className = "modal-actions";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn btn--ghost";
+    cancelBtn.textContent = "Abbrechen";
+    cancelBtn.addEventListener("click", close);
+    cancel.appendChild(cancelBtn);
+    panel.appendChild(cancel);
+  });
+}
+
 export function openAdminPanel(onClose?: () => void): void {
   openModal((panel, close) => {
     panel.innerHTML = "";
@@ -495,10 +549,15 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   clearBtn.style.fontSize = "0.8rem";
   clearBtn.textContent = "Statistik zurücksetzen";
   clearBtn.addEventListener("click", () => {
-    clearAllStats();
-    void resetStatsOnServer();
-    currentSessions = [];
-    renderStatsList(statsList, currentSessions);
+    confirmWithPassword(
+      "Löscht unwiderruflich die gesamte Spielstatistik (alle Sitzungen, aller Spiele) -- lokal und, falls Synchronisation aktiv ist, auch auf dem Server.",
+      () => {
+        clearAllStats();
+        void resetStatsOnServer();
+        currentSessions = [];
+        renderStatsList(statsList, currentSessions);
+      },
+    );
   });
   panel.appendChild(clearBtn);
 
@@ -515,14 +574,19 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   highscoreResetBtn.style.fontSize = "0.8rem";
   highscoreResetBtn.textContent = "Alle Highscores zurücksetzen";
   highscoreResetBtn.addEventListener("click", () => {
-    for (const game of gameRegistry) {
-      for (const category of game.highscoreCategories ?? []) {
-        clearHighscoreBoard(game.id, category.board);
-      }
-    }
-    void resetHighscoresOnServer();
-    highscoreResetBtn.textContent = "Highscores zurückgesetzt.";
-    highscoreResetBtn.disabled = true;
+    confirmWithPassword(
+      "Löscht unwiderruflich ALLE Highscores (aller Spiele, aller Spielfeldgrößen) -- lokal und, falls Synchronisation aktiv ist, auch auf dem Server.",
+      () => {
+        for (const game of gameRegistry) {
+          for (const category of game.highscoreCategories ?? []) {
+            clearHighscoreBoard(game.id, category.board);
+          }
+        }
+        void resetHighscoresOnServer();
+        highscoreResetBtn.textContent = "Highscores zurückgesetzt.";
+        highscoreResetBtn.disabled = true;
+      },
+    );
   });
   panel.appendChild(highscoreResetBtn);
 

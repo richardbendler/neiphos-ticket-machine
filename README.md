@@ -357,8 +357,35 @@ sudo systemctl enable --now ticketmachine-server
 lauscht nur auf einem eigenen Port (hier `8080`), nicht auf Port 80/443 –
 ein bereits laufender Apache/Nginx auf dem VPS muss die öffentliche Domain
 also per **Reverse Proxy** dorthin weiterleiten, statt (wie bisher) direkt
-ein statisches Verzeichnis auszuliefern. Beispiel für Nginx
-(`/etc/nginx/sites-available/deine-domain.de`):
+ein statisches Verzeichnis auszuliefern. **Nginx und Apache sind
+Alternativen zueinander – nur den Abschnitt für den Webserver befolgen, der
+auf dem eigenen VPS tatsächlich läuft** (meist am vorhandenen
+`sites-available`/`sites-enabled`-Ordner bzw. an `mod_ssl`/`a2ensite`-Befehlen
+in bestehenden Configs erkennbar – Apache).
+
+*Apache* – in der bestehenden vHost-Datei (meist unter
+`/etc/apache2/sites-available/`, für **beide** Varianten falls sowohl ein
+`:80`- als auch ein `:443`-VirtualHost existieren, siehe Let's-Encrypt/SSL-
+Setup) die vorhandene `DocumentRoot ...`-Zeile komplett durch die drei
+`Proxy...`-Zeilen ersetzen:
+
+```apache
+<VirtualHost *:443>
+    ServerName deine-domain.de
+    ProxyPreserveHost On
+    ProxyPass / http://127.0.0.1:8080/
+    ProxyPassReverse / http://127.0.0.1:8080/
+    # ... SSL-Zeilen (SSLEngine/SSLCertificateFile/...) bleiben unveraendert stehen
+</VirtualHost>
+```
+
+```bash
+sudo a2enmod proxy proxy_http
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+*Nginx* – Beispiel (`/etc/nginx/sites-available/deine-domain.de`):
 
 ```nginx
 server {
@@ -377,12 +404,12 @@ sudo ln -s /etc/nginx/sites-available/deine-domain.de /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Bei Apache stattdessen `mod_proxy`/`mod_proxy_http` aktivieren und
-`ProxyPass / http://127.0.0.1:8080/` sowie `ProxyPassReverse / http://127.0.0.1:8080/`
-im vHost eintragen. Läuft auf dem VPS noch gar kein eigener Webserver und die
-Domain zeigt bereits direkt auf den Server, kann `serve.js` alternativ auch
-direkt an Port 80 gebunden werden (`node server/serve.js dist 80`) – dafür
-sind aber Root-Rechte nötig, ein Reverse Proxy ist der robustere Standardweg.
+Läuft auf dem VPS noch gar kein eigener Webserver und die Domain zeigt
+bereits direkt auf den Server, kann `serve.js` alternativ auch direkt an
+Port 80 gebunden werden (`node server/serve.js dist 80`) – dafür sind aber
+Root-Rechte nötig, ein Reverse Proxy vor einem bestehenden Apache/Nginx ist
+der robustere Standardweg (insbesondere mit bereits eingerichtetem
+Let's-Encrypt-SSL wie oben, das unabhängig vom Proxy-Ziel weiterläuft).
 
 Nach diesem Umbau übernimmt `server/serve.js` das komplette Ausliefern von
 `dist/` (nicht mehr das bisherige direkte Hochladen von `dist/*` ins

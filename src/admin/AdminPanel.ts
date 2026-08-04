@@ -5,7 +5,7 @@ import { summarizeSessions, filterSessionsForGame, getAllSessions, clearAllStats
 import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
 import { setAdminSession, clearAdminSession } from "../core/adminSession";
-import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer } from "../core/sync";
+import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer, checkServerSyncStatus } from "../core/sync";
 import { gameRegistry } from "../games/registry";
 
 // Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
@@ -343,18 +343,30 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   // --- Sync-Status ---------------------------------------------------
   // Nur eine Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen
   // Abschnitte unten pruefen/pushen unabhaengig davon selbst (siehe
-  // core/sync.ts). Nutzt den admin-geschuetzten Statistik-Endpunkt als
-  // Signal, weil der (anders als die oeffentlichen Endpunkte) eindeutig
-  // zwischen "kein Server/Sync" (null) und "erreichbar" (Array, ggf. leer)
-  // unterscheidet.
-  const syncStatus = paragraph("Geräteübergreifende Synchronisation: wird geprüft …");
+  // core/sync.ts). Unterscheidet bewusst DREI Faelle (nicht nur an/aus),
+  // damit auf einen Blick klar ist, WARUM die Sync ggf. nicht laeuft --
+  // "laeuft gerade nur lokal" (kein server/serve.js erreichbar, z. B. beim
+  // Entwickeln mit npm run dev) sieht ganz anders aus als "server/serve.js
+  // laeuft zwar, aber NTM_SYNC ist dort nicht gesetzt" (siehe
+  // core/sync.ts#checkServerSyncStatus).
+  const syncStatus = paragraph("Sync-Status: wird geprüft …");
   syncStatus.style.fontSize = "0.78rem";
+  syncStatus.style.fontWeight = "600";
+  syncStatus.style.padding = "6px 10px";
+  syncStatus.style.borderRadius = "var(--radius-sm)";
+  syncStatus.style.border = "1px solid var(--panel-border)";
   panel.appendChild(syncStatus);
-  void pullStatsFromServer().then((sessions) => {
-    syncStatus.textContent =
-      sessions === null
-        ? "Geräteübergreifende Synchronisation: nicht aktiv (kein Server erreichbar oder serverseitig nicht freigeschaltet) — es werden nur lokale Daten dieses Geräts angezeigt."
-        : "Geräteübergreifende Synchronisation: aktiv — Einstellungen, Highscores und Statistik werden mit dem Server abgeglichen.";
+  void checkServerSyncStatus().then((status) => {
+    if (status === "no-server") {
+      syncStatus.textContent = "🖥️ Läuft gerade rein lokal (kein Server erreichbar) — alles bleibt nur auf diesem Gerät.";
+      syncStatus.style.color = "var(--text-muted)";
+    } else if (status === "server-sync-off") {
+      syncStatus.textContent = "🌐 Server erreichbar, geräteübergreifende Synchronisation aber nicht aktiviert (NTM_SYNC fehlt) — Highscores/Statistik/Einstellungen bleiben lokal.";
+      syncStatus.style.color = "var(--text)";
+    } else {
+      syncStatus.textContent = "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen werden geteilt.";
+      syncStatus.style.color = "var(--success)";
+    }
   });
 
   // --- Kiosk-Steuerung -----------------------------------------------

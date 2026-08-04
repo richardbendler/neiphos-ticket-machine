@@ -820,6 +820,7 @@ chromium \
   --overscroll-history-navigation=0 \
   --check-for-update-interval=31536000 \
   --autoplay-policy=no-user-gesture-required \
+  --password-store=basic \
   http://localhost:8080
 ```
 
@@ -837,6 +838,24 @@ Hinweise zu den Flags:
   ohne vorherigen Tap Ton ausgeben soll (Web Audio API braucht sonst zwingend
   eine Nutzer-Geste – im Spiel selbst reicht der erste Tap auf "Abspielen"
   auch ohne dieses Flag)
+- `--password-store=basic`: verhindert, dass Chromium versucht, den
+  System-Schlüsselbund (GNOME Keyring) für gespeicherte Passwörter zu
+  verwenden – ohne dieses Flag fragt Chromium beim allerersten Start (bzw.
+  bei jedem Start, falls der Schlüsselbund nie eingerichtet wird) auf dem
+  Pi-Bildschirm nach einem Keyring-Passwort und blockiert dort auf eine
+  Eingabe, die es beim Kiosk-Betrieb nie geben wird.
+
+**Hinweis zur GPU-Beschleunigung:** Meldet Chromium beim Start
+`MESA-LOADER: failed to open dri: ... Keine Berechtigung` (sichtbar z. B. in
+den systemd-Logs, `journalctl -u ticketmachine-server` bzw. beim manuellen
+Testen im Terminal), fehlt dem verwendeten Benutzer die Berechtigung für die
+GPU-Gerätedateien – Chromium fällt dann auf (spürbar langsameres)
+Software-Rendering zurück. Fix:
+
+```bash
+sudo usermod -aG render,video flipper
+sudo reboot
+```
 
 ### 5. Autostart einrichten (Linux/Raspberry Pi OS)
 
@@ -900,6 +919,7 @@ chromium \
   --overscroll-history-navigation=0 \
   --check-for-update-interval=31536000 \
   --autoplay-policy=no-user-gesture-required \
+  --password-store=basic \
   http://localhost:8080
 ```
 

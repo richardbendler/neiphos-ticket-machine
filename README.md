@@ -301,6 +301,13 @@ leeren SD-Karte bis zum laufenden Kiosk.
      ersetzen)
    - Falls kein Netzwerkkabel geplant ist: WLAN-SSID/Passwort eintragen
    - Locale/Tastaturlayout auf Deutschland stellen
+   - **"Raspberry Pi Connect" nicht aktivieren** – das ist ein separater
+     Fernzugriffsdienst über die Cloud von Raspberry Pi selbst (braucht ein
+     eigenes Raspberry-Pi-Konto und hält dauerhaft eine Verbindung nach
+     außen offen). Für dieses Projekt unnötig: SSH reicht für den Zugriff
+     im eigenen Netzwerk völlig aus, und ein bewusst komplett offline
+     laufender Kiosk sollte keine zusätzliche, dauerhaft aktive
+     Cloud-Abhängigkeit bekommen.
    Diese Einstellungen sorgen dafür, dass der Pi beim ersten Start direkt
    ohne eigenen Monitor/Tastatur per SSH erreichbar ist.
 7. „Schreiben" klicken und warten (Herunterladen + Schreiben + Verifizieren

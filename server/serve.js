@@ -45,6 +45,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -554,6 +555,27 @@ const server = http.createServer(async (req, res) => {
       const settings = { disabledGameIds: parsed.disabledGameIds };
       fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
       sendJson(res, 200, settings);
+      return;
+    }
+
+    // ------------------------------------------------------------ Kiosk-Exit
+    //
+    // Notausgang fuer den Admin-Bereich: beendet den per --kiosk gestarteten
+    // Chromium-Prozess auf DIESEM Geraet, damit z. B. bei einem WLAN-Problem
+    // ohne SSH-Zugriff (der ja selbst ein funktionierendes Netzwerk
+    // voraussetzt) trotzdem an den darunterliegenden Desktop (und damit an
+    // die Netzwerk-Einstellungen) herangekommen wird. Absichtlich ein FEST
+    // verdrahteter Befehl ohne jeden Teil aus der Anfrage (kein Injection-
+    // Risiko) -- passt nur auf das eigene, feste --user-data-dir-Profil
+    // (siehe README/Kiosk-Anleitung), trifft also keine fremden Chromium-
+    // Prozesse. "pkill" liefert Exit-Code 1, wenn nichts gefunden wurde --
+    // das ist hier kein Fehler (Kiosk laeuft z. B. schon gar nicht), daher
+    // die Antwort in beiden Faellen 200.
+    if (url.pathname === "/api/kiosk/exit" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      execFile("pkill", ["-f", "ticketmachine-chromium"], () => {
+        sendJson(res, 200, { ok: true });
+      });
       return;
     }
 

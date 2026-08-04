@@ -1,6 +1,6 @@
 import { openModal } from "../core/modal";
 import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
-import { enterFullscreen, exitFullscreen, isFullscreenActive } from "../core/kiosk";
+import { enterFullscreen, exitFullscreen, isFullscreenActive, exitKioskBrowser } from "../core/kiosk";
 import { summarizeSessions, filterSessionsForGame, getAllSessions, clearAllStats, type GameSummary, type PlaySession } from "../core/stats";
 import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
@@ -164,7 +164,9 @@ function openKioskGuideModal(): void {
       ),
     );
     panel.appendChild(
-      paragraph("Beenden dann nur noch per SSH/Tastatur am Gerät selbst, z. B. mit: pkill chromium"),
+      paragraph(
+        "Beenden dann nur noch per SSH/Tastatur am Gerät selbst, z. B. mit: pkill chromium -- oder bequemer über den Button „Kiosk-Browser jetzt beenden (Notausgang)“ weiter oben in diesem Admin-Bereich, falls der Kiosk bereits läuft und diese Seite gerade selbst im Kiosk angezeigt wird (z. B. bei fehlendem WLAN, wenn SSH nicht erreichbar ist).",
+      ),
     );
     panel.appendChild(
       paragraph(
@@ -198,7 +200,12 @@ chromium \\
       ),
     );
     panel.appendChild(codeBlock("chmod +x /home/pi/neiphos-ticket-machine/start-kiosk.sh"));
-    panel.appendChild(paragraph("2) Autostart-Eintrag ~/.config/autostart/ticketmachine-kiosk.desktop anlegen:"));
+    panel.appendChild(
+      paragraph(
+        "2) Autostart-Eintrag ~/.config/autostart/ticketmachine-kiosk.desktop anlegen (der Ordner existiert auf einem frischen Pi meist noch nicht):",
+      ),
+    );
+    panel.appendChild(codeBlock("mkdir -p ~/.config/autostart"));
     panel.appendChild(
       codeBlock(
         `[Desktop Entry]
@@ -334,6 +341,42 @@ function confirmWithPassword(warningText: string, onConfirmed: () => void): void
     cancelBtn.addEventListener("click", close);
     cancel.appendChild(cancelBtn);
     panel.appendChild(cancel);
+  });
+}
+
+/**
+ * Leichtgewichtige Bestaetigung OHNE erneute Passworteingabe -- fuer
+ * Aktionen, die zwar nicht versehentlich ausgeloest werden sollen, aber
+ * weder besonders folgenschwer noch schwer rueckgaengig zu machen sind (z. B.
+ * einzelnes Feedback loeschen). Fuer wirklich unwiderrufliche Aktionen
+ * (Statistik/Highscores komplett zuruecksetzen) siehe stattdessen
+ * confirmWithPassword oben.
+ */
+function confirmSimple(message: string, confirmLabel: string, onConfirmed: () => void): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "Sicher?";
+    const p = paragraph(message);
+    panel.append(h2, p);
+
+    const actions = document.createElement("div");
+    actions.className = "modal-actions";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn btn--ghost";
+    cancelBtn.textContent = "Abbrechen";
+    cancelBtn.addEventListener("click", close);
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "btn btn--accent";
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.addEventListener("click", () => {
+      close();
+      onConfirmed();
+    });
+    actions.append(cancelBtn, confirmBtn);
+    panel.appendChild(actions);
   });
 }
 
@@ -474,8 +517,34 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   kioskHint.style.fontSize = "0.78rem";
   kioskHint.style.marginTop = "8px";
   kioskHint.textContent =
-    "Hinweis: Das steuert nur den Vollbildmodus dieser Webseite (Fullscreen API). Wurde der Browser richtig im Betriebssystem-Kiosk-Modus gestartet, hilft zum vollständigen Beenden nur ein Neustart des Browsers auf dem Gerät -- siehe „Kiosk-Modus-Anleitung“ oben.";
+    "Hinweis: Das steuert nur den Vollbildmodus dieser Webseite (Fullscreen API), nicht den echten Betriebssystem-Kiosk-Modus des Browsers (--kiosk) -- eine Webseite kann grundsätzlich nicht zuverlässig erkennen, ob der Browser darin gerade läuft.";
   kioskSection.appendChild(kioskHint);
+
+  // --- Kiosk-Notausgang ------------------------------------------------
+  // Getrennt vom obigen Umschalter (siehe Hinweistext dort): beendet den
+  // echten --kiosk-Chromium-Prozess auf DIESEM Geraet ueber den lokalen
+  // Server (server/serve.js, core/kiosk.ts#exitKioskBrowser) -- z. B. fuer
+  // den Notfall, dass ohne funktionierendes WLAN weder SSH noch ein anderer
+  // Fernzugriff moeglich ist, der darunterliegende Desktop (fuer WLAN-
+  // Neueinrichtung etc.) aber erreichbar sein muss.
+  const exitBtn = document.createElement("button");
+  exitBtn.type = "button";
+  exitBtn.className = "btn btn--ghost";
+  exitBtn.style.marginTop = "8px";
+  exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
+  exitBtn.addEventListener("click", () => {
+    confirmSimple(
+      "Beendet den Kiosk-Browser auf diesem Gerät sofort und legt den darunterliegenden Desktop frei (z. B. für WLAN-Einstellungen im Notfall). Funktioniert nur, wenn der lokale Server (server/serve.js) läuft.",
+      "Ja, Kiosk beenden",
+      () => {
+        exitBtn.disabled = true;
+        exitBtn.textContent = "Wird beendet …";
+        void exitKioskBrowser();
+      },
+    );
+  });
+  kioskSection.appendChild(exitBtn);
+
   panel.appendChild(kioskSection);
 
   // --- Feedback ----------------------------------------------------------

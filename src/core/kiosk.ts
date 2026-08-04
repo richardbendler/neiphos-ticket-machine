@@ -7,6 +7,8 @@
  * grundsaetzlich nicht verhindern -- dafuer ist auf dem Pi Chromium selbst im
  * echten --kiosk-Modus zu starten (siehe README).
  */
+import { getAdminSession } from "./adminSession";
+
 export function installKioskHardening(): void {
   const preventDefault = (e: Event) => e.preventDefault();
 
@@ -103,5 +105,30 @@ export async function toggleFullscreen(): Promise<void> {
     await exitFullscreen();
   } else {
     await enterFullscreen();
+  }
+}
+
+/**
+ * Notausgang aus einem echten, per --kiosk gestarteten Chromium (siehe
+ * README) -- absichtlich KEIN Umschalter mit Statusanzeige, weil eine
+ * Webseite grundsaetzlich nicht zuverlaessig erkennen kann, ob sie gerade in
+ * --kiosk laeuft (kein Browser stellt das zur Verfuegung). Ruft stattdessen
+ * bedingungslos den admin-geschuetzten Server-Endpunkt auf, der den Prozess
+ * beendet (server/serve.js) -- z. B. fuer den Notfall, dass ohne
+ * funktionierendes WLAN weder SSH noch ein anderer Fernzugriff moeglich ist,
+ * aber der darunterliegende Desktop (fuer WLAN-Neueinrichtung etc.)
+ * erreichbar sein muss. Gibt true zurueck, wenn die Anfrage den Server
+ * erreicht hat (unabhaengig davon, ob dort wirklich ein Kiosk-Prozess lief).
+ */
+export async function exitKioskBrowser(): Promise<boolean> {
+  try {
+    const password = getAdminSession();
+    const res = await fetch("./api/kiosk/exit", {
+      method: "POST",
+      headers: password ? { "X-Admin-Password": password } : {},
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

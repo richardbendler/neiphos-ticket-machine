@@ -722,9 +722,15 @@ sudo reboot
 Chromium ist auf „Raspberry Pi OS mit Desktop" normalerweise schon
 vorinstalliert (aktuelle Versionen fragen beim allerersten Start sogar, ob
 Chromium oder Firefox der Standardbrowser sein soll – bei „Firefox" fehlt
-Chromium danach). Fehlt es, per `sudo apt install -y chromium-browser`
-nachinstallieren (heißt das Paket in den eingebundenen Quellen ausnahmsweise
-nur `chromium`, meldet `apt` das von selbst – dann diesen Namen verwenden).
+Chromium danach). Das eigentliche Kommando/Paket heißt auf aktuellem
+Raspberry Pi OS (Bookworm/Trixie-Basis) **`chromium`**, nicht
+`chromium-browser` – Letzteres existiert zwar teils noch als winziges
+Uralt-Kompatibilitätspaket (installiert dann aber keinen echten Browser,
+`which chromium-browser` bleibt danach leer). Prüfen/nachinstallieren:
+
+```bash
+which chromium || sudo apt install -y chromium
+```
 Das Node.js aus den Standard-Paketquellen reicht für den mitgelieferten
 `server/serve.js` locker aus (nutzt nur eingebaute Node-Module, siehe
 [Projektstruktur](#projektstruktur)) – der eigentliche Build (`npm run
@@ -804,7 +810,7 @@ Browser-Chrome – nur die Seite selbst im Vollbild. Empfohlene Flags für einen
 dauerhaft laufenden Touch-Kiosk:
 
 ```bash
-chromium-browser \
+chromium \
   --kiosk \
   --user-data-dir=/home/flipper/.config/ticketmachine-chromium \
   --noerrdialogs \
@@ -884,7 +890,7 @@ Kleines Startskript `/home/flipper/neiphos-ticket-machine/start-kiosk.sh` anlege
 #!/bin/bash
 # Kurz warten, bis der Server-Service sicher steht (nach einem Reboot).
 sleep 3
-chromium-browser \
+chromium \
   --kiosk \
   --user-data-dir=/home/flipper/.config/ticketmachine-chromium \
   --noerrdialogs \
@@ -913,14 +919,14 @@ X-GNOME-Autostart-enabled=true
 
 Nach einem Neustart (`sudo reboot`) sollte der Pi jetzt direkt im laufenden
 Kiosk starten. Zum manuellen Beenden/Neustarten während der Entwicklung
-reicht `pkill chromium-browser` per SSH.
+reicht `pkill chromium` per SSH.
 
 > **Hinweis (aktuelle Raspberry Pi OS-Versionen, "Bookworm" und neuer):** Der
 > Standard-Desktop nutzt inzwischen den Wayland-Compositor `labwc` statt des
 > alten X11/Openbox-Unterbaus. Der obige `.desktop`-Autostart-Eintrag
 > funktioniert dort in der Regel weiterhin (labwc unterstützt den
 > XDG-Autostart-Standard), falls nicht, ist die von Raspberry Pi selbst
-> empfohlene Alternative, den obigen `chromium-browser`-Aufruf stattdessen an
+> empfohlene Alternative, den obigen `chromium`-Aufruf stattdessen an
 > das Ende von `~/.config/labwc/autostart` anzuhängen (mit `&` am Zeilenende,
 > damit die Datei nicht blockiert).
 

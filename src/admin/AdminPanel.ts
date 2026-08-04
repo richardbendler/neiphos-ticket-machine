@@ -88,6 +88,23 @@ function codeBlock(text: string): HTMLDivElement {
   return wrap;
 }
 
+/**
+ * Zusaetzlicher X-Button oben rechts im Panel -- ergaenzend zum jeweiligen
+ * "Schließen"/"Zurück"-Button unten im Inhalt. Muss nach jedem
+ * "panel.innerHTML = ''" (Admin-Login, Admin-Home, Feedback-Ansicht,
+ * Kiosk-Anleitung) neu angehaengt werden, da der jeweils vorherige dabei
+ * mit geleert wird.
+ */
+function addCloseCorner(panel: HTMLDivElement, close: () => void): void {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "modal-panel__close";
+  btn.setAttribute("aria-label", "Schließen");
+  btn.textContent = "✕";
+  btn.addEventListener("click", close);
+  panel.appendChild(btn);
+}
+
 function sectionHeading(text: string): HTMLHeadingElement {
   const h = document.createElement("h3");
   h.style.fontSize = "1rem";
@@ -116,6 +133,7 @@ function paragraph(text: string): HTMLParagraphElement {
 function openKioskGuideModal(): void {
   openModal((panel, close) => {
     panel.classList.add("modal-panel--wide");
+    addCloseCorner(panel, close);
     const h2 = document.createElement("h2");
     h2.textContent = "Kiosk-Modus-Anleitung";
     panel.appendChild(h2);
@@ -260,6 +278,7 @@ export function openAdminPanel(onClose?: () => void): void {
   openModal((panel, close) => {
     panel.innerHTML = "";
     panel.classList.add("modal-panel--wide");
+    addCloseCorner(panel, close);
     const h2 = document.createElement("h2");
     h2.textContent = "Admin-Bereich";
     const p = document.createElement("p");
@@ -302,6 +321,7 @@ export function openAdminPanel(onClose?: () => void): void {
 function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   panel.innerHTML = "";
   panel.classList.add("modal-panel--wide");
+  addCloseCorner(panel, close);
 
   const h2 = document.createElement("h2");
   h2.textContent = "Admin-Bereich";
@@ -508,6 +528,7 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
 
 function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {
   panel.innerHTML = "";
+  addCloseCorner(panel, close);
   const h2 = document.createElement("h2");
   h2.textContent = "Feedback";
   panel.appendChild(h2);

@@ -128,14 +128,15 @@ export class OnScreenKeyboard {
         // Zwei getrennte Umschalttasten (wie bei einer echten Tastatur, auf
         // die mittlere und untere Buchstabenreihe verteilt) -- nur wenn
         // caseToggle aktiv ist (aktuell nur Admin-Login, siehe Options-
-        // Kommentar): "⇧" macht einmalig nur den naechsten Buchstaben gross,
-        // "⇪" ist eine Feststelltaste, die an bleibt, bis sie erneut
-        // gedrueckt wird.
+        // Kommentar): "⇪" ist die Feststelltaste (bleibt an, bis sie erneut
+        // gedrueckt wird) und sitzt wie auf einer echten Tastatur in der
+        // mittleren Reihe; "⇧" (einmaliges Shift) sitzt darunter in der
+        // untersten Buchstabenreihe.
         if (this.opts.caseToggle && i === 1) {
-          rowEl.appendChild(this.buildKey("⇧", "⇧"));
+          rowEl.appendChild(this.buildKey("⇪", "⇪"));
         }
         if (this.opts.caseToggle && i === ALPHA_ROWS.length - 1) {
-          rowEl.appendChild(this.buildKey("⇪", "⇪"));
+          rowEl.appendChild(this.buildKey("⇧", "⇧"));
         }
         wrap.appendChild(rowEl);
       });

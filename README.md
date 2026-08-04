@@ -247,7 +247,126 @@ unverändert.
 
 ## Deployment auf dem Raspberry Pi (Kiosk)
 
-### 1. `dist/` auf den Pi bringen
+**Betriebssystem-Wahl: Raspberry Pi OS (Linux), nicht Windows.** Für den
+Raspberry Pi 3 gibt es kein von Microsoft offiziell unterstütztes Windows –
+die inoffiziellen "Windows on Raspberry"-Projekte zielen praktisch nur auf
+Pi 4 und neuer, und selbst dort ist der Kiosk-Betrieb deutlich fummeliger
+einzurichten als unter Linux. Raspberry Pi OS ist dagegen das offizielle,
+von der Raspberry Pi Foundation selbst gepflegte und für jedes Pi-Modell
+(inkl. Pi 3) optimierte Betriebssystem – entsprechend ist auch die
+Kiosk-Anleitung in diesem README von Anfang an dafür geschrieben (siehe
+Schritt 5 unten). Bei nur 1 GB RAM auf dem Pi 3 wäre ein vollwertiges
+Windows ohnehin die deutlich schwergewichtigere, unpassendere Wahl.
+
+Die folgenden Schritte führen ein **komplett unbespieltes** Pi 3 von der
+leeren SD-Karte bis zum laufenden Kiosk.
+
+### 1. Raspberry Pi OS auf die SD-Karte spielen
+
+**Was du brauchst:**
+
+- Raspberry Pi 3 (Modell B oder B+)
+- microSD-Karte, mindestens 8 GB, empfohlen 16–32 GB (Class 10/A1 für
+  ordentliche Schreib-/Lesegeschwindigkeit)
+- Ein Kartenlesegerät für den Entwicklungsrechner
+- Netzteil (Micro-USB, mindestens 2,5 A – ein zu schwaches Netzteil äußert
+  sich oft als unerklärliche Abstürze/Reboots unter Last, nicht als
+  offensichtlicher Stromfehler)
+- Das Touch-Display inkl. Verkabelung (meist HDMI für Bild + USB für Touch;
+  bei einem GPIO-Display stattdessen dessen eigene Treiber-Anleitung
+  befolgen)
+- Optional Maus/Tastatur für die Ersteinrichtung direkt am Gerät – oder
+  komplett "headless" per SSH vom Entwicklungsrechner aus (siehe unten,
+  spart den Umweg über einen zweiten Monitor)
+
+**a) Image schreiben:**
+
+1. [Raspberry Pi Imager](https://www.raspberrypi.com/software/) auf dem
+   Entwicklungsrechner installieren und öffnen.
+2. microSD-Karte einstecken, im Imager auswählen.
+3. „Raspberry Pi Device" → **Raspberry Pi 3** wählen.
+4. „Operating System" → **Raspberry Pi OS (64-bit)** wählen (mit
+   Desktop-Oberfläche, **nicht** „Lite" – die Kiosk-Anleitung unten setzt
+   einen laufenden Desktop mit Autostart-Ordner voraus). Der Pi 3
+   unterstützt 64-bit seit 2022 offiziell; moderne Software (Chromium,
+   Node.js) läuft darauf tendenziell etwas runder als auf der
+   32-bit-Variante.
+5. „Storage" → die microSD-Karte auswählen.
+6. **Vor dem Schreiben** unten auf das Zahnrad („Einstellungen bearbeiten",
+   alternativ Strg+Umschalt+X) klicken und dort:
+   - Hostname setzen (z. B. `neiphos-kiosk`)
+   - „SSH aktivieren" anhaken, Passwort-Authentifizierung wählen
+   - Benutzername/Passwort festlegen (in den Befehlen unten wird `pi`
+     verwendet – falls ein anderer Name gewählt wurde, dort entsprechend
+     ersetzen)
+   - Falls kein Netzwerkkabel geplant ist: WLAN-SSID/Passwort eintragen
+   - Locale/Tastaturlayout auf Deutschland stellen
+   Diese Einstellungen sorgen dafür, dass der Pi beim ersten Start direkt
+   ohne eigenen Monitor/Tastatur per SSH erreichbar ist.
+7. „Schreiben" klicken und warten (Herunterladen + Schreiben + Verifizieren
+   kann je nach Kartenleser/-geschwindigkeit 10–20 Minuten dauern).
+
+**b) Erststart:**
+
+1. microSD-Karte in den ausgeschalteten Pi stecken, Display und zuletzt das
+   Netzteil anschließen.
+2. Der erste Start dauert etwas länger als gewohnt (das Dateisystem wird
+   automatisch auf die volle Kartengröße vergrößert). Nach 1–2 Minuten
+   sollte entweder der Desktop erscheinen oder – bei Headless-Einrichtung –
+   der Pi im Netzwerk erreichbar sein.
+3. Vom Entwicklungsrechner aus per SSH verbinden:
+
+   ```bash
+   ssh pi@neiphos-kiosk.local
+   ```
+
+   (Hostname wie im Imager gesetzt; funktioniert dank mDNS/Bonjour meist
+   auch ohne bekannte IP-Adresse. Klappt das nicht, die IP-Adresse
+   stattdessen über die Router-Oberfläche nachschauen.)
+
+**c) System aktualisieren, Grundlagen installieren:**
+
+```bash
+sudo apt update && sudo apt full-upgrade -y
+sudo apt install -y nodejs npm
+sudo reboot
+```
+
+Chromium ist auf „Raspberry Pi OS mit Desktop" normalerweise schon
+vorinstalliert (aktuelle Versionen fragen beim allerersten Start sogar, ob
+Chromium oder Firefox der Standardbrowser sein soll – bei „Firefox" fehlt
+Chromium danach). Fehlt es, per `sudo apt install -y chromium-browser`
+nachinstallieren (heißt das Paket in den eingebundenen Quellen ausnahmsweise
+nur `chromium`, meldet `apt` das von selbst – dann diesen Namen verwenden).
+Das Node.js aus den Standard-Paketquellen reicht für den mitgelieferten
+`server/serve.js` locker aus (nutzt nur eingebaute Node-Module, siehe
+[Projektstruktur](#projektstruktur)) – der eigentliche Build (`npm run
+build`) läuft ohnehin auf dem Entwicklungsrechner, nicht auf dem Pi selbst
+(siehe Schritt 2 unten, ein Vite-Build auf der vergleichsweise schwachen
+Pi-3-CPU wäre unnötig langsam).
+
+**d) Automatischen Desktop-Login aktivieren** (Voraussetzung, damit
+Chromium nach jedem Neustart automatisch startet, siehe Schritt 5):
+
+```bash
+sudo raspi-config
+```
+
+→ „System Options" → „Boot / Auto Login" → „Desktop Autologin" wählen, dann
+neu starten.
+
+**Performance-Hinweis speziell für den Pi 3:** Mit nur 1 GB RAM und einer
+deutlich schwächeren CPU/GPU als beim Pi 4/5 startet Chromium spürbar
+langsamer, und mehrere gleichzeitig laufende Programme können eng werden.
+Diese App selbst nutzt reines 2D-Canvas (kein WebGL, keine 3D-Effekte) und
+sollte dadurch auch auf einem Pi 3 grundsätzlich flüssig laufen – hilft es
+trotzdem, unnötige Autostart-Programme zu deaktivieren und den
+GPU-Speicher-Split über `sudo raspi-config` → „Performance Options" →
+„GPU Memory" auf einen kleinen Wert wie `128` zu stellen (mehr GPU-Speicher
+bringt einem reinen 2D-Canvas ohnehin nichts, kommt aber dem restlichen
+System zugute).
+
+### 2. `dist/` auf den Pi bringen
 
 Auf dem Entwicklungsrechner bauen (braucht Internet), dann z. B. per `scp`
 oder USB-Stick auf den Pi kopieren:
@@ -257,7 +376,7 @@ npm run build
 scp -r dist pi@raspberrypi.local:/home/pi/neiphos-ticket-machine
 ```
 
-### 2. Lokalen Webserver auf dem Pi einrichten
+### 3. Lokalen Webserver auf dem Pi einrichten
 
 Wichtig: `index.html` bindet die App als ES-Module ein (`<script type="module">`).
 Browser laden ES-Module aus Sicherheitsgründen **nicht** über `file://` –
@@ -286,10 +405,10 @@ minimaler `nginx`-vHost auf `localhost`) – dann greift für abgeschicktes
 Feedback automatisch der lokale `localStorage`-Fallback (siehe unten), es
 landet dann aber keine Datei im Dateisystem.
 
-Für den Autostart des Servers siehe [Autostart einrichten](#autostart-einrichten-linuxraspberry-pi-os)
+Für den Autostart des Servers siehe [Autostart einrichten](#5-autostart-einrichten-linuxraspberry-pi-os)
 weiter unten.
 
-### 3. Chromium im Kiosk-Modus starten (manuell)
+### 4. Chromium im Kiosk-Modus starten (manuell)
 
 Chromium mit dem `--kiosk`-Flag zeigt keine Adressleiste, keine Tabs, kein
 Browser-Chrome – nur die Seite selbst im Vollbild. Empfohlene Flags für einen
@@ -324,7 +443,7 @@ Hinweise zu den Flags:
   eine Nutzer-Geste – im Spiel selbst reicht der erste Tap auf "Abspielen"
   auch ohne dieses Flag)
 
-### 4. Autostart einrichten (Linux/Raspberry Pi OS)
+### 5. Autostart einrichten (Linux/Raspberry Pi OS)
 
 Ziel: Pi einschalten → ohne jeden manuellen Klick landet man im laufenden
 Kiosk. Dafür müssen zwei Dinge automatisch starten: der lokale Server (kann
@@ -427,7 +546,7 @@ einem reinen Touchscreen praktisch nicht heraus. Tastenkombinationen
 zwar weiterhin, setzen aber wie gewünscht eine angeschlossene physische
 Tastatur voraus – ein reiner Touch-Zugriff hat darauf keinen Zugriff.
 
-### 5. Bildschirm/Touch-Kalibrierung
+### 6. Bildschirm/Touch-Kalibrierung
 
 Kein App-spezifisches Thema, aber falls Touch-Koordinaten am Rand daneben
 liegen: `xinput_calibrator` bzw. die Kalibrierungsroutine des jeweiligen

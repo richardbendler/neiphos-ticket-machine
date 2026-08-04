@@ -15,7 +15,7 @@ const openModals: Array<() => void> = [];
 
 export function openModal(
   build: (panel: HTMLDivElement, close: () => void) => void,
-  opts: { wide?: boolean } = {},
+  opts: { wide?: boolean; onClose?: () => void } = {},
 ): () => void {
   const scrim = document.createElement("div");
   scrim.className = "modal-scrim";
@@ -30,6 +30,11 @@ export function openModal(
     scrim.remove();
     const idx = openModals.indexOf(close);
     if (idx !== -1) openModals.splice(idx, 1);
+    // Feuert auch, wenn ueber closeAllModals() (z.B. globaler "Menü"-Button
+    // waehrend das Modal offen ist) statt ueber einen eigenen Zurueck-
+    // Button geschlossen wird -- Aufrufer sollen sich darauf verlassen
+    // koennen, unabhaengig vom Schliessweg.
+    opts.onClose?.();
   };
   openModals.push(close);
 

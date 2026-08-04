@@ -11,7 +11,8 @@ import { icons } from "./icons";
 export function promptHighscoreName(opts: {
   title?: string;
   message: string;
-  onDone: (name: string) => void;
+  /** null bedeutet: Nutzer hat keinen Namen eingetragen -- dann darf gar kein Highscore gespeichert werden. */
+  onDone: (name: string | null) => void;
 }): () => void {
   return openModal((panel, close) => {
     const iconWrap = document.createElement("div");
@@ -23,9 +24,20 @@ export function promptHighscoreName(opts: {
 
     const h2 = document.createElement("h2");
     h2.textContent = opts.title ?? "Neuer Highscore!";
+    // Deutlich groesser als der generische Modal-Titel (1.3rem) -- das ist
+    // der aufregende Teil dieses speziellen Dialogs, soll auf den ersten
+    // Blick auffallen.
+    h2.style.fontSize = "1.6rem";
 
     const p = document.createElement("p");
     p.textContent = opts.message;
+    // Groesser als ein generischer Modal-Absatz (0.9rem), aber weiterhin
+    // klar kleiner als die Ueberschrift oben -- enthaelt den eigentlichen
+    // erzielten Wert, soll also deutlich lesbarer sein als bisher, ohne die
+    // Ueberschrift zu ueberragen.
+    p.style.fontSize = "1.15rem";
+    p.style.fontWeight = "700";
+    p.style.color = "var(--text)";
 
     panel.append(iconWrap, h2, p);
 
@@ -36,7 +48,8 @@ export function promptHighscoreName(opts: {
       submitLabel: "Speichern",
       onSubmit: (value) => {
         close();
-        opts.onDone(value.trim() || "Anonym");
+        const trimmed = value.trim();
+        opts.onDone(trimmed || null);
       },
     });
     kb.mount(panel);
@@ -46,10 +59,10 @@ export function promptHighscoreName(opts: {
     skipBtn.className = "btn btn--ghost";
     skipBtn.style.width = "100%";
     skipBtn.style.marginTop = "8px";
-    skipBtn.textContent = "Ohne Namen speichern";
+    skipBtn.textContent = "Nicht speichern";
     skipBtn.addEventListener("click", () => {
       close();
-      opts.onDone("Anonym");
+      opts.onDone(null);
     });
     panel.appendChild(skipBtn);
   });

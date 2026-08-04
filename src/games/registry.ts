@@ -15,6 +15,8 @@ export interface GameMeta {
   id: string;
   title: string;
   subtitle: string;
+  /** Kurzer Zusatzhinweis auf der Menu-Kachel, separat von der Beschreibung in eigener Schriftart dargestellt (z. B. "auch mit Hüpftieren spielbar"). */
+  note?: string;
   icon: IconName;
   /** Kurzcode fuer das Farb-Badge der Menu-Kachel (2 Grossbuchstaben, angelehnt an die Zonen-Schilder "AB"/"BC" echter Fahrkartenautomaten). */
   badge: string;

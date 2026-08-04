@@ -7,7 +7,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { registerGame } from "../registry";
 
 const GAME_ID = "switch-run";
-const HIGHSCORE_POPUP_DELAY_MS = 2000;
+const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
 const FORK_DURATION = 1.1;
 const OUTCOME_DURATION = 1.3;
 const BASE_COUNTDOWN = 10;
@@ -50,7 +50,11 @@ function createSwitchRunGame(): MinigameModule {
   let roundDuration = BASE_COUNTDOWN;
   let score = 0;
   let deadEndLane: Lane = pickDeadEnd();
-  let chosenLane: Lane = "center";
+  // null = noch keine aktive Wahl in dieser Runde getroffen. Faellt der
+  // Countdown auf 0, ohne dass getippt wurde, ist das jetzt IMMER ein
+  // Rausflug (kein automatisches "Mitte" mehr) -- man muss sich wirklich
+  // entscheiden.
+  let chosenLane: Lane | null = null;
   let forkTimer = 0;
   let outcomeTimer = 0;
   let crashed = false;
@@ -74,7 +78,10 @@ function createSwitchRunGame(): MinigameModule {
       for (const lane of LANE_ORDER) {
         laneButtons[lane]?.classList.toggle("btn--accent", lane === chosenLane);
       }
-      choiceIndicator.innerHTML = `
+      choiceIndicator.innerHTML =
+        chosenLane === null
+          ? `<span class="switch-choice-banner__text">Bitte Richtung wählen!</span>`
+          : `
         <span class="switch-choice-banner__arrow">${LANE_ARROW[chosenLane]}</span>
         <span class="switch-choice-banner__text">Gewählt: ${LANE_LABEL[chosenLane]}</span>
       `;
@@ -87,7 +94,7 @@ function createSwitchRunGame(): MinigameModule {
       title.style.fontWeight = "800";
       title.style.fontSize = "1.3rem";
       title.style.color = theme.danger;
-      title.textContent = "Sackgasse!";
+      title.textContent = chosenLane === null ? "Keine Wahl getroffen!" : "Sackgasse!";
       const scoreLine = document.createElement("div");
       scoreLine.style.margin = "6px 0 14px";
       scoreLine.style.color = "var(--text-muted)";
@@ -108,7 +115,7 @@ function createSwitchRunGame(): MinigameModule {
     roundDuration = BASE_COUNTDOWN;
     countdown = roundDuration;
     deadEndLane = pickDeadEnd();
-    chosenLane = "center";
+    chosenLane = null;
     crashed = false;
     highscoreBanner.update(getHighscoreBoard(GAME_ID));
     updateHud();
@@ -119,7 +126,7 @@ function createSwitchRunGame(): MinigameModule {
         "Vor jeder Weiche läuft ein Countdown",
         "Wähle Links, Mitte oder Rechts",
         "Eine Richtung ist immer eine Sackgasse",
-        "Ohne Wahl fährst du automatisch Mitte",
+        "Ohne Wahl hältst du am Ende einfach an",
       ],
       onStart: () => {
         closeIntro = null;
@@ -155,6 +162,7 @@ function createSwitchRunGame(): MinigameModule {
             message: `Du hast ${score} Weiche${score === 1 ? "" : "n"} geschafft — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
             onDone: (name) => {
               closeHighscoreModal = null;
+              if (name === null) return;
               highscoreBanner.update(recordHighscore(GAME_ID, name, score, "higher-better"));
             },
           });
@@ -165,7 +173,7 @@ function createSwitchRunGame(): MinigameModule {
       roundDuration = Math.max(MIN_COUNTDOWN, BASE_COUNTDOWN - score * 1);
       countdown = roundDuration;
       deadEndLane = pickDeadEnd();
-      chosenLane = "center";
+      chosenLane = null;
       phase = "approaching";
       updateHud();
     }
@@ -286,7 +294,10 @@ function createSwitchRunGame(): MinigameModule {
     const { baseY, junctionY, cx, endpoints } = geometry(size);
     const start: Point = { x: cx, y: baseY - 36 };
     const junction: Point = { x: cx, y: junctionY };
-    const end = endpoints[chosenLane];
+    // Ohne Wahl (chosenLane === null) rein visuell "Mitte" fuer die
+    // Fahranimation -- der Rausflug wird trotzdem korrekt ausgeloest (siehe
+    // crashed-Berechnung), das hier bestimmt nur, wohin der Zug gezeichnet wird.
+    const end = endpoints[chosenLane ?? "center"];
     if (t < 0.4) return { x: lerp(start.x, junction.x, t / 0.4), y: lerp(start.y, junction.y, t / 0.4) };
     const t2 = (t - 0.4) / 0.6;
     return { x: lerp(junction.x, end.x, t2), y: lerp(junction.y, end.y, t2) };
@@ -461,7 +472,9 @@ function createSwitchRunGame(): MinigameModule {
       } else if (phase === "forking") {
         forkTimer += dt;
         if (forkTimer >= FORK_DURATION) {
-          crashed = chosenLane === deadEndLane;
+          // Keine Wahl getroffen zaehlt jetzt immer als Rausflug -- kein
+          // automatisches "Mitte" mehr, siehe chosenLane-Deklaration oben.
+          crashed = chosenLane === null || chosenLane === deadEndLane;
           phase = "outcome";
           outcomeTimer = 0;
         }
@@ -485,7 +498,16 @@ function createSwitchRunGame(): MinigameModule {
         ctx.textAlign = "center";
         ctx.font = `800 40px ${theme.fontDisplay}`;
         const countdownText = `${Math.max(0, Math.ceil(countdown))}`;
-        const countdownY = size.height * 0.27;
+        // Mindestabstand von oben, damit die Zahl auf niedrigen Canvas-Hoehen
+        // (kleine/breite Bildschirme) nicht unter die absolut positionierte
+        // ".switch-choice-banner" ("Gewählt: ...") rutscht -- die sitzt in
+        // Fensterkoordinaten fest oberhalb des Canvas und wandert bei einer
+        // reinen Prozent-Y-Position nicht mit.
+        // Mindestabstand von 210px (statt vorher 120px): bei der Berechnung
+        // ueber die Fenstergroesse wurde nicht beruecksichtigt, dass die
+        // ".switch-choice-banner" ("Gewählt: ...") bis zu ca. y=186
+        // reicht -- 120 lag also noch mitten in der Banner-Pille.
+        const countdownY = Math.max(size.height * 0.27, 210);
         // Weisser Umriss + dunkle Fuellung: bleibt so sowohl vor dem hellen
         // Hintergrund oben als auch vor der dunklen Gleis-Grafik lesbar,
         // statt vor dem dunklen Bereich foermlich zu verschwinden.
@@ -512,12 +534,21 @@ function createSwitchRunGame(): MinigameModule {
         // FORK_MAX_T). Erst in "outcome" entscheidet sich, ob er dort an
         // einer Absperrung haengen bleibt oder weiter Richtung Horizont
         // davonfaehrt (und dabei sichtbar kleiner wird und ausblendet).
+        // Ohne getroffene Wahl faehrt der Zug NICHT mehr sichtbar in einen
+        // der drei Aeste hinein (vorher liess FORK_MAX_T=0.85 ihn optisch
+        // schon 75% des Wegs Richtung "Mitte" zuruecklegen, bevor die
+        // Absperrung kam) -- er bleibt stattdessen genau am Abzweigungspunkt
+        // (t=0.4, siehe trainMarkerPosition) stehen, dort passiert dann auch
+        // der Crash. Bei einer getroffenen (falschen) Wahl bleibt es beim
+        // bisherigen Verhalten (bis kurz vor den gewaehlten Ast).
+        const crashMaxT = chosenLane === null ? 0.4 : FORK_MAX_T;
         let t: number;
         let alpha = 1;
         if (phase === "forking") {
-          t = Math.min(FORK_MAX_T, (forkTimer / FORK_DURATION) * FORK_MAX_T);
+          const forkCapT = chosenLane === null ? crashMaxT : FORK_MAX_T;
+          t = Math.min(forkCapT, (forkTimer / FORK_DURATION) * forkCapT);
         } else if (crashed) {
-          t = FORK_MAX_T;
+          t = crashMaxT;
         } else {
           const p = Math.min(1, outcomeTimer / OUTCOME_DURATION);
           t = lerp(FORK_MAX_T, 1, p);

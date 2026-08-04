@@ -69,6 +69,7 @@ function computeGridLayout(containerWidth: number, containerHeight: number, coun
  * grosse Touch-Ziele, das laesst sich mit HTML/CSS einfacher und zugaenglicher
  * bauen als mit manuellem Canvas-Hit-Testing).
  */
+
 export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void): MainMenuResult {
   const screen = document.createElement("div");
   screen.className = "menu-screen";
@@ -93,6 +94,7 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
       <span class="menu-tile__text">
         <span class="menu-tile__title">${game.title}</span>
         <span class="menu-tile__subtitle">${game.subtitle}</span>
+        ${game.note ? `<span class="menu-tile__note">${game.note}</span>` : ""}
       </span>
       <span class="menu-tile__icon">${icons[game.icon]}</span>
     `;
@@ -109,9 +111,16 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
   // die Kacheln den Bildschirm wirklich aus, egal ob Hochformat, Querformat
   // oder Browserfenster in Entwicklergroesse.
   const applyLayout = () => {
-    const rect = grid.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1 || games.length === 0) return;
-    const { cols, tileWidth } = computeGridLayout(rect.width, rect.height, games.length);
+    // clientWidth/-Height statt getBoundingClientRect(): schliesst die per
+    // "scrollbar-gutter: stable" reservierte Scrollbar-Spalte korrekt aus,
+    // und zwar unabhaengig davon, ob gerade tatsaechlich gescrollt werden
+    // kann -- sonst wird die Breite VOR dem Erscheinen der Scrollbar
+    // gemessen und die Kacheln ragen anschliessend leicht ueber den
+    // sichtbaren Bereich hinaus.
+    const width = grid.clientWidth;
+    const height = grid.clientHeight;
+    if (width < 1 || height < 1 || games.length === 0) return;
+    const { cols, tileWidth } = computeGridLayout(width, height, games.length);
     const tileHeight = Math.floor(tileWidth / TILE_ASPECT);
     grid.style.gridTemplateColumns = `repeat(${cols}, ${tileWidth}px)`;
     grid.style.gridAutoRows = `${tileHeight}px`;

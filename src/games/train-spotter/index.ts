@@ -1,7 +1,10 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { trainCards } from "../../data/trains";
+import tramImage from "../../assets/images/trains/tram.jpg";
 import { distractorImages } from "../../data/distractors";
+import { hopperAnimalCards } from "../../data/hopperAnimals";
+import { realAnimalImages } from "../../data/realAnimals";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
@@ -10,24 +13,31 @@ import { fitSquareToContainer } from "../../core/squareFit";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-spotter";
-const HIGHSCORE_POPUP_DELAY_MS = 2000;
+const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
 const GRID_SIZE = 4;
 const CELL_COUNT = GRID_SIZE * GRID_SIZE;
 const MIN_TRAINS = 6;
 const MAX_TRAINS = 9;
+// Bewusst eine feste Zahl (nicht wie bei den Zuegen ein Zufallsbereich): so
+// angefragt, damit die Anleitung konkret "5 Huepftiere" sagen kann.
+const HOPPER_TARGET_COUNT = 5;
 const WRONG_TAP_PENALTY = 1.5;
 
+type ContentTheme = "trains" | "hoppers";
+
 // Bildausschnitt (object-position) je Zugfoto beim quadratischen Zuschnitt --
-// siehe TrainCard.focus in data/trains.ts, Default ist Bildmitte.
+// siehe TrainCard.focus in data/trains.ts, Default ist Bildmitte. Huepftier-
+// Fotos brauchen das nicht (bereits mittig freigestellte Produktfotos).
 const FOCUS_BY_IMAGE = new Map(trainCards.map((c) => [c.image, c.focus ?? "50% 50%"]));
 
 interface Cell {
   image: string;
-  isTrain: boolean;
+  /** true = gesuchtes Motiv (Zug bzw. Huepftier), false = Ablenker. */
+  isTarget: boolean;
   found: boolean;
 }
 
-type Phase = "intro" | "playing" | "done";
+type Phase = "theme-select" | "intro" | "playing" | "done";
 
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -38,17 +48,24 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
-function buildGrid(): Cell[] {
-  const trainCount = MIN_TRAINS + Math.floor(Math.random() * (MAX_TRAINS - MIN_TRAINS + 1));
-  const trainImages = shuffle(trainCards.map((c) => c.image)).slice(0, trainCount);
-  const distractorCount = CELL_COUNT - trainCount;
+function buildGrid(contentTheme: ContentTheme): Cell[] {
+  // Strassenbahn zaehlt wie die S-Bahn (bereits Teil von trainCards) als
+  // Bahn/Zug -- war vorher faelschlich nur als Ablenker einsortiert (siehe
+  // data/distractors.ts), Leute verwechseln beim Spielen sonst leicht
+  // Bahnen/Zuege.
+  const targetPool = contentTheme === "trains" ? [...trainCards.map((c) => c.image), tramImage] : hopperAnimalCards.map((c) => c.image);
+  const distractorPool = contentTheme === "trains" ? distractorImages : realAnimalImages;
+  const targetCount =
+    contentTheme === "trains" ? MIN_TRAINS + Math.floor(Math.random() * (MAX_TRAINS - MIN_TRAINS + 1)) : HOPPER_TARGET_COUNT;
+  const targetImages = shuffle(targetPool).slice(0, targetCount);
+  const distractorCount = CELL_COUNT - targetCount;
   const distractors: string[] = [];
   for (let i = 0; i < distractorCount; i++) {
-    distractors.push(distractorImages[Math.floor(Math.random() * distractorImages.length)]);
+    distractors.push(distractorPool[Math.floor(Math.random() * distractorPool.length)]);
   }
   const cells: Cell[] = [
-    ...trainImages.map((image) => ({ image, isTrain: true, found: false })),
-    ...distractors.map((image) => ({ image, isTrain: false, found: false })),
+    ...targetImages.map((image) => ({ image, isTarget: true, found: false })),
+    ...distractors.map((image) => ({ image, isTarget: false, found: false })),
   ];
   return shuffle(cells);
 }
@@ -58,10 +75,11 @@ function formatTime(seconds: number): string {
 }
 
 function createTrainSpotterGame(): MinigameModule {
-  let phase: Phase = "intro";
+  let phase: Phase = "theme-select";
+  let contentTheme: ContentTheme = "trains";
   let elapsed = 0;
   let cells: Cell[] = [];
-  let remainingTrains = 0;
+  let remainingTargets = 0;
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let closeIntro: (() => void) | null = null;
@@ -69,8 +87,13 @@ function createTrainSpotterGame(): MinigameModule {
 
   let gridHost: HTMLDivElement;
   let doneOverlay: HTMLDivElement;
+  let themeOverlay: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
   let stopSquareFit: (() => void) | null = null;
+
+  function highscoreBoardKey(): string | undefined {
+    return contentTheme === "trains" ? undefined : "hopper";
+  }
 
   function renderGrid(): void {
     gridHost.innerHTML = "";
@@ -95,11 +118,11 @@ function createTrainSpotterGame(): MinigameModule {
     const cell = cells[index];
     if (cell.found) return;
 
-    if (cell.isTrain) {
+    if (cell.isTarget) {
       cell.found = true;
       cellButtons[index].classList.add("tile-grid__cell--found");
-      remainingTrains -= 1;
-      if (remainingTrains === 0) finish();
+      remainingTargets -= 1;
+      if (remainingTargets === 0) finish();
     } else {
       elapsed += WRONG_TAP_PENALTY;
       cellButtons[index].classList.add("tile-grid__cell--wrong");
@@ -109,16 +132,19 @@ function createTrainSpotterGame(): MinigameModule {
 
   function finish(): void {
     phase = "done";
-    const outcome = getHighscoreOutcome(GAME_ID, elapsed, "lower-better");
+    const board = highscoreBoardKey();
+    const outcome = getHighscoreOutcome(GAME_ID, elapsed, "lower-better", board);
     renderDone();
     if (outcome !== "none") {
+      const gameName = contentTheme === "trains" ? "den Zug-Spotter" : "den Hüpftierspotter";
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatTime(elapsed)} — ${outcome === "tied-best" ? "eingestellte Bestzeit" : "neue Bestzeit"} für den Zug-Spotter!`,
+          message: `${formatTime(elapsed)} — ${outcome === "tied-best" ? "eingestellte Bestzeit" : "neue Bestzeit"} für ${gameName}!`,
           onDone: (name) => {
             closeHighscoreModal = null;
-            highscoreBanner.update(recordHighscore(GAME_ID, name, elapsed, "lower-better"));
+            if (name === null) return;
+            highscoreBanner.update(recordHighscore(GAME_ID, name, elapsed, "lower-better", board));
           },
         });
       }, HIGHSCORE_POPUP_DELAY_MS);
@@ -137,19 +163,82 @@ function createTrainSpotterGame(): MinigameModule {
     const sub = document.createElement("div");
     sub.style.color = "var(--text-muted)";
     sub.style.margin = "4px 0 14px";
-    sub.textContent = "Alle Züge gefunden!";
+    sub.textContent = contentTheme === "trains" ? "Alle Züge gefunden!" : "Alle Hüpftiere gefunden!";
     const again = document.createElement("button");
     again.type = "button";
     again.className = "btn btn--accent";
     again.textContent = "Nochmal spielen";
-    again.addEventListener("click", restart);
-    doneOverlay.append(title, sub, again);
+    again.addEventListener("click", beginRound);
+
+    const change = document.createElement("button");
+    change.type = "button";
+    change.className = "btn";
+    change.style.marginTop = "8px";
+    change.textContent = "Anderes Thema";
+    change.addEventListener("click", showThemeSelect);
+
+    doneOverlay.append(title, sub, again, change);
   }
 
-  function restart(): void {
-    highscoreBanner.update(getHighscoreBoard(GAME_ID));
-    cells = buildGrid();
-    remainingTrains = cells.filter((c) => c.isTrain).length;
+  function showThemeSelect(): void {
+    phase = "theme-select";
+    doneOverlay.style.display = "none";
+    // display:none statt nur visibility:hidden -- gridHost hat durch
+    // fitSquareToContainer eine feste, oft grosse Breite/Hoehe gesetzt und
+    // wuerde als Geschwisterelement von themeOverlay in derselben Flex-
+    // Spalte (wrap) sonst weiterhin Platz beanspruchen und die
+    // Themen-Auswahl aus dem sichtbaren Bereich schieben.
+    gridHost.style.display = "none";
+    themeOverlay.style.display = "flex";
+    themeOverlay.innerHTML = "";
+
+    const title = document.createElement("div");
+    title.style.fontFamily = "var(--font-display)";
+    title.style.fontWeight = "800";
+    title.style.fontSize = "1.2rem";
+    title.style.color = "var(--text)";
+    title.textContent = "Womit möchtest du spielen?";
+    themeOverlay.appendChild(title);
+
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.flexDirection = "column";
+    row.style.gap = "10px";
+    row.style.width = "100%";
+    row.style.maxWidth = "min(92%, 420px)";
+    row.style.marginTop = "12px";
+
+    const trainsBtn = document.createElement("button");
+    trainsBtn.type = "button";
+    trainsBtn.className = "btn btn--choice";
+    trainsBtn.textContent = "🚂 Züge";
+    trainsBtn.addEventListener("click", () => {
+      contentTheme = "trains";
+      themeOverlay.style.display = "none";
+      beginRound();
+    });
+    row.appendChild(trainsBtn);
+
+    const hoppersBtn = document.createElement("button");
+    hoppersBtn.type = "button";
+    hoppersBtn.className = "btn btn--choice";
+    hoppersBtn.textContent = "🦘 Hüpftiere";
+    hoppersBtn.addEventListener("click", () => {
+      contentTheme = "hoppers";
+      themeOverlay.style.display = "none";
+      beginRound();
+    });
+    row.appendChild(hoppersBtn);
+
+    themeOverlay.appendChild(row);
+  }
+
+  function beginRound(): void {
+    themeOverlay.style.display = "none";
+    gridHost.style.display = "";
+    highscoreBanner.update(getHighscoreBoard(GAME_ID, highscoreBoardKey()));
+    cells = buildGrid(contentTheme);
+    remainingTargets = cells.filter((c) => c.isTarget).length;
     elapsed = 0;
     phase = "intro";
     doneOverlay.style.display = "none";
@@ -157,8 +246,16 @@ function createTrainSpotterGame(): MinigameModule {
     gridHost.style.visibility = "hidden";
 
     closeIntro = showGameIntro({
-      title: "Zug-Spotter",
-      description: ["Tippe alle Bilder mit Zügen an", "So schnell wie möglich", "Falsche Tipps kosten Zeit"],
+      title: contentTheme === "trains" ? "Zug-Spotter" : "Hüpftierspotter",
+      description:
+        contentTheme === "trains"
+          ? ["Tippe alle Bilder mit Zügen oder Bahnen an", "So schnell wie möglich", "Falsche Tipps kosten Zeit"]
+          : [
+              `Tippe alle ${HOPPER_TARGET_COUNT} Hüpftiere an`,
+              "Nicht mit den echten Tieren verwechseln!",
+              "So schnell wie möglich",
+              "Falsche Tipps kosten Zeit",
+            ],
       startLabel: "Los geht's",
       onStart: () => {
         closeIntro = null;
@@ -182,11 +279,27 @@ function createTrainSpotterGame(): MinigameModule {
       doneOverlay.style.textAlign = "center";
       doneOverlay.style.marginTop = "10px";
 
+      themeOverlay = document.createElement("div");
+      themeOverlay.style.display = "none";
+      themeOverlay.style.flexDirection = "column";
+      themeOverlay.style.alignItems = "center";
+      themeOverlay.style.textAlign = "center";
+      themeOverlay.style.marginTop = "10px";
+
       const wrap = document.createElement("div");
       wrap.className = "stage-center-panel";
-      wrap.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
+      // Extra Abstand oben (136px statt der Basis-30px aus .stage-center-panel),
+      // damit das Raster nicht unter die fix positionierte Highscore-Banner-
+      // Pille rutscht. Unten dieselbe zusaetzliche Luft (136-86=50px ueber die
+      // Kopfleiste hinaus, hier ebenso 50px ueber die Fussleiste hinaus) --
+      // sonst waere der Kasten wieder asymmetrisch und die Themen-/
+      // Fertig-Ansicht (die diese Reserve gar nicht braucht, sich den Kasten
+      // aber mit dem Raster teilt) sichtbar zu tief zentriert (gemeldeter Bug).
+      wrap.style.top = "calc(var(--header-h) + 136px + var(--safe-top))";
+      wrap.style.bottom = "calc(var(--footer-h) + 50px + var(--safe-bottom))";
       wrap.appendChild(gridHost);
       wrap.appendChild(doneOverlay);
+      wrap.appendChild(themeOverlay);
       env.overlay.appendChild(wrap);
 
       // Haelt das Raster quadratisch UND garantiert, dass es komplett in
@@ -197,7 +310,7 @@ function createTrainSpotterGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatTime);
 
-      restart();
+      showThemeSelect();
     },
 
     update(dt: number) {
@@ -214,14 +327,19 @@ function createTrainSpotterGame(): MinigameModule {
       if (phase === "playing" || phase === "done") {
         ctx.textAlign = "center";
         ctx.fillStyle = phase === "playing" ? theme.accent : theme.textFaint;
-        ctx.font = `700 22px ${theme.fontDisplay}`;
-        ctx.fillText(formatTime(elapsed), size.width / 2, 150);
+        ctx.font = `700 40px ${theme.fontDisplay}`;
+        // y=175 statt 140: bei aktivem Highscore-Banner (sitzt fix knapp
+        // unter dem Header) ragte die groessere Schrift sonst in die
+        // Banner-Pille hinein.
+        ctx.fillText(formatTime(elapsed), size.width / 2, 175);
       }
 
       if (phase === "playing") {
-        ctx.font = `500 11px ${theme.font}`;
+        // Vorher 11px -- auf ausdruecklichen Wunsch groesser, war kaum lesbar.
+        ctx.font = `700 15px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText(`Tippe alle Züge an${remainingTrains > 0 ? ` (noch ${remainingTrains})` : ""}`, size.width / 2, 172);
+        const label = contentTheme === "trains" ? "Tippe Züge und Bahnen an" : "Tippe alle Hüpftiere an";
+        ctx.fillText(`${label}${remainingTargets > 0 ? ` (noch ${remainingTargets})` : ""}`, size.width / 2, 208);
       }
     },
 
@@ -243,9 +361,13 @@ registerGame({
   id: GAME_ID,
   title: "Zug-Spotter",
   subtitle: "Finde alle Züge im Raster",
+  note: "auch mit Hüpftieren spielbar",
   icon: "searchGrid",
   badge: "ZS",
   accent: "#0059a4",
   create: createTrainSpotterGame,
-  highscoreCategories: [{ board: "default", label: "Bestzeit", direction: "lower-better", formatValue: formatTime }],
+  highscoreCategories: [
+    { board: "default", label: "Bestzeit", direction: "lower-better", formatValue: formatTime },
+    { board: "hopper", label: "Hüpftiere Bestzeit", direction: "lower-better", formatValue: formatTime },
+  ],
 });

@@ -41,6 +41,8 @@ export interface ScreenState {
 export interface ScreenActions {
   onSelectLine: (lineId: string) => void;
   onRemoveLast: () => void;
+  /** Entfernt eine einzelne bereits gewaehlte Linie per Index -- geht auch waehrend "feedback" (nicht rundenentscheidend). */
+  onRemoveLine: (index: number) => void;
   onReset: () => void;
   onSubmit: () => void;
   onContinue: () => void;
@@ -52,75 +54,113 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   card.className = "ticket-card";
   card.style.textAlign = "center";
   card.style.width = "100%";
+  card.style.padding = "clamp(6px, 1.8vh, 10px) 16px";
 
   const roundInfo = document.createElement("div");
-  roundInfo.style.fontSize = "0.7rem";
-  roundInfo.style.color = "var(--paper-muted)";
-  roundInfo.style.letterSpacing = "0.08em";
+  // Vorher 0.7rem -- auf ausdruecklichen Wunsch deutlich groesser und
+  // fetter, war vorher kaum zu erkennen.
+  roundInfo.style.fontSize = "1rem";
+  roundInfo.style.fontWeight = "700";
+  roundInfo.style.color = "var(--paper-text)";
+  roundInfo.style.letterSpacing = "0.06em";
   roundInfo.style.textTransform = "uppercase";
   roundInfo.textContent = `Runde ${state.round}/${state.totalRounds} · Versuch ${state.attempt}/${state.totalAttempts}`;
   card.appendChild(roundInfo);
 
+  // Start/Ziel nebeneinander statt untereinander (mit -> statt v dazwischen)
+  // -- spart auf Handy-Hochkant deutlich Hoehe gegenueber der vorherigen
+  // gestapelten Anordnung, bei der das Ergebnis zusammen mit der
+  // Linienauswahl darunter kaum noch ohne Scrollen auf den Bildschirm passte.
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.justifyContent = "center";
+  row.style.gap = "10px";
+  row.style.marginTop = "clamp(4px, 1.2vh, 8px)";
+
+  const startCol = document.createElement("div");
+  startCol.style.flex = "1";
+  startCol.style.minWidth = "0";
   const startLabel = document.createElement("div");
-  startLabel.style.fontSize = "0.68rem";
+  startLabel.style.fontSize = "0.62rem";
   startLabel.style.color = "var(--paper-muted)";
   startLabel.style.letterSpacing = "0.1em";
   startLabel.style.textTransform = "uppercase";
-  startLabel.style.marginTop = "8px";
   startLabel.textContent = "Start";
-  card.appendChild(startLabel);
-
+  startCol.appendChild(startLabel);
   const startValue = document.createElement("div");
   startValue.style.fontFamily = "var(--font-display)";
   startValue.style.fontWeight = "800";
-  startValue.style.fontSize = "1.25rem";
+  startValue.style.fontSize = "clamp(0.95rem, 3.2vh, 1.2rem)";
+  startValue.style.overflow = "hidden";
+  startValue.style.textOverflow = "ellipsis";
+  startValue.style.whiteSpace = "nowrap";
   startValue.textContent = state.start;
-  card.appendChild(startValue);
+  startCol.appendChild(startValue);
+  row.appendChild(startCol);
 
   const arrow = document.createElement("div");
   arrow.style.color = "var(--accent-dark)";
   arrow.style.fontSize = "1.1rem";
-  arrow.style.margin = "2px 0";
-  arrow.textContent = "▼";
-  card.appendChild(arrow);
+  arrow.style.flexShrink = "0";
+  arrow.textContent = "→";
+  row.appendChild(arrow);
 
+  const targetCol = document.createElement("div");
+  targetCol.style.flex = "1";
+  targetCol.style.minWidth = "0";
   const targetLabel = document.createElement("div");
-  targetLabel.style.fontSize = "0.68rem";
+  targetLabel.style.fontSize = "0.62rem";
   targetLabel.style.color = "var(--paper-muted)";
   targetLabel.style.letterSpacing = "0.1em";
   targetLabel.style.textTransform = "uppercase";
   targetLabel.textContent = "Ziel";
-  card.appendChild(targetLabel);
-
+  targetCol.appendChild(targetLabel);
   const targetValue = document.createElement("div");
   targetValue.style.fontFamily = "var(--font-display)";
   targetValue.style.fontWeight = "800";
-  targetValue.style.fontSize = "1.25rem";
+  targetValue.style.fontSize = "clamp(0.95rem, 3.2vh, 1.2rem)";
+  targetValue.style.overflow = "hidden";
+  targetValue.style.textOverflow = "ellipsis";
+  targetValue.style.whiteSpace = "nowrap";
   targetValue.textContent = state.target;
-  card.appendChild(targetValue);
+  targetCol.appendChild(targetValue);
+  row.appendChild(targetCol);
 
+  card.appendChild(row);
   container.appendChild(card);
 }
 
-function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: ScreenActions): void {
+/**
+ * Zeigt die bereits gewaehlten Linien als Kette von antippbaren Chips --
+ * ein Tipp entfernt genau diese eine Linie (statt nur "alles loeschen" oder
+ * "letzte entfernen" anzubieten). Wird sowohl waehrend "building" als auch
+ * (bei nicht rundenentscheidendem Fehlversuch) waehrend "feedback" genutzt,
+ * damit man eine falsche Auswahl gezielt korrigieren kann, statt komplett
+ * neu anfangen zu muessen.
+ */
+function renderChipsRow(container: HTMLElement, lines: string[], onRemove: (index: number) => void): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "breadcrumb";
   wrap.style.justifyContent = "center";
   wrap.style.minHeight = "28px";
 
-  if (state.selectedLines.length === 0) {
+  if (lines.length === 0) {
     const hint = document.createElement("span");
     hint.textContent = "Noch keine Linie gewählt.";
     wrap.appendChild(hint);
   } else {
-    state.selectedLines.forEach((id, i) => {
-      const chip = document.createElement("span");
-      chip.className = "chip";
+    lines.forEach((id, i) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip chip--removable";
       chip.style.setProperty("--chip-color", lineById(id).color);
       chip.style.fontSize = "0.78rem";
       chip.textContent = id;
+      chip.setAttribute("aria-label", `${id} entfernen`);
+      chip.addEventListener("click", () => onRemove(i));
       wrap.appendChild(chip);
-      if (i < state.selectedLines.length - 1) {
+      if (i < lines.length - 1) {
         const sep = document.createElement("span");
         sep.className = "breadcrumb__sep";
         sep.textContent = "→";
@@ -129,6 +169,11 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
     });
   }
   container.appendChild(wrap);
+  return wrap;
+}
+
+function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: ScreenActions): void {
+  renderChipsRow(container, state.selectedLines, actions.onRemoveLine);
 
   if (state.error) {
     const err = document.createElement("div");
@@ -159,6 +204,7 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
   resetBtn.type = "button";
   resetBtn.className = "btn btn--ghost";
   resetBtn.style.fontSize = "0.82rem";
+  resetBtn.style.padding = "8px 16px";
   resetBtn.textContent = "Auswahl leeren";
   resetBtn.disabled = state.selectedLines.length === 0;
   resetBtn.addEventListener("click", actions.onReset);
@@ -168,6 +214,7 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
   submitBtn.type = "button";
   submitBtn.className = "btn btn--accent";
   submitBtn.style.fontSize = "0.82rem";
+  submitBtn.style.padding = "8px 16px";
   submitBtn.textContent = "Fertig, prüfen";
   submitBtn.disabled = state.selectedLines.length === 0;
   submitBtn.addEventListener("click", actions.onSubmit);
@@ -184,7 +231,7 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
     const label = document.createElement("div");
     label.style.fontSize = "0.72rem";
     label.style.color = "var(--text-faint)";
-    label.style.margin = "8px 0 4px";
+    label.style.margin = "clamp(3px, 1.2vh, 8px) 0 clamp(2px, 0.8vh, 4px)";
     label.textContent = MODE_LABEL[mode];
     container.appendChild(label);
 
@@ -228,6 +275,21 @@ export function renderScreen(container: HTMLElement, state: ScreenState, actions
       score.style.fontWeight = "700";
       score.textContent = `+${fb.scoreGained} Punkte`;
       container.appendChild(score);
+    }
+
+    if (!fb.roundOver) {
+      // Noch Versuche uebrig: die eben abgegebene (falsche) Auswahl bleibt
+      // sichtbar und bleibt antippbar -- so kann man gezielt die falsche
+      // Linie rauswerfen statt alles neu zusammenzuklicken. Ein Tipp hier
+      // zaehlt wie "Weiter" (der Versuch ist ja schon abgegeben).
+      const editHint = document.createElement("p");
+      editHint.style.textAlign = "center";
+      editHint.style.fontSize = "0.74rem";
+      editHint.style.color = "var(--text-faint)";
+      editHint.style.margin = "8px 0 2px";
+      editHint.textContent = "Tippe eine Linie an, um nur diese zu entfernen:";
+      container.appendChild(editHint);
+      renderChipsRow(container, state.selectedLines, actions.onRemoveLine);
     }
 
     if (fb.revealed) {

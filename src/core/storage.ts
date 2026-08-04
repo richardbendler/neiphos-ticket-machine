@@ -118,3 +118,25 @@ export function recordHighscore(
   saveJSON(["highscore", gameId, board], next);
   return next;
 }
+
+// ------------------------------------------------------- Spiele ein-/ausblenden
+//
+// Liste der im Hauptmenue AUSGEBLENDETEN Spiel-IDs (nicht der eingeblendeten)
+// -- so bleiben neu hinzugefuegte Spiele automatisch sichtbar, ohne die
+// gespeicherte Liste migrieren zu muessen.
+
+const DISABLED_GAMES_KEY = ["settings", "disabledGameIds"];
+
+export function getDisabledGameIds(): string[] {
+  return loadJSON<string[]>(DISABLED_GAMES_KEY, []);
+}
+
+export function isGameEnabled(gameId: string): boolean {
+  return !getDisabledGameIds().includes(gameId);
+}
+
+export function setGameEnabled(gameId: string, enabled: boolean): void {
+  const current = getDisabledGameIds();
+  const next = enabled ? current.filter((id) => id !== gameId) : current.includes(gameId) ? current : [...current, gameId];
+  saveJSON(DISABLED_GAMES_KEY, next);
+}

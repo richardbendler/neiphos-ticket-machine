@@ -31,6 +31,7 @@ Programm erreichbar) mit Kiosk-/Vollbild-Steuerung und Spielstatistik.
 - [Tech-Stack](#tech-stack)
 - [Projektstruktur](#projektstruktur)
 - [Architektur](#architektur)
+- [Admin-Passwort einrichten](#admin-passwort-einrichten)
 - [Lokal entwickeln/testen](#lokal-entwickelntesten)
 - [Build](#build)
 - [Deployment auf einen normalen Webserver](#deployment-auf-einen-normalen-webserver)
@@ -137,6 +138,36 @@ in `localStorage`, optional pro "Board" (z. B. Memory-Spielfeldgröße).
 **Spielstatistik** (`core/stats.ts`) protokolliert pro Sitzung Spiel-ID,
 Start-/Endzeit und Dauer unter `ntm:stats:sessions` – das speist die
 Admin-Statistikansicht.
+
+## Admin-Passwort einrichten
+
+**Erforderlich, bevor irgendetwas anderes hier funktioniert** – weder
+`npm run dev` noch `npm run build` laufen ohne diesen Schritt, sie brechen
+stattdessen mit einer Fehlermeldung ab, die genau hierher zurueckverweist.
+
+Das Admin-Passwort steht bewusst **nicht** im Quellcode (der oeffentlich auf
+GitHub liegt), sondern in einer lokalen `.env.local`-Datei, die per
+`.gitignore` (`*.local`) nie eingecheckt wird:
+
+1. `.env.local.example` im Projekt-Wurzelverzeichnis kopieren und in
+   `.env.local` umbenennen (gleiche Ebene wie `package.json`).
+2. Darin die Zeile `VITE_ADMIN_PASSWORD=DeinPasswortHier` mit einem eigenen
+   Passwort anpassen, z. B.:
+
+   ```
+   VITE_ADMIN_PASSWORD=MeinNeuesPasswort123
+   ```
+3. Speichern – fertig. `npm run dev`/`npm run build` lesen die Datei
+   automatisch (via Vite).
+
+Passwort spaeter aendern: einfach den Wert in `.env.local` bearbeiten und den
+Dev-Server neu starten bzw. neu bauen. Da `.env.local` nie im Repo landet,
+docht dieser Weg nicht restlos ab, dass das Passwort niemals irgendwo
+sichtbar wird (siehe [Admin-Bereich](#admin-bereich) und
+[Bekannte Grenzen](#bekannte-grenzen--ideen-für-später) – der fertige
+JS-Bundle enthaelt es zwangslaeufig im Klartext, da rein clientseitig ohne
+Backend) – er verhindert aber zumindest, dass es beim naechsten Aendern
+versehentlich in einen Commit/Pull-Request landet.
 
 ## Lokal entwickeln/testen
 
@@ -376,6 +407,26 @@ Nach einem Neustart (`sudo reboot`) sollte der Pi jetzt direkt im laufenden
 Kiosk starten. Zum manuellen Beenden/Neustarten während der Entwicklung
 reicht `pkill chromium-browser` per SSH.
 
+> **Hinweis (aktuelle Raspberry Pi OS-Versionen, "Bookworm" und neuer):** Der
+> Standard-Desktop nutzt inzwischen den Wayland-Compositor `labwc` statt des
+> alten X11/Openbox-Unterbaus. Der obige `.desktop`-Autostart-Eintrag
+> funktioniert dort in der Regel weiterhin (labwc unterstützt den
+> XDG-Autostart-Standard), falls nicht, ist die von Raspberry Pi selbst
+> empfohlene Alternative, den obigen `chromium-browser`-Aufruf stattdessen an
+> das Ende von `~/.config/labwc/autostart` anzuhängen (mit `&` am Zeilenende,
+> damit die Datei nicht blockiert).
+
+**Sicherheit/Escape-Wege (Linux):** Anders als bei Windows-Touchscreens (siehe
+unten) gibt es unter Raspberry Pi OS standardmäßig **keine** Wisch-Geste von
+einem Bildschirmrand, die eine System-Oberfläche (Taskleiste,
+Benachrichtigungscenter o. Ä.) einblendet – das ist eine Windows-/Tablet-
+Eigenheit, keine X11/Wayland-Eigenheit. Ohne physische Tastatur/Maus kommt man
+aus einem korrekt mit den obigen Flags gestarteten `--kiosk`-Chromium auf
+einem reinen Touchscreen praktisch nicht heraus. Tastenkombinationen
+(Alt+Tab, Strg+Alt+F1–F6 für virtuelle Terminals, Alt+F4, …) funktionieren
+zwar weiterhin, setzen aber wie gewünscht eine angeschlossene physische
+Tastatur voraus – ein reiner Touch-Zugriff hat darauf keinen Zugriff.
+
 ### 5. Bildschirm/Touch-Kalibrierung
 
 Kein App-spezifisches Thema, aber falls Touch-Koordinaten am Rand daneben
@@ -422,7 +473,19 @@ Weiteres — entweder über den Task-Manager (Strg+Umschalt+Esc) den
 Chrome/Edge-Prozess beenden, oder vorher im Admin-Bereich der App den
 Vollbildmodus verlassen (siehe [Admin-Bereich](#admin-bereich)).
 
-### 3. Autostart einrichten (Windows)
+> ⚠️ **Wichtige Einschränkung dieser Methode:** Der `--kiosk`-Befehlszeilen-
+> schalter sperrt nur den *Browser* (keine Adressleiste, kein Tab-Umschalten,
+> Alt+F4 blockiert). Er sperrt **nicht** die Windows-Shell selbst. Auf einem
+> Touchscreen kann man weiterhin durch Wischen vom Bildschirmrand das
+> Info-/Action-Center, die Taskleiste oder die Windows-Startfläche einblenden
+> und damit die App verlassen bzw. andere Windows-Funktionen erreichen – das
+> ist eine dokumentierte Windows-Eigenheit, keine Einschränkung dieser App.
+> Für einen wirklich abgesicherten Produktiveinsatz auf einem
+> Windows-Touchscreen siehe **Schritt 4 (Windows-Kioskmodus/Assigned
+> Access)** unten – die einfache `--kiosk`-Methode hier eignet sich vor allem
+> zum Testen am Entwicklungsrechner ohne Touchscreen.
+
+### 3. Autostart einrichten (Windows, einfache Methode)
 
 Am einfachsten über den **Autostart-Ordner** (kein Admin-Rechte nötig):
 `Win+R` → `shell:startup` öffnet den Ordner, der beim Login jedes darin
@@ -448,10 +511,56 @@ anlegen, Trigger „Bei Anmeldung", Aktion „Programm starten" →
 `start-kiosk.bat`, unter „Bedingungen"/„Einstellungen" z. B. „Aufgabe bei
 Fehlschlag neu starten" aktivieren.
 
+### 4. Echte Kiosk-Absicherung unter Windows (empfohlen für Touchscreens)
+
+Für einen Touchscreen, den auch fremde Personen bedienen, reicht Schritt 2/3
+oben **nicht** aus (siehe Warnung dort) – dafür bringt Windows selbst eine
+richtige Kiosk-Funktion mit, die die komplette Shell sperrt (keine
+Wisch-Gesten, keine Taskleiste, kein Action Center):
+
+- **Voraussetzung:** Windows **Pro, Enterprise, Education oder IoT
+  Enterprise** – die "Kiosk einrichten"-Funktion fehlt in Windows **Home**.
+  Falls nur Home verfügbar ist, bleibt nur Schritt 2/3 oben plus optional die
+  Registry-/Gruppenrichtlinien-Einschränkung der Wisch-Geste weiter unten.
+- **Einrichtung:** *Einstellungen → Konten → Weitere Benutzer* → unter
+  „Kiosk einrichten" auf „Los geht's" → neues (oder bestehendes) lokales
+  Benutzerkonto wählen → als App **Microsoft Edge** auswählen → Modus
+  „Digitale Beschilderung"/"Vollbild" statt „Öffentliches Surfen" wählen →
+  als Start-URL `http://localhost:8080` eintragen.
+- Windows meldet dieses Kiosk-Konto beim Start **automatisch** an (kein
+  zusätzliches `netplwiz`/Aufgabenplanung nötig) und startet Edge direkt im
+  wirklich abgesicherten Vollbild – Taskleiste, Info-/Action-Center,
+  Startmenü und Wisch-Gesten vom Bildschirmrand sind dabei gesperrt.
+- **Verlassen:** Strg+Alt+Entf (Standard-Tastenkombination, in der
+  Konfigurationsdatei änderbar) – setzt wie gewünscht eine physische
+  Tastatur voraus, über reinen Touch kommt man nicht heraus.
+- Der lokale Server (`npm run serve` bzw. der Autostart-Eintrag aus Schritt
+  3) muss weiterhin separat laufen, bevor sich das Kiosk-Konto anmeldet.
+
+Alternativ (falls aus irgendeinem Grund bei der einfachen `--kiosk`-Methode
+aus Schritt 2/3 geblieben werden soll, z. B. weil nur Windows Home verfügbar
+ist, aber `gpedit.msc` z. B. über eine Enterprise-Testversion doch vorhanden
+ist): die Wisch-Geste lässt sich separat über die Gruppenrichtlinie
+*Computerkonfiguration → Administrative Vorlagen → Windows-Komponenten →
+Edge-UI* deaktivieren (danach Neustart nötig) – das blockiert das Einblenden
+jeder System-UI per Rand-Wisch-Geste, ohne die volle Assigned-Access-Funktion
+einzurichten.
+
+**Was diese App/Anleitung nicht abdecken kann:** physische Tasten am
+Monitor-/Display-Gehäuse selbst (z. B. Helligkeit, Eingangsquelle,
+Power) – das hängt vollständig vom jeweils verwendeten Bildschirm ab, nicht
+von Windows/Linux oder dieser App. Viele für den Dauerbetrieb gedachte
+Displays (Infoscreens, manche Touch-Monitore) haben dafür eine eigene
+"Tastensperre"/"Key Lock"-Funktion im Bildschirmmenü (OSD) – in der
+Bedienungsanleitung des konkreten Geräts nachsehen, ob und wie sich diese
+Tasten sperren lassen.
+
 ## Admin-Bereich
 
 Zahnrad-Symbol oben rechts, von überall in der App erreichbar (auch während
-ein Spiel läuft). Aktuelles Passwort: **`Neiphos`** (Groß-/Kleinschreibung
+ein Spiel läuft). Passwort: siehe eigene lokale `.env.local`-Datei, dort
+selbst festgelegt (siehe [Admin-Passwort einrichten](#admin-passwort-einrichten) –
+steht bewusst nicht mehr hier im öffentlichen Repo). Groß-/Kleinschreibung
 spielt beim Eingeben keine Rolle – die Bildschirmtastatur kennt ohnehin nur
 Großbuchstaben, es gibt keine Umschalttaste, da auf einem Touch-Kiosk ohnehin
 niemand zwischen Groß-/Kleinschreibung unterscheiden könnte).
@@ -564,11 +673,15 @@ Gemeinsame Bausteine, die sich jedes neue Spiel einfach mitnehmen kann:
 
 ## Bekannte Grenzen / Ideen für später
 
-- **Admin-Passwort** ist aktuell ein simpler Klartext-Konstante im Code
-  (`admin/AdminPanel.ts`). Für den Start bewusst einfach gehalten wie
-  besprochen – für den Dauerbetrieb wäre ein änderbares Passwort (z. B. über
-  die Admin-UI selbst, gehasht in `localStorage`) ein sinnvoller nächster
-  Schritt.
+- **Admin-Passwort** kommt zwar inzwischen aus einer nicht eingecheckten
+  `.env.local` statt fest im Quellcode zu stehen (siehe
+  [Admin-Passwort einrichten](#admin-passwort-einrichten)), landet aber als
+  reine Client-App ohne Backend zwangsläufig trotzdem im Klartext im
+  gebauten JS-Bundle (`dist/`) – wer Zugriff auf das ausgelieferte `dist/`
+  hat, kann es dort auslesen. Für den Dauerbetrieb wäre ein änderbares
+  Passwort mit echter serverseitiger Prüfung (z. B. über die Admin-UI
+  selbst, gehasht, mit einem kleinen Backend-Endpunkt) ein sinnvoller
+  nächster Schritt.
 - **Kiosk-Start/-Stopp aus der App heraus** kann nur den Browser-eigenen
   Vollbildmodus schalten, nicht Chromium selbst neu starten/beenden (siehe
   [Admin-Bereich](#admin-bereich)) – das ist eine grundsätzliche

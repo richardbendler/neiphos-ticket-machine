@@ -922,7 +922,13 @@ chromium \
 chmod +x /home/flipper/neiphos-ticket-machine/start-kiosk.sh
 ```
 
-Autostart-Eintrag `~/.config/autostart/ticketmachine-kiosk.desktop`:
+Autostart-Eintrag `~/.config/autostart/ticketmachine-kiosk.desktop` anlegen
+(der Ordner `~/.config/autostart` existiert auf einem frischen Pi meist noch
+nicht, `mkdir -p` legt ihn bei Bedarf mit an):
+
+```bash
+mkdir -p ~/.config/autostart
+```
 
 ```ini
 [Desktop Entry]

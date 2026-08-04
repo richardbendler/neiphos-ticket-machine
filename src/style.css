@@ -59,7 +59,15 @@
      definiert, damit Spielbuehnen-Layouts (stage-top-bar, stage-center-panel,
      ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. */
   --header-h: 86px;
-  --footer-h: 54px;
+  /* War 54px -- die zusaetzliche (teils zweizeilig umbrechende)
+     ".chrome-footer-credit__line--wrap"-Zeile (Hinweis auf die Domain zum
+     Weiterspielen) macht den tatsaechlichen Fusszeilen-Inhalt seitdem hoeher
+     als das, wodurch er bei mehreren Spielen sichtbar mit deren unterster
+     Bedienleiste (z. B. .stage-sheet, Weichenspiel-Richtungsknoepfe)
+     ueberlappte (gemeldeter Bug) -- alle Spiel-Layouts richten sich zentral
+     nach dieser Variable aus, daher hier einmal erhoehen statt an jeder
+     einzelnen Stelle. */
+  --footer-h: 78px;
 
   color-scheme: light;
 }

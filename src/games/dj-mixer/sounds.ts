@@ -17,7 +17,6 @@ export type SoundId =
   | "snare"
   | "hiHat"
   | "horn"
-  | "announcement"
   | "dbAnkuendigung"
   | "ansageDb"
   | "sBahnNeu"
@@ -29,7 +28,11 @@ export type SoundId =
   | "hornChina"
   | "hornJapan"
   | "hornUk"
-  | "steamWhistle";
+  | "steamWhistle"
+  | "hopperSqueak"
+  | "zurueckbleiben"
+  | "einsteigenBitte"
+  | "haltestellengong";
 
 /**
  * playbackRate ist nur fuer die Sample-Clips relevant (siehe
@@ -113,6 +116,43 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
   src.stop(time + 0.05);
 };
 
+/**
+ * Huepftier: quietschendes Gummispielzeug (wie eine Quietscheente, die man
+ * zusammendrueckt) -- rein synthetisiert statt Sample-Clip, passt vom
+ * Aufbau her zu Kick/Snare/Hi-Hat oben. Saegezahn (fuer die etwas raue,
+ * "quiekende" Klangfarbe) plus ein schnelles Vibrato-LFO auf der Frequenz
+ * simuliert das typische Zittern eines Gummi-Quietschers; die Grundtonhoehe
+ * faellt dabei leicht ab, wie beim Nachlassen des Drucks beim Zusammendruecken.
+ */
+const playHopperSqueak: PlayFn = (ctx, time, destination) => {
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(1500, time);
+  osc.frequency.exponentialRampToValueAtTime(950, time + 0.15);
+
+  const vibrato = ctx.createOscillator();
+  vibrato.type = "sine";
+  vibrato.frequency.value = 60;
+  const vibratoDepth = ctx.createGain();
+  vibratoDepth.gain.value = 90;
+  vibrato.connect(vibratoDepth).connect(osc.frequency);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 1700;
+  filter.Q.value = 2.5;
+
+  // Peak vorher 0.5 -- ging im Mix mit den anderen (v.a. Kick bei 0.9)
+  // unter, auf ausdruecklichen Wunsch lauter gestellt.
+  const gain = envGain(ctx, time, 0.008, 0.17, 0.85);
+  osc.connect(filter).connect(gain).connect(destination);
+
+  osc.start(time);
+  vibrato.start(time);
+  osc.stop(time + 0.22);
+  vibrato.stop(time + 0.22);
+};
+
 // -------------------------------------------------------------- Sample-Clips
 //
 // Kurze, echte Bahn-Sound-Clips (Ansagen/Hupen/Atmo), per
@@ -120,16 +160,17 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
 // synthetisierten Sounds sample-genau zum Sequencer-Takt abgespielt --
 // inkl. BPM-abhaengiger Wiedergabegeschwindigkeit (siehe makeSamplePlayFn),
 // damit sie sich beim Aendern des Tempos mit dehnen/stauchen statt aus dem
-// Takt zu laufen. Herkunft (jeweils Instant-Sound-Button auf myinstants.com):
+// Takt zu laufen (Ausnahme: ansageDb, siehe fixedPitch dort). Alle Clips
+// wurden ausserdem einmalig per ffmpeg um ihre jeweilige (durch
+// silencedetect ermittelte) Anfangsstille gekuerzt, damit sie im Sequencer
+// wirklich exakt auf dem Taktschlag einsetzen. Herkunft (jeweils
+// Instant-Sound-Button auf myinstants.com):
 //  - dbAnkuendigung: myinstants.com/en/instant/deutsche-bahn-ankundigung-45554
 //  - ansageDb:       myinstants.com/en/instant/ansage-db-72287
 //  - sBahnNeu:       myinstants.com/en/instant/s-bahn-neu-85653
 //  - horn:           myinstants.com/en/instant/train-horn (klingt eher nach
 //                     rhythmischem Tuckern als nach einem harten
 //                     Signalhorn, daher hier als "Choo-Choo" benannt)
-//  - announcement:   myinstants.com/en/instant/bahnhofsansage-95498 (echter
-//                     Ansage-Clip statt der kuenstlich klingenden
-//                     Sprachsynthese-Stimme zuvor)
 //  - railroadBell:   myinstants.com/en/instant/bells-railroad-crossing-18898
 //  - steamBrake:     myinstants.com/en/instant/steam-locomotive-brakes-screaming-67672
 //  - trainRumble:    myinstants.com/en/instant/anderes-zugsgerausch-7741
@@ -140,11 +181,17 @@ const playHiHat: PlayFn = (ctx, time, destination) => {
 //  - hornUk:         myinstants.com/en/instant/british-class-141-horn-sound
 //  - steamWhistle:   myinstants.com/en/instant/nkp-765-whistle (Pfeife der
 //                     erhaltenen Dampflok Nickel Plate Road 765)
+//  - zurueckbleiben: myinstants.com/en/instant/zuruckbleiben-bitte-berlin-95485
+//                     ("Zurückbleiben bitte" -- klassische Berliner
+//                     U-Bahn-Ansage, passt thematisch zum Festival-Standort)
+//  - einsteigenBitte: myinstants.com/en/instant/einsteigen-bitte-792
+//  - haltestellengong: myinstants.com/en/instant/rostock-bus-ansagengong-rsag-haltestellengong-349
+//                     (Bus-/Straßenbahn-Haltestellengong statt Zug -- fuer
+//                     mehr Abwechslung zu den bisher reinen Zug-Sounds)
 import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
 import hornUrl from "../../assets/sounds/train-horn.mp3";
-import announcementUrl from "../../assets/sounds/bahnhofsansage.mp3";
 import railroadBellUrl from "../../assets/sounds/railroad-bell.mp3";
 import steamBrakeUrl from "../../assets/sounds/steam-brake.mp3";
 import trainRumbleUrl from "../../assets/sounds/zugsgeraeusch.mp3";
@@ -154,6 +201,9 @@ import hornChinaUrl from "../../assets/sounds/horn-china.mp3";
 import hornJapanUrl from "../../assets/sounds/horn-japan.mp3";
 import hornUkUrl from "../../assets/sounds/horn-uk.mp3";
 import steamWhistleUrl from "../../assets/sounds/steam-whistle.mp3";
+import zurueckbleibenUrl from "../../assets/sounds/zurueckbleiben.mp3";
+import einsteigenBitteUrl from "../../assets/sounds/einsteigen-bitte.mp3";
+import haltestellengongUrl from "../../assets/sounds/haltestellengong.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -187,8 +237,15 @@ export function preloadSamples(ctx: AudioContext): void {
  * Atmo-Aufnahmen) -- als Sequencer-Schritt soll nur der knackige Anfang
  * antriggern, nicht die ganze Aufnahme durchlaufen und sich mit den
  * naechsten Schritten ueberlagern.
+ *
+ * fixedPitch ignoriert die BPM-abhaengige playbackRate und spielt den Clip
+ * immer mit Originaltonhoehe/-tempo ab -- fuer die gesprochene Ansage, bei
+ * der ein per Tempo-Regler beschleunigtes/verlangsamtes Abspielen (technisch
+ * bedingt durch AudioBufferSourceNode.playbackRate immer mit Tonhoehen-
+ * Verschiebung) wie eine laecherliche "Micky-Maus"-Stimme klang statt wie
+ * eine normale Ansage.
  */
-function makeSamplePlayFn(url: string, gainBoost = 1, maxDuration?: number): PlayFn {
+function makeSamplePlayFn(url: string, gainBoost = 1, maxDuration?: number, startOffset?: number, fixedPitch = false): PlayFn {
   return (ctx, time, destination, playbackRate) => {
     void loadSampleBuffer(ctx, url).then((buffer) => {
       // Der Sequencer kann bis zur Fertigstellung des Decodings schon
@@ -198,8 +255,8 @@ function makeSamplePlayFn(url: string, gainBoost = 1, maxDuration?: number): Pla
       src.buffer = buffer;
       // An das aktuelle Tempo angepasst (relativ zum Referenz-BPM in
       // index.ts), damit die Sample-Clips nicht immer gleich lang klingen,
-      // egal wie schnell der Beat gerade laeuft.
-      src.playbackRate.value = playbackRate;
+      // egal wie schnell der Beat gerade laeuft -- ausser bei fixedPitch.
+      src.playbackRate.value = fixedPitch ? 1 : playbackRate;
       if (gainBoost === 1) {
         src.connect(destination);
       } else {
@@ -208,7 +265,12 @@ function makeSamplePlayFn(url: string, gainBoost = 1, maxDuration?: number): Pla
         src.connect(gain).connect(destination);
       }
       const startAt = Math.max(time, ctx.currentTime);
-      src.start(startAt);
+      // startOffset schneidet minimalen "toten" Vorlauf im Original-Clip ab
+      // (in Sekunden, gemessen im unveraenderten Original -- unabhaengig von
+      // playbackRate). AudioBufferSourceNode.start(when, offset) interpretiert
+      // offset immer relativ zum Original, das passt hier.
+      if (startOffset) src.start(startAt, startOffset);
+      else src.start(startAt);
       if (maxDuration) src.stop(startAt + maxDuration);
     });
   };
@@ -219,7 +281,6 @@ const SAMPLE_URLS = [
   ansageDbUrl,
   sBahnNeuUrl,
   hornUrl,
-  announcementUrl,
   railroadBellUrl,
   steamBrakeUrl,
   trainRumbleUrl,
@@ -229,6 +290,9 @@ const SAMPLE_URLS = [
   hornJapanUrl,
   hornUkUrl,
   steamWhistleUrl,
+  zurueckbleibenUrl,
+  einsteigenBitteUrl,
+  haltestellengongUrl,
 ];
 
 export interface SoundDef {
@@ -245,19 +309,36 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
   { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
   { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 1, 1) },
-  { id: "announcement", label: "Ansage", hint: "Bahnhofsansage (Sample-Clip)", play: makeSamplePlayFn(announcementUrl, 3.2, 1.5) },
   { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl, 2) },
-  { id: "ansageDb", label: "Ansage 2", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl) },
+  // War vorher "Ansage 2" -- die dritte, kuenstlich klingende Ansage
+  // ("announcement"/bahnhofsansage.mp3) klang identisch zu "DB-Ansage",
+  // aber schlechter, und wurde deshalb entfernt; dieser Sound ruecky auf
+  // den (jetzt wieder freien) Namen "Ansage" nach.
+  // fixedPitch: siehe Kommentar bei makeSamplePlayFn -- ohne das klang die
+  // Ansage bei schnellerem Tempo wie eine Micky-Maus-Stimme. Die Datei selbst
+  // wurde ausserdem auf nur den ersten Satz gekuerzt (vorher ~8.8s, jetzt
+  // ~3.2s) und ihre minimale Anfangsstille weggeschnitten.
+  { id: "ansageDb", label: "Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl, 1, undefined, undefined, true) },
   { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2) },
+  // Drei kurze, echte Bahnsteig-/Haltestellen-Ansagen -- auf ausdruecklichen
+  // Wunsch ergaenzt, wieder ohne Ruecksicht auf Lizenzfragen (siehe
+  // Datei-Kommentar oben).
+  { id: "einsteigenBitte", label: "Einsteigen", hint: "„Einsteigen bitte“ (Sample-Clip)", play: makeSamplePlayFn(einsteigenBitteUrl) },
+  { id: "zurueckbleiben", label: "Zurückbleiben", hint: "„Zurückbleiben bitte“ (Sample-Clip)", play: makeSamplePlayFn(zurueckbleibenUrl) },
+  { id: "haltestellengong", label: "Halte-Gong", hint: "Haltestellengong Bus/Tram (Sample-Clip)", play: makeSamplePlayFn(haltestellengongUrl, 1.6) },
   { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 3, 1.1) },
   { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.8, 0.8) },
   { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.5, 1) },
-  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 2.6, 0.8) },
+  // maxDuration von 0.8 auf 2.0: der Glockenklang klingt hoerbar nach, 0.8s
+  // schnitt ihn mitten im Ausklingen brutal ab (siehe gemeldeter Bug).
+  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 2.6, 2.0) },
   { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 1, 1.2) },
   { id: "hornChina", label: "Horn China", hint: "Chinesisches Diesellok-Horn (Sample-Clip)", play: makeSamplePlayFn(hornChinaUrl, 1, 1.2) },
   { id: "hornJapan", label: "Horn Japan", hint: "Japanisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornJapanUrl, 1.35, 1.2) },
-  { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 1, 1.2) },
+  // gainBoost vorher 1 -- auf ausdruecklichen Wunsch etwas leiser gestellt.
+  { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 0.65, 1.2) },
   { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 1, 1.3) },
+  { id: "hopperSqueak", label: "Hüpftier", hint: "Quietschendes Gummi-Hüpftier", play: playHopperSqueak },
 ];
 
 /**

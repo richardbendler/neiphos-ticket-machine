@@ -5,10 +5,22 @@ import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { registerGame } from "../registry";
 
+const imageCache = new Map<string, HTMLImageElement>();
+function getImage(src: string): HTMLImageElement {
+  let img = imageCache.get(src);
+  if (!img) {
+    img = new Image();
+    img.src = src;
+    imageCache.set(src, img);
+  }
+  return img;
+}
+
 const GAME_ID = "count-passengers";
-const HIGHSCORE_POPUP_DELAY_MS = 2000;
+const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
 
 const WINDOW_WIDTH = 40;
 const WINDOW_GAP = 12;
@@ -34,20 +46,39 @@ const SPEED_LEVELS: SpeedLevel[] = [110, 140, 180, 230, 290, 370, 470, 600, 760,
 
 type Phase = "speed-select" | "countdown" | "running" | "input" | "result";
 
-function generateWindows(): number[] {
-  const count = 16 + Math.floor(Math.random() * 9); // 16-24 Fenster
-  const windows: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const r = Math.random();
-    if (r < 0.22) windows.push(0);
-    else if (r < 0.5) windows.push(1);
-    else if (r < 0.8) windows.push(2);
-    else windows.push(3);
-  }
-  return windows;
+/** Jedes Fenster haelt die Bilder der Huepftiere, die gerade darin sitzen (0-3 Stueck, leeres Array = leeres Fenster). */
+type WindowContent = string[];
+
+function randomHopperImage(): string {
+  return hopperAnimalCards[Math.floor(Math.random() * hopperAnimalCards.length)].image;
 }
 
-function trainWidth(windows: number[]): number {
+// Gesamtzahl Huepftiere bewusst direkt als Zielwert vorgegeben (statt wie
+// vorher nur ueber unabhaengige Pro-Fenster-Wahrscheinlichkeiten emergent zu
+// ergeben) -- letzteres pendelte sich durchs Gesetz der grossen Zahlen fast
+// immer um denselben Mittelwert (~30) ein und war dadurch vorhersehbar.
+const MIN_TOTAL = 20;
+const MAX_TOTAL = 40;
+const MAX_PER_WINDOW = 3;
+
+function generateWindows(): WindowContent[] {
+  const count = 16 + Math.floor(Math.random() * 9); // 16-24 Fenster
+  const targetTotal = MIN_TOTAL + Math.floor(Math.random() * (MAX_TOTAL - MIN_TOTAL + 1));
+  const occupants = new Array(count).fill(0);
+  let remaining = Math.min(targetTotal, count * MAX_PER_WINDOW);
+  // Zufaellig auf Fenster verteilen (max 3 pro Fenster), bis der Zielwert
+  // erreicht ist -- so ist die tatsaechliche Gesamtzahl direkt steuerbar.
+  while (remaining > 0) {
+    const idx = Math.floor(Math.random() * count);
+    if (occupants[idx] < MAX_PER_WINDOW) {
+      occupants[idx] += 1;
+      remaining -= 1;
+    }
+  }
+  return occupants.map((n) => Array.from({ length: n }, () => randomHopperImage()));
+}
+
+function trainWidth(windows: WindowContent[]): number {
   const gaps = Math.floor(windows.length / CAR_GAP_EVERY) * CAR_GAP_EXTRA;
   return windows.length * WINDOW_PITCH + gaps + 40;
 }
@@ -64,7 +95,7 @@ function formatDiff(value: number): string {
 }
 
 function createCountPassengersGame(): MinigameModule {
-  let windows: number[] = [];
+  let windows: WindowContent[] = [];
   let actualTotal = 0;
   let trainOffsetX = 0;
   let phase: Phase = "speed-select";
@@ -98,20 +129,23 @@ function createCountPassengersGame(): MinigameModule {
     desc.style.color = "var(--text-muted)";
     desc.style.fontSize = "0.85rem";
     desc.style.margin = "0 0 4px";
-    desc.textContent = "Je höher die Stufe, desto schwerer lässt sich die Anzahl der Passagiere noch erfassen.";
+    desc.textContent = "Je höher die Stufe, desto schwerer lässt sich die Anzahl der Hüpftiere noch erfassen.";
     speedPanel.appendChild(desc);
 
     const grid = document.createElement("div");
     grid.style.display = "grid";
     grid.style.gridTemplateColumns = "repeat(5, 1fr)";
-    grid.style.gap = "8px";
+    grid.style.gap = "10px";
     grid.style.width = "100%";
-    grid.style.maxWidth = "320px";
+    grid.style.maxWidth = "460px";
     for (const level of SPEED_LEVELS) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "btn";
-      btn.style.padding = "10px 4px";
+      // Gleiches Design wie die Auswahl-Buttons bei Zug-Memory (Ein
+      // Spieler/1 gegen 1, Spielfeldgroesse) -- .btn--choice statt der
+      // kleinen generischen .btn-Groesse.
+      btn.className = "btn btn--choice";
+      btn.style.padding = "clamp(10px, 2vh, 18px) 4px";
       btn.textContent = level.label.replace("Stufe ", "");
       btn.addEventListener("click", () => selectSpeed(level));
       grid.appendChild(btn);
@@ -127,7 +161,7 @@ function createCountPassengersGame(): MinigameModule {
 
   function resetRound(): void {
     windows = generateWindows();
-    actualTotal = windows.reduce((a, b) => a + b, 0);
+    actualTotal = windows.reduce((a, w) => a + w.length, 0);
     trainOffsetX = -trainWidth(windows);
     phase = "countdown";
     countdown = COUNTDOWN_START;
@@ -157,6 +191,7 @@ function createCountPassengersGame(): MinigameModule {
           message: `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
+            if (name === null) return;
             highscoreBanner.update(recordHighscore(GAME_ID, name, diff, "lower-better", level.key));
           },
         });
@@ -178,7 +213,11 @@ function createCountPassengersGame(): MinigameModule {
     if (phase === "input") {
       promptEl = document.createElement("div");
       promptEl.className = "stage-sheet__title";
-      promptEl.textContent = "Wie viele Passagiere hast du gezählt?";
+      // Deutlich groesser als der Standard-Titel (0.85-1rem) -- das ist die
+      // zentrale Frage der Eingabephase, soll auf Anhieb ins Auge fallen.
+      promptEl.style.fontSize = "1.35rem";
+      promptEl.style.fontWeight = "800";
+      promptEl.textContent = "Wie viele Hüpftiere hast du gezählt?";
       panel.appendChild(promptEl);
 
       keyboardHost = document.createElement("div");
@@ -188,6 +227,11 @@ function createCountPassengersGame(): MinigameModule {
         maxLength: 3,
         placeholder: "Anzahl",
         submitLabel: "Prüfen",
+        // Gleiche Farbe/Schriftart wie die Rundenzahl im Canvas (theme.accent
+        // + font-display) -- deutlich groesser als die Standard-Feldschrift,
+        // damit die eingetippte Zahl auf Anhieb gut lesbar ist.
+        displayFontSize: "2.1rem",
+        displayColor: "var(--accent)",
         onSubmit: submitGuess,
       });
       keyboard.mount(keyboardHost);
@@ -208,8 +252,8 @@ function createCountPassengersGame(): MinigameModule {
       detail.style.margin = "6px 0 12px";
       detail.textContent =
         diff === 0
-          ? `Es waren tatsächlich ${actualTotal} Passagiere.`
-          : `Tatsächlich waren es ${actualTotal} Passagiere. Du warst ${diff} daneben (deine Schätzung: ${guess}).`;
+          ? `Es waren tatsächlich ${actualTotal} Hüpftiere.`
+          : `Tatsächlich waren es ${actualTotal} Hüpftiere. Du warst ${diff} daneben (deine Schätzung: ${guess}).`;
       panel.appendChild(detail);
 
       const actions = document.createElement("div");
@@ -279,22 +323,32 @@ function createCountPassengersGame(): MinigameModule {
     let x = offsetX + 20;
     const winY = bodyY + 20;
     const winH = 40;
-    windows.forEach((passengers, i) => {
-      ctx.fillStyle = "#0d2b30";
+    windows.forEach((occupants, i) => {
+      // Hell statt frueher dunkel (#0d2b30) -- die Huepftier-Fotos sind
+      // ueberwiegend dunkel/kraeftig eingefaerbt und gingen auf dunklem
+      // Fensterhintergrund kaum zu erkennen unter. Duenner Rahmen sorgt
+      // trotzdem noch fuer eine erkennbare Fensterkante auf dem farbigen
+      // Wagenkoerper.
+      ctx.fillStyle = "#ffffff";
       roundRect(ctx, x, winY, WINDOW_WIDTH, winH, 5);
       ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.18)";
+      ctx.lineWidth = 1;
+      roundRect(ctx, x, winY, WINDOW_WIDTH, winH, 5);
+      ctx.stroke();
 
+      // Gleiche Groesse/Positionen wie die vorherigen reinen Punkte (r=5.5)
+      // -- nur eben als winzige Huepftier-Gesichter statt als Farbfleck.
       const dotR = 5.5;
       const positions: Array<[number, number]> = [];
-      if (passengers === 1) positions.push([0, 0]);
-      else if (passengers === 2) positions.push([-9, 0], [9, 0]);
-      else if (passengers >= 3) positions.push([-9, -6], [9, -6], [0, 9]);
-      ctx.fillStyle = "#f4d9a0";
-      for (const [dx, dy] of positions) {
-        ctx.beginPath();
-        ctx.arc(x + WINDOW_WIDTH / 2 + dx, winY + winH / 2 + dy, dotR, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      if (occupants.length === 1) positions.push([0, 0]);
+      else if (occupants.length === 2) positions.push([-9, 0], [9, 0]);
+      else if (occupants.length >= 3) positions.push([-9, -6], [9, -6], [0, 9]);
+
+      occupants.forEach((image, idx) => {
+        const [dx, dy] = positions[idx];
+        drawHopperFace(ctx, x + WINDOW_WIDTH / 2 + dx, winY + winH / 2 + dy, dotR, image);
+      });
 
       x += WINDOW_PITCH;
       if ((i + 1) % CAR_GAP_EVERY === 0) x += CAR_GAP_EXTRA;
@@ -307,6 +361,25 @@ function createCountPassengersGame(): MinigameModule {
       ctx.arc(wx, wheelY, 8, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  /** Zeichnet ein winziges, kreisrund freigestelltes Huepftier-Gesicht an (cx, cy) -- Ersatz fuer den frueheren reinen Farbpunkt. */
+  function drawHopperFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, imageSrc: string): void {
+    const img = getImage(imageSrc);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.clip();
+    if (img.complete && img.naturalWidth > 0) {
+      const scale = Math.max((radius * 2) / img.naturalWidth, (radius * 2) / img.naturalHeight);
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    } else {
+      ctx.fillStyle = "#f4d9a0";
+      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+    }
+    ctx.restore();
   }
 
   function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -323,6 +396,8 @@ function createCountPassengersGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      for (const card of hopperAnimalCards) getImage(card.image);
+
       speedPanel = document.createElement("div");
       speedPanel.className = "stage-center-panel";
       speedPanel.style.alignItems = "center";
@@ -331,7 +406,15 @@ function createCountPassengersGame(): MinigameModule {
       env.overlay.appendChild(speedPanel);
 
       panel = document.createElement("div");
-      panel.className = "stage-sheet";
+      // .stage-center-panel statt .stage-sheet: das Zahlenfeld (numerische
+      // Bildschirmtastatur) kann bei kurzen/breiten Bildschirmen deutlich
+      // hoeher werden als die Tastenbreite vermuten laesst (fitNumericKeys
+      // bemisst die Tastengroesse nur an der Breite, nicht an der
+      // verfuegbaren Hoehe) -- als unten angedockte, nicht scrollbare
+      // ".stage-sheet" ragte es dann unten aus dem Bildschirm heraus.
+      // ".stage-center-panel" zentriert stattdessen und faellt bei Bedarf
+      // auf vertikales Scrollen zurueck (wie bereits bei "speedPanel" oben).
+      panel.className = "stage-center-panel";
       panel.style.alignItems = "center";
       panel.style.textAlign = "center";
       panel.style.gap = "8px";
@@ -347,7 +430,7 @@ function createCountPassengersGame(): MinigameModule {
         description: [
           "Wähle zuerst eine Geschwindigkeitsstufe",
           "Ein Zug fährt an dir vorbei",
-          "Zähle die Passagiere hinter den Fenstern",
+          "Zähle, wie viele Hüpftiere mit dem Zug fahren",
           "Tippe deine Schätzung danach ein",
         ],
         onStart: () => {
@@ -383,13 +466,13 @@ function createCountPassengersGame(): MinigameModule {
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
         ctx.font = `700 18px ${theme.fontDisplay}`;
-        ctx.fillText("Zähle die Passagiere hinter den Fenstern!", size.width / 2, trackY - 150);
+        ctx.fillText("Zähle, wie viele Hüpftiere mit dem Zug fahren!", size.width / 2, trackY - 170);
         ctx.font = `600 15px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Der Zug kommt gleich...", size.width / 2, trackY - 120);
-        ctx.font = `800 48px ${theme.fontDisplay}`;
+        ctx.fillText("Der Zug kommt gleich...", size.width / 2, trackY - 135);
+        ctx.font = `800 86px ${theme.fontDisplay}`;
         ctx.fillStyle = theme.accent;
-        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, trackY - 60);
+        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, trackY - 40);
       } else if (phase === "running") {
         drawTrain(ctx, trainOffsetX, trackY);
         if (trainOffsetX > size.width) {

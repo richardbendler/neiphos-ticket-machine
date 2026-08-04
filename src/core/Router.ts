@@ -5,6 +5,7 @@ import { icons } from "./icons";
 import { recordSession } from "./stats";
 import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
+import { isGameEnabled } from "./storage";
 import { renderMainMenu } from "../menu/MainMenu";
 import { renderHighscoreBoard } from "../menu/HighscoreBoard";
 import { openAdminPanel } from "../admin/AdminPanel";
@@ -127,7 +128,10 @@ export class Router {
 
     const credit = document.createElement("div");
     credit.className = "chrome-footer-credit";
-    credit.innerHTML = `<span>präsentiert von</span> <strong>DJ Flipper</strong>`;
+    credit.innerHTML = `
+      <span class="chrome-footer-credit__line"><span>präsentiert von</span> <strong>DJ Flipper</strong></span>
+      <span class="chrome-footer-credit__line chrome-footer-credit__line--sub">Freitag 22:30 Uhr - Trashfloor</span>
+    `;
 
     // Design bewusst an den "Tarifinfo"-Button der Vorlage angelehnt (silbern
     // umrandete Taste), aber deutlich kleiner -- es ist nur der Einstieg
@@ -137,7 +141,15 @@ export class Router {
     adminBtn.className = "chrome-footer-btn chrome-footer-admin-btn";
     adminBtn.setAttribute("aria-label", "Admin-Bereich");
     adminBtn.innerHTML = `<span class="chrome-footer-btn__icon">${icons.gear}</span><span>Admin</span>`;
-    adminBtn.addEventListener("click", () => openAdminPanel());
+    // Nach Schliessen des Admin-Panels das Hauptmenue neu aufbauen, FALLS es
+    // gerade sichtbar ist -- damit im Admin ein-/ausgeblendete Spiele sofort
+    // greifen, ohne dass man erst ein Spiel starten und zurueckkehren muss.
+    // Waehrend eines laufenden Spiels bleibt man dagegen einfach im Spiel.
+    adminBtn.addEventListener("click", () =>
+      openAdminPanel(() => {
+        if (this.screenEl?.classList.contains("menu-screen")) this.showMenu();
+      }),
+    );
 
     bar.append(feedbackBtn, credit, adminBtn);
     return bar;
@@ -185,7 +197,12 @@ export class Router {
     this.clearScreen();
     this.setNavMode("menu-screen");
     this.startClock();
-    const { element, destroy } = renderMainMenu(gameRegistry, (id) => this.startGame(id));
+    // Im Admin-Panel deaktivierte Spiele werden im Hauptmenue nicht
+    // aufgelistet (bleiben aber ueber ihre ID technisch weiterhin normal
+    // spielbar -- "deaktiviert" heisst hier bewusst nur "aus dem Menue
+    // ausgeblendet", nicht "gesperrt").
+    const visibleGames = gameRegistry.filter((g) => isGameEnabled(g.id));
+    const { element, destroy } = renderMainMenu(visibleGames, (id) => this.startGame(id));
     this.root.appendChild(element);
     this.screenEl = element;
     this.screenCleanup = destroy;

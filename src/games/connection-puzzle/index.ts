@@ -16,7 +16,7 @@ const TOTAL_ATTEMPTS = 3;
 const POINTS_BY_ATTEMPT = [100, 60, 30];
 // Erst das Endergebnis in Ruhe zeigen, das Highscore-Popup kommt bewusst
 // erst etwas spaeter -- sonst ueberlagern sich beide sofort.
-const HIGHSCORE_POPUP_DELAY_MS = 2000;
+const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
 
 function formatPoints(value: number): string {
   return `${value} Punkte`;
@@ -94,6 +94,22 @@ function createConnectionPuzzleGame(): MinigameModule {
         selectedLines.pop();
         render();
       },
+      onRemoveLine: (index) => {
+        if (!roundState) return;
+        // Waehrend "feedback" (nicht rundenentscheidender Fehlversuch) ist
+        // der Versuch bereits abgegeben -- das Entfernen einer Linie dort
+        // wirkt wie "Weiter" (Versuch zaehlt hoch), landet aber direkt mit
+        // der korrigierten Auswahl wieder in "building", statt alles neu
+        // zusammenklicken zu muessen.
+        if (phase === "feedback" && feedback && !feedback.roundOver) {
+          roundState.attempt += 1;
+          feedback = undefined;
+          phase = "building";
+        }
+        selectedLines.splice(index, 1);
+        error = null;
+        render();
+      },
       onReset: () => {
         selectedLines = [];
         error = null;
@@ -112,7 +128,26 @@ function createConnectionPuzzleGame(): MinigameModule {
     if (!roundState) return;
     const result = validateLineSequence(roundState.start, roundState.target, selectedLines);
     if (!result.valid) {
-      error = result.reason ?? "Diese Auswahl verbindet Start und Ziel nicht.";
+      // Eine ungueltige (nicht verbindende) Auswahl verbraucht jetzt auch
+      // einen Versuch -- vorher zaehlte hier gar nichts hoch, man konnte
+      // beliebig oft eine falsche Linienfolge abschicken, ohne dass sich am
+      // Versuchszaehler etwas aenderte (mehrfach gemeldeter Bug). Beim
+      // letzten Versuch geht's wie beim "valide, aber nicht optimal"-Fall
+      // in die volle Feedback-Ansicht samt Aufloesung, statt nur die
+      // Inline-Fehlermeldung zu wiederholen.
+      if (roundState.attempt >= TOTAL_ATTEMPTS) {
+        feedback = {
+          success: false,
+          message: result.reason ?? "Diese Auswahl verbindet Start und Ziel nicht.",
+          scoreGained: 0,
+          revealed: roundState.optimal,
+          roundOver: true,
+        };
+        phase = "feedback";
+      } else {
+        error = result.reason ?? "Diese Auswahl verbindet Start und Ziel nicht.";
+        roundState.attempt += 1;
+      }
       render();
       return;
     }
@@ -174,6 +209,7 @@ function createConnectionPuzzleGame(): MinigameModule {
             message: `Du hast ${totalScore} Punkte erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert" : "neuer Bestwert"} für die Verbindungssuche!`,
             onDone: (name) => {
               closeHighscoreModal = null;
+              if (name === null) { render(); return; }
               highscoreBanner.update(recordHighscore(GAME_ID, name, totalScore, "higher-better"));
               render();
             },
@@ -206,7 +242,11 @@ function createConnectionPuzzleGame(): MinigameModule {
       panel = document.createElement("div");
       panel.className = "stage-center-panel";
       // Platz fuer Highscore-Banner + Mini-Karte oben lassen (siehe unten).
-      panel.style.top = "calc(var(--header-h) + 150px + var(--safe-top))";
+      // Kompakter (clamp statt fixem 150px) -- die Linienauswahl darunter
+      // ist inhaltlich lang (3 Verkehrsmittel-Gruppen), jeder gesparte
+      // Pixel oben hilft, moeglichst ohne Scrollen auf Handy-Hochkant
+      // auszukommen.
+      panel.style.top = "calc(var(--header-h) + clamp(104px, 16vh, 140px) + var(--safe-top))";
       panel.style.justifyContent = "flex-start";
       env.overlay.appendChild(panel);
 
@@ -217,7 +257,7 @@ function createConnectionPuzzleGame(): MinigameModule {
       berlinMap.el.style.position = "absolute";
       berlinMap.el.style.left = "calc(12px + var(--safe-left))";
       berlinMap.el.style.right = "calc(12px + var(--safe-right))";
-      berlinMap.el.style.top = "calc(var(--header-h) + 54px + var(--safe-top))";
+      berlinMap.el.style.top = "calc(var(--header-h) + clamp(16px, 5vh, 40px) + var(--safe-top))";
       berlinMap.el.style.width = "auto";
       berlinMap.el.style.zIndex = "15";
       env.overlay.appendChild(berlinMap.el);

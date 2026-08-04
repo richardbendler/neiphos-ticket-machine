@@ -2,14 +2,17 @@ import { openModal } from "../core/modal";
 import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
 import { enterFullscreen, exitFullscreen, isFullscreenActive } from "../core/kiosk";
 import { getSummaryByGame, getSessionsForGame, clearAllStats, type GameSummary } from "../core/stats";
-import { clearHighscoreBoard } from "../core/storage";
+import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
 import { gameRegistry } from "../games/registry";
 
-// Bewusst simpel gehalten fuer den Start -- ein staerkeres Schutzverfahren
-// (z. B. Aenderbarkeit ueber die UI selbst) ist fuer eine spaetere Iteration
+// Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
+// vite.config.ts) statt hier im Quellcode zu stehen -- der Build bricht
+// ohne gesetztes VITE_ADMIN_PASSWORD bewusst ab (siehe vite.config.ts).
+// Bewusst weiterhin einfache Client-seitige Pruefung ohne echten Server --
+// ein staerkeres Schutzverfahren ist fuer eine spaetere Iteration
 // vorgemerkt, siehe README-Abschnitt "Bekannte Grenzen".
-const ADMIN_PASSWORD = "Neiphos";
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
@@ -35,9 +38,228 @@ function gameTitle(gameId: string): string {
   return gameRegistry.find((g) => g.id === gameId)?.title ?? gameId;
 }
 
-export function openAdminPanel(): void {
+function codeBlock(text: string): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.position = "relative";
+  wrap.style.margin = "6px 0 14px";
+
+  const pre = document.createElement("pre");
+  pre.style.background = "var(--panel-alt)";
+  pre.style.border = "1px solid var(--panel-border)";
+  pre.style.borderRadius = "var(--radius-sm)";
+  pre.style.padding = "10px 70px 10px 12px";
+  pre.style.fontSize = "0.72rem";
+  pre.style.lineHeight = "1.5";
+  pre.style.overflowX = "auto";
+  pre.style.whiteSpace = "pre";
+  pre.style.margin = "0";
+  pre.textContent = text;
+  wrap.appendChild(pre);
+
+  // Rein additiv (Copy-to-Clipboard) -- greift nicht in die uebrige,
+  // Touch-zentrierte Bedienung ein, ist nur ein zusaetzlicher Button.
+  if (typeof navigator !== "undefined" && navigator.clipboard) {
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "btn btn--ghost";
+    copyBtn.textContent = "Kopieren";
+    copyBtn.style.position = "absolute";
+    copyBtn.style.top = "6px";
+    copyBtn.style.right = "6px";
+    copyBtn.style.padding = "4px 10px";
+    copyBtn.style.fontSize = "0.68rem";
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          const original = copyBtn.textContent;
+          copyBtn.textContent = "Kopiert!";
+          setTimeout(() => {
+            copyBtn.textContent = original;
+          }, 1500);
+        })
+        .catch(() => {
+          // Clipboard-Zugriff evtl. blockiert (z.B. kein sicherer Kontext) -- Button bleibt dann einfach wirkungslos.
+        });
+    });
+    wrap.appendChild(copyBtn);
+  }
+
+  return wrap;
+}
+
+function sectionHeading(text: string): HTMLHeadingElement {
+  const h = document.createElement("h3");
+  h.style.fontSize = "1rem";
+  h.style.margin = "18px 0 4px";
+  h.style.color = "var(--text)";
+  h.textContent = text;
+  return h;
+}
+
+function paragraph(text: string): HTMLParagraphElement {
+  const p = document.createElement("p");
+  p.style.fontSize = "0.85rem";
+  p.style.color = "var(--text-muted)";
+  p.style.margin = "4px 0";
+  p.textContent = text;
+  return p;
+}
+
+/**
+ * Ausfuehrliche Anleitung, wie der Kiosk-Modus WIRKLICH (auf Betriebssystem-
+ * statt nur Browser-Vollbild-Ebene) gestartet und fuer den Autostart
+ * eingerichtet wird -- inhaltlich identisch zu den entsprechenden
+ * README-Abschnitten, nur direkt im Admin-Bereich nutzbar, ohne dafuer an
+ * den Quellcode/die README auf dem Geraet selbst zu muessen.
+ */
+function openKioskGuideModal(): void {
+  openModal((panel, close) => {
+    panel.classList.add("modal-panel--wide");
+    const h2 = document.createElement("h2");
+    h2.textContent = "Kiosk-Modus-Anleitung";
+    panel.appendChild(h2);
+
+    panel.appendChild(
+      paragraph(
+        'Der Button "Kiosk-Modus starten" oben schaltet nur den Vollbildmodus dieser Webseite um (Fullscreen API). Damit der Kiosk wirklich nicht aus Versehen (oder von Besuchern) verlassen werden kann, muss der Browser selbst im Betriebssystem-Kiosk-Modus gestartet werden -- das geht nur per Befehl, nicht per Knopf in der App.',
+      ),
+    );
+
+    panel.appendChild(sectionHeading("Raspberry Pi / Linux: Browser im Kiosk-Modus starten"));
+    panel.appendChild(paragraph("Im Terminal auf dem Pi ausführen (Server muss bereits laufen, siehe unten):"));
+    panel.appendChild(
+      codeBlock(
+        `chromium-browser \\
+  --kiosk \\
+  --user-data-dir=/home/pi/.config/ticketmachine-chromium \\
+  --noerrdialogs \\
+  --disable-infobars \\
+  --disable-session-crashed-bubble \\
+  --disable-pinch \\
+  --overscroll-history-navigation=0 \\
+  --autoplay-policy=no-user-gesture-required \\
+  http://localhost:8080`,
+      ),
+    );
+    panel.appendChild(
+      paragraph("Beenden dann nur noch per SSH/Tastatur am Gerät selbst, z. B. mit: pkill chromium-browser"),
+    );
+
+    panel.appendChild(sectionHeading("Raspberry Pi / Linux: Autostart einrichten"));
+    panel.appendChild(
+      paragraph(
+        "Ziel: Pi einschalten → ohne jeden manuellen Klick landet man im laufenden Kiosk. Dafür starten zwei Dinge automatisch: der lokale Server und Chromium im Kiosk-Modus.",
+      ),
+    );
+    panel.appendChild(paragraph("1) Startskript /home/pi/neiphos-ticket-machine/start-kiosk.sh anlegen:"));
+    panel.appendChild(
+      codeBlock(
+        `#!/bin/bash
+# Kurz warten, bis der Server-Service sicher steht (nach einem Reboot).
+sleep 3
+chromium-browser \\
+  --kiosk \\
+  --user-data-dir=/home/pi/.config/ticketmachine-chromium \\
+  --noerrdialogs \\
+  --disable-infobars \\
+  --disable-session-crashed-bubble \\
+  --disable-pinch \\
+  --overscroll-history-navigation=0 \\
+  --autoplay-policy=no-user-gesture-required \\
+  http://localhost:8080`,
+      ),
+    );
+    panel.appendChild(codeBlock("chmod +x /home/pi/neiphos-ticket-machine/start-kiosk.sh"));
+    panel.appendChild(paragraph("2) Autostart-Eintrag ~/.config/autostart/ticketmachine-kiosk.desktop anlegen:"));
+    panel.appendChild(
+      codeBlock(
+        `[Desktop Entry]
+Type=Application
+Name=Neiphos Ticket Machine Kiosk
+Exec=/home/pi/neiphos-ticket-machine/start-kiosk.sh
+X-GNOME-Autostart-enabled=true`,
+      ),
+    );
+    panel.appendChild(
+      paragraph(
+        "Für den Server-Autostart (damit http://localhost:8080 schon beim Booten bereitsteht, noch vor dem Desktop-Login) einen systemd-Service einrichten -- Details dazu stehen in der README im Abschnitt „Autostart einrichten (Linux/Raspberry Pi OS)“.",
+      ),
+    );
+    panel.appendChild(
+      paragraph("Nach einem Neustart (sudo reboot) sollte der Pi jetzt direkt im laufenden Kiosk starten."),
+    );
+
+    panel.appendChild(sectionHeading("Windows (zum Testen oder als Alternativ-Gerät)"));
+    panel.appendChild(paragraph("Browser im Kiosk-Modus starten (PowerShell):"));
+    panel.appendChild(
+      codeBlock(
+        `& "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" \`
+  --kiosk \`
+  --user-data-dir="$env:LOCALAPPDATA\\TicketMachineChromium" \`
+  --noerrdialogs \`
+  --disable-pinch \`
+  --overscroll-history-navigation=0 \`
+  --autoplay-policy=no-user-gesture-required \`
+  http://localhost:8080`,
+      ),
+    );
+    panel.appendChild(
+      paragraph(
+        "Beenden: Alt+F4 funktioniert im --kiosk-Modus bewusst nicht ohne Weiteres -- entweder über den Task-Manager (Strg+Umschalt+Esc) den Chrome/Edge-Prozess beenden, oder vorher hier im Admin-Bereich den Vollbildmodus verlassen.",
+      ),
+    );
+    const warning = paragraph(
+      "⚠️ Wichtig auf einem Touchscreen: --kiosk sperrt nur den Browser, nicht die Windows-Shell. Vom Bildschirmrand hineinwischen kann trotzdem das Info-/Action-Center, die Taskleiste oder das Startmenü einblenden. Für echte Absicherung auf einem Touchscreen: Windows-eigenen Kiosk-Modus einrichten -- Einstellungen → Konten → Weitere Benutzer → „Kiosk einrichten“ → Microsoft Edge als Kiosk-App (Windows Pro/Enterprise/Education nötig, in Windows Home nicht verfügbar). Details siehe README, Abschnitt „Kiosk-Modus unter Windows“.",
+    );
+    warning.style.color = "var(--danger)";
+    warning.style.fontWeight = "600";
+    panel.appendChild(warning);
+    panel.appendChild(paragraph("Autostart-Ordner (Win+R → shell:startup) → Datei start-kiosk.bat ablegen (nur fuer die einfache --kiosk-Methode oben):"));
+    panel.appendChild(
+      codeBlock(
+        `@echo off
+cd /d "C:\\Pfad\\zur\\Neiphos Ticket Machine"
+start "" node server\\serve.js dist 8080
+timeout /t 3 /nobreak >nul
+start "" "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk --user-data-dir="%LOCALAPPDATA%\\TicketMachineChromium" --noerrdialogs --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required http://localhost:8080`,
+      ),
+    );
+    panel.appendChild(
+      paragraph(
+        "Dazu am besten einen Windows-Benutzer einrichten, der sich automatisch anmeldet (netplwiz → Häkchen bei „Benutzer muss Kennwort eingeben“ entfernen), damit der Rechner nach dem Einschalten direkt bis zum Kiosk durchstartet. Alternativ die Aufgabenplanung (taskschd.msc) mit Trigger „Bei Anmeldung“.",
+      ),
+    );
+
+    panel.appendChild(sectionHeading("Echte Kiosk-Absicherung unter Windows (empfohlen für Touchscreens)"));
+    panel.appendChild(
+      paragraph(
+        "Für einen von fremden Personen bedienten Touchscreen reicht die einfache --kiosk-Methode oben nicht (siehe Warnung). Richtiger Windows-Kiosk-Modus (sperrt Taskleiste, Action Center, Wisch-Gesten UND meldet sich automatisch an): Einstellungen → Konten → Weitere Benutzer → „Kiosk einrichten“ → Microsoft Edge als App, Modus „Digitale Beschilderung“, URL http://localhost:8080. Braucht Windows Pro/Enterprise/Education (nicht Home). Verlassen nur per Strg+Alt+Entf -- setzt eine physische Tastatur voraus.",
+      ),
+    );
+
+    panel.appendChild(
+      paragraph(
+        "Physische Tasten am Monitor-/Display-Gehäuse selbst (Helligkeit, Eingangsquelle, Power) hängen vollständig vom verwendeten Bildschirm ab, nicht von dieser App -- in der Bedienungsanleitung des Geräts nachsehen, ob es eine „Tastensperre“/„Key Lock“-Funktion im Bildschirmmenü (OSD) gibt.",
+      ),
+    );
+
+    const actions = document.createElement("div");
+    actions.className = "modal-actions";
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "btn btn--accent";
+    closeBtn.textContent = "Schließen";
+    closeBtn.addEventListener("click", close);
+    actions.appendChild(closeBtn);
+    panel.appendChild(actions);
+  });
+}
+
+export function openAdminPanel(onClose?: () => void): void {
   openModal((panel, close) => {
     panel.innerHTML = "";
+    panel.classList.add("modal-panel--wide");
     const h2 = document.createElement("h2");
     h2.textContent = "Admin-Bereich";
     const p = document.createElement("p");
@@ -52,11 +274,10 @@ export function openAdminPanel(): void {
       placeholder: "Passwort",
       submitLabel: "Anmelden",
       mask: true,
+      extraKeys: true,
+      caseToggle: true,
       onSubmit: (value) => {
-        // Die Bildschirmtastatur kann nur Grossbuchstaben eingeben (kein
-        // Shift/Caps-Umschalter auf einem Touch-Kiosk noetig) -- Vergleich
-        // daher bewusst case-insensitive.
-        if (value.toLowerCase() === ADMIN_PASSWORD.toLowerCase()) {
+        if (value === ADMIN_PASSWORD) {
           renderAdminHome(panel, close);
         } else {
           error.textContent = "Falsches Passwort.";
@@ -75,7 +296,7 @@ export function openAdminPanel(): void {
     cancelBtn.addEventListener("click", close);
     cancel.appendChild(cancelBtn);
     panel.appendChild(cancel);
-  });
+  }, { onClose });
 }
 
 function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
@@ -95,6 +316,11 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   kioskTitle.textContent = "Kiosk-Modus (Vollbild) dieses Browserfensters:";
   kioskSection.appendChild(kioskTitle);
 
+  const kioskBtnRow = document.createElement("div");
+  kioskBtnRow.style.display = "flex";
+  kioskBtnRow.style.gap = "8px";
+  kioskBtnRow.style.flexWrap = "wrap";
+
   const kioskBtn = document.createElement("button");
   kioskBtn.type = "button";
   kioskBtn.className = "btn btn--accent";
@@ -110,42 +336,24 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
     }
     syncKioskLabel();
   });
-  kioskSection.appendChild(kioskBtn);
+  kioskBtnRow.appendChild(kioskBtn);
+
+  const kioskGuideBtn = document.createElement("button");
+  kioskGuideBtn.type = "button";
+  kioskGuideBtn.className = "btn btn--ghost";
+  kioskGuideBtn.textContent = "Kiosk-Modus-Anleitung";
+  kioskGuideBtn.addEventListener("click", () => openKioskGuideModal());
+  kioskBtnRow.appendChild(kioskGuideBtn);
+
+  kioskSection.appendChild(kioskBtnRow);
 
   const kioskHint = document.createElement("p");
   kioskHint.style.fontSize = "0.78rem";
   kioskHint.style.marginTop = "8px";
   kioskHint.textContent =
-    "Hinweis: Das steuert nur den Vollbildmodus dieser Webseite (Fullscreen API). Wurde Chromium mit --kiosk gestartet, hilft zum vollständigen Beenden nur ein Neustart des Browsers auf dem Gerät (siehe README).";
+    "Hinweis: Das steuert nur den Vollbildmodus dieser Webseite (Fullscreen API). Wurde der Browser richtig im Betriebssystem-Kiosk-Modus gestartet, hilft zum vollständigen Beenden nur ein Neustart des Browsers auf dem Gerät -- siehe „Kiosk-Modus-Anleitung“ oben.";
   kioskSection.appendChild(kioskHint);
   panel.appendChild(kioskSection);
-
-  // --- Statistik -------------------------------------------------------
-  const statsTitle = document.createElement("p");
-  statsTitle.style.color = "var(--text-muted)";
-  statsTitle.style.margin = "18px 0 8px";
-  statsTitle.textContent = "Spielstatistik:";
-  panel.appendChild(statsTitle);
-
-  const statsList = document.createElement("div");
-  statsList.style.display = "flex";
-  statsList.style.flexDirection = "column";
-  statsList.style.gap = "8px";
-  panel.appendChild(statsList);
-
-  renderStatsList(statsList);
-
-  const clearBtn = document.createElement("button");
-  clearBtn.type = "button";
-  clearBtn.className = "btn btn--ghost";
-  clearBtn.style.marginTop = "10px";
-  clearBtn.style.fontSize = "0.8rem";
-  clearBtn.textContent = "Statistik zurücksetzen";
-  clearBtn.addEventListener("click", () => {
-    clearAllStats();
-    renderStatsList(statsList);
-  });
-  panel.appendChild(clearBtn);
 
   // --- Feedback ----------------------------------------------------------
   const feedbackTitle = document.createElement("p");
@@ -186,6 +394,33 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
     renderFeedbackView(panel, close);
   });
 
+  // --- Statistik -------------------------------------------------------
+  const statsTitle = document.createElement("p");
+  statsTitle.style.color = "var(--text-muted)";
+  statsTitle.style.margin = "18px 0 8px";
+  statsTitle.textContent = "Spielstatistik:";
+  panel.appendChild(statsTitle);
+
+  const statsList = document.createElement("div");
+  statsList.style.display = "flex";
+  statsList.style.flexDirection = "column";
+  statsList.style.gap = "8px";
+  panel.appendChild(statsList);
+
+  renderStatsList(statsList);
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "btn btn--ghost";
+  clearBtn.style.marginTop = "10px";
+  clearBtn.style.fontSize = "0.8rem";
+  clearBtn.textContent = "Statistik zurücksetzen";
+  clearBtn.addEventListener("click", () => {
+    clearAllStats();
+    renderStatsList(statsList);
+  });
+  panel.appendChild(clearBtn);
+
   // --- Highscores ----------------------------------------------------------
   const highscoreTitle = document.createElement("p");
   highscoreTitle.style.color = "var(--text-muted)";
@@ -208,6 +443,56 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
     highscoreResetBtn.disabled = true;
   });
   panel.appendChild(highscoreResetBtn);
+
+  // --- Spiele ein-/ausblenden ------------------------------------------
+  const gamesTitle = document.createElement("p");
+  gamesTitle.style.color = "var(--text-muted)";
+  gamesTitle.style.margin = "18px 0 8px";
+  gamesTitle.textContent = "Spiele im Hauptmenü:";
+  panel.appendChild(gamesTitle);
+
+  const gamesList = document.createElement("div");
+  gamesList.style.display = "flex";
+  gamesList.style.flexDirection = "column";
+  gamesList.style.gap = "6px";
+  panel.appendChild(gamesList);
+
+  for (const game of gameRegistry) {
+    const row = document.createElement("label");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "10px";
+    row.style.padding = "8px 10px";
+    row.style.border = "1px solid var(--panel-border)";
+    row.style.borderRadius = "var(--radius-sm)";
+    row.style.cursor = "pointer";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    // Groesser als der winzige Browser-Standard -- auf einem Touchscreen
+    // sonst kaum treffsicher antippbar.
+    checkbox.style.width = "20px";
+    checkbox.style.height = "20px";
+    checkbox.style.flexShrink = "0";
+    checkbox.checked = isGameEnabled(game.id);
+    checkbox.addEventListener("change", () => {
+      setGameEnabled(game.id, checkbox.checked);
+    });
+    row.appendChild(checkbox);
+
+    const label = document.createElement("span");
+    label.textContent = game.title;
+    row.appendChild(label);
+
+    gamesList.appendChild(row);
+  }
+
+  const gamesHint = document.createElement("p");
+  gamesHint.style.fontSize = "0.78rem";
+  gamesHint.style.color = "var(--text-faint)";
+  gamesHint.style.marginTop = "6px";
+  gamesHint.textContent = "Abgehakte Spiele erscheinen im Hauptmenü. Ausgehakte bleiben erhalten (inkl. Highscores), sind nur ausgeblendet.";
+  panel.appendChild(gamesHint);
 
   // --- Schliessen --------------------------------------------------------
   const actions = document.createElement("div");
@@ -307,6 +592,11 @@ function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean): HTMLElement
   message.style.color = "var(--text)";
   message.style.fontSize = "0.92rem";
   message.style.whiteSpace = "pre-wrap";
+  // pre-wrap allein bricht nur an Leerzeichen/Zeilenumbruechen um -- ein
+  // einzelnes langes "Wort" ohne Leerzeichen (z. B. eine URL oder wildes
+  // Getippe) ragte dadurch weiterhin ueber den Rand hinaus. overflowWrap
+  // erzwingt bei Bedarf zusaetzlich einen Umbruch mitten im Wort.
+  message.style.overflowWrap = "break-word";
   message.textContent = entry.message;
   row.appendChild(message);
 

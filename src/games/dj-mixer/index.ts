@@ -23,13 +23,37 @@ interface ScheduledStep {
   time: number;
 }
 
+/**
+ * Startmuster statt eines komplett leeren Rasters: ein einfacher Grundbeat
+ * aus den ersten drei (synthetisierten) Zeilen -- Kick ("Tür zu"), Snare
+ * ("Weiche"), Hi-Hat ("Bremse"). Alle anderen Zeilen bleiben leer, man soll
+ * ja selbst weitermischen. Klassischer Backbeat: Kick auf Schlag 1+3, Snare
+ * auf Schlag 2+4, Hi-Hat auf jeder Achtel -- "Schlag" bezogen auf
+ * STEPS_PER_BAR (ein "Takt" im Sinn dieses Reglers, siehe oben).
+ */
+function buildDefaultGrid(stepCount: number): boolean[][] {
+  return SOUND_DEFS.map((_, row) => {
+    const line = new Array(stepCount).fill(false);
+    if (row > 2) return line;
+    for (let s = 0; s < stepCount; s++) {
+      const beatIndex = Math.floor(s / STEPS_PER_BAR);
+      const isDownbeat = s % STEPS_PER_BAR === 0;
+      const beatInMeasure = beatIndex % 4;
+      if (row === 0) line[s] = isDownbeat && (beatInMeasure === 0 || beatInMeasure === 2);
+      else if (row === 1) line[s] = isDownbeat && (beatInMeasure === 1 || beatInMeasure === 3);
+      else line[s] = s % 2 === 0;
+    }
+    return line;
+  });
+}
+
 function createDjMixerGame(): MinigameModule {
   let audioCtx: AudioContext | null = null;
   let closeIntro: (() => void) | null = null;
   let masterGain: GainNode | null = null;
 
   let bars = DEFAULT_BARS;
-  let grid: boolean[][] = SOUND_DEFS.map(() => new Array(bars * STEPS_PER_BAR).fill(false));
+  let grid: boolean[][] = buildDefaultGrid(bars * STEPS_PER_BAR);
   let playing = false;
   let currentSchedulerStep = 0;
   let nextStepTime = 0;
@@ -205,10 +229,11 @@ function createDjMixerGame(): MinigameModule {
 
   /**
    * Berechnet aus der tatsaechlich verfuegbaren Hoehe von seqHost eine
-   * gemeinsame Zeilenhoehe, damit alle 16 Sound-Zeilen ohne vertikales
-   * Scrollen auf den Bildschirm passen -- die Breite folgt automatisch der
-   * CSS-Grid-Spaltenzahl (repeat(totalSteps(), 1fr)), reagiert also von
-   * selbst auf mehr/weniger Takte.
+   * gemeinsame Zeilenhoehe, damit alle Sound-Zeilen (Anzahl siehe
+   * SOUND_DEFS) ohne vertikales Scrollen auf den Bildschirm passen -- die
+   * Breite folgt automatisch der CSS-Grid-Spaltenzahl
+   * (repeat(totalSteps(), 1fr)), reagiert also von selbst auf mehr/weniger
+   * Takte.
    */
   function fitGridToContainer(): void {
     const rows = SOUND_DEFS.length;
@@ -324,7 +349,6 @@ function createDjMixerGame(): MinigameModule {
       playBtn = document.createElement("button");
       playBtn.type = "button";
       playBtn.className = "btn btn--accent";
-      playBtn.style.minWidth = "140px";
       playBtn.textContent = "▶ Abspielen";
       playBtn.addEventListener("click", togglePlay);
 

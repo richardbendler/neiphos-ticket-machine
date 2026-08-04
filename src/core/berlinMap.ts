@@ -1,5 +1,6 @@
 import { STATION_COORDS } from "../data/berlinStationCoords";
 import { transitLines } from "../data/berlinNetwork";
+import { BERLIN_BOUNDARY } from "../data/berlinBoundary";
 import { openModal } from "./modal";
 
 /**
@@ -71,6 +72,16 @@ const projectedLines = transitLines
 
 const projectedStations = Object.entries(STATION_COORDS).map(([name, c]) => ({ name, p: project(c.lat, c.lon) }));
 
+// Stadtgrenze als Hintergrund-Silhouette -- gibt der Karte einen festen
+// Bezugsrahmen ("bin ich mittig in der Stadt oder eher am Rand?"), den
+// reine Linien/Punkte ohne jede Flaeche/Kontur nicht liefern.
+const projectedBoundary = BERLIN_BOUNDARY.map(([lat, lon]) => project(lat, lon));
+const boundaryPathD = projectedBoundary.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") + " Z";
+
+function setViewBox(svg: SVGSVGElement, vb: { x: number; y: number; w: number; h: number }): void {
+  svg.setAttribute("viewBox", `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`);
+}
+
 function buildMapSvg(startName: string, targetName: string, aspect: number): SVGSVGElement {
   const a = STATION_COORDS[startName];
   const b = STATION_COORDS[targetName];
@@ -80,8 +91,12 @@ function buildMapSvg(startName: string, targetName: string, aspect: number): SVG
   if (!a || !b) return svg;
   const pa = project(a.lat, a.lon);
   const pb = project(b.lat, b.lon);
-  const vb = computeViewBox(pa, pb, aspect);
-  svg.setAttribute("viewBox", `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`);
+  setViewBox(svg, computeViewBox(pa, pb, aspect));
+
+  const boundaryPath = svgEl("path");
+  boundaryPath.setAttribute("d", boundaryPathD);
+  boundaryPath.setAttribute("class", "berlin-map__boundary");
+  svg.appendChild(boundaryPath);
 
   const linesLayer = svgEl("g");
   for (const line of projectedLines) {
@@ -163,8 +178,34 @@ export function createBerlinMap(): BerlinMapHandle {
 
   let closeExpanded: (() => void) | null = null;
 
+  // Zoom-Grenzen relativ zur vollen Kartenbreite (VIEW_W): mehr als ca.
+  // 25x reinzoomen macht die Strecke nicht mehr lesbar (Stationsabstaende
+  // im projizierten Koordinatensystem), weiter als die volle Netzbreite
+  // rauszoomen bringt nichts, weil dann ohnehin nur noch Leerraum drumherum
+  // sichtbar waere.
+  const ZOOM_MIN_W = VIEW_W * 0.04;
+  const ZOOM_MAX_W = VIEW_W * 1.3;
+
   el.addEventListener("click", () => {
     if (!currentStart || !currentTarget) return;
+    const a = STATION_COORDS[currentStart];
+    const b = STATION_COORDS[currentTarget];
+    if (!a || !b) return;
+    const pa = project(a.lat, a.lon);
+    const pb = project(b.lat, b.lon);
+    let vb = computeViewBox(pa, pb, EXPANDED_ASPECT);
+    // Beim Oeffnen bewusst etwas weiter herausgezoomt starten als die enge
+    // Bar-Vorschau -- sonst sieht man beim ersten Blick oft nur eine
+    // kontextlose Nahaufnahme der Route, ohne jede Orientierung, wo in der
+    // Stadt man sich gerade befindet (siehe auch die neue Stadtgrenze unten).
+    const initialSpread = Math.min(ZOOM_MAX_W / vb.w, 1.8);
+    vb = {
+      x: vb.x - (vb.w * (initialSpread - 1)) / 2,
+      y: vb.y - (vb.h * (initialSpread - 1)) / 2,
+      w: vb.w * initialSpread,
+      h: vb.h * initialSpread,
+    };
+
     closeExpanded = openModal(
       (panel, close) => {
         const h2 = document.createElement("h2");
@@ -173,8 +214,39 @@ export function createBerlinMap(): BerlinMapHandle {
 
         const mapWrap = document.createElement("div");
         mapWrap.className = "berlin-map berlin-map--expanded";
-        mapWrap.appendChild(buildMapSvg(currentStart, currentTarget, EXPANDED_ASPECT));
+        const svg = buildMapSvg(currentStart, currentTarget, EXPANDED_ASPECT);
+        setViewBox(svg, vb); // ueberschreibt die enge Standard-viewBox mit der weiter herausgezoomten Start-Ansicht (siehe initialSpread oben)
+        mapWrap.appendChild(svg);
         panel.appendChild(mapWrap);
+
+        function zoom(factor: number): void {
+          const cx = vb.x + vb.w / 2;
+          const cy = vb.y + vb.h / 2;
+          const newW = Math.min(ZOOM_MAX_W, Math.max(ZOOM_MIN_W, vb.w * factor));
+          const newH = newW / EXPANDED_ASPECT;
+          vb = { x: cx - newW / 2, y: cy - newH / 2, w: newW, h: newH };
+          setViewBox(svg, vb);
+        }
+
+        const zoomRow = document.createElement("div");
+        zoomRow.className = "berlin-map__zoom-row";
+
+        const zoomOutBtn = document.createElement("button");
+        zoomOutBtn.type = "button";
+        zoomOutBtn.className = "btn btn--ghost";
+        zoomOutBtn.textContent = "−";
+        zoomOutBtn.setAttribute("aria-label", "Karte verkleinern");
+        zoomOutBtn.addEventListener("click", () => zoom(1.3));
+
+        const zoomInBtn = document.createElement("button");
+        zoomInBtn.type = "button";
+        zoomInBtn.className = "btn btn--ghost";
+        zoomInBtn.textContent = "+";
+        zoomInBtn.setAttribute("aria-label", "Karte vergrößern");
+        zoomInBtn.addEventListener("click", () => zoom(1 / 1.3));
+
+        zoomRow.append(zoomOutBtn, zoomInBtn);
+        panel.appendChild(zoomRow);
 
         const closeBtn = document.createElement("button");
         closeBtn.type = "button";

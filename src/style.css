@@ -59,7 +59,7 @@
      definiert, damit Spielbuehnen-Layouts (stage-top-bar, stage-center-panel,
      ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. */
   --header-h: 86px;
-  --footer-h: 46px;
+  --footer-h: 54px;
 
   color-scheme: light;
 }
@@ -240,8 +240,14 @@ button {
 }
 
 .chrome-bar__logo {
-  width: clamp(38px, 14vw, 74px);
-  height: clamp(38px, 14vw, 74px);
+  /* Logo-Datei wurde oben/unten auf die Schrift zugeschnitten (kein
+     quadratisches Motiv mehr) -- deshalb nur noch die Hoehe vorgeben und
+     die Breite ueber object-fit/das echte Seitenverhaeltnis mitwachsen
+     lassen, statt sie in eine quadratische Box zu zwaengen/verzerren. */
+  height: clamp(34px, 12.6vw, 67px);
+  width: auto;
+  max-width: 40vw;
+  object-fit: contain;
   flex-shrink: 0;
 }
 
@@ -335,16 +341,21 @@ button {
   bottom: calc(var(--safe-bottom) / 2);
   transform: translate(-50%, -50%);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  max-width: min(34%, 260px);
+  gap: 1px;
+  max-width: min(50%, 260px);
   color: var(--bezel-dark);
   font-size: clamp(0.52rem, 2.2vw, 0.68rem);
   letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.chrome-footer-credit__line {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
+  max-width: 100%;
 }
 
 .chrome-footer-credit strong {
@@ -352,9 +363,15 @@ button {
   font-weight: 700;
 }
 
+.chrome-footer-credit__line--sub {
+  font-style: italic;
+  font-size: 0.94em;
+}
+
 /* ---------- Hauptmenue ---------- */
 
 .menu-screen {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -367,8 +384,30 @@ button {
 }
 
 .menu-card {
+  position: relative;
+  /* z-index (auch wenn 0 sonst nichts an der sichtbaren Reihenfolge
+     aendern wuerde) ist hier notwendig, damit die Karte ueberhaupt einen
+     EIGENEN Stacking-Context aufmacht: "position:relative" alleine (ohne
+     einen von auto abweichenden z-index) tut das NICHT. Relevant fuer
+     jeden kuenftigen negativ-z-indexten Inhalt innerhalb der Karte -- ohne
+     eigenen Stacking-Context wuerde der bis hinter den Dokument-
+     Hintergrund durchrutschen und die Karte haette trotz korrekter
+     Position/Groesse (per getBoundingClientRect bestaetigt) schlicht keine
+     sichtbare Farbe mehr, weil die undurchsichtigen Hintergruende von
+     .menu-screen UND .menu-card selbst erst in einem SPAETEREN Painting-
+     Schritt (dem der Root-Stacking-Context, in Dokumentreihenfolge) vor ihr
+     gezeichnet werden. Mit eigenem Stacking-Context bleibt "-1" dagegen nur
+     INNERHALB der Karte hinter ihren Kindern (Titel/Kachel-Raster) -- exakt
+     das gewuenschte Verhalten. */
+  z-index: 0;
   width: 100%;
-  max-width: 1200px;
+  /* Vorher 1200px -- auf breiten Bildschirmen blieb die Karte dadurch
+     spuerbar schmaler als der verfuegbare Platz und wirkte fast quadratisch
+     eingesperrt. 1900px deckt die tatsaechliche JS-seitige Obergrenze ab
+     (3 Spalten x MAX_TILE_WIDTH 620px + Luecken, siehe MainMenu.ts) --
+     darueber hinaus wuerden die Kacheln ohnehin nicht weiter wachsen, ein
+     hoeherer Wert haette also keinen Effekt mehr. */
+  max-width: 1900px;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -403,13 +442,28 @@ button {
      Kacheln den Bildschirm wirklich ausfuellen sollen. Der Wert hier ist
      nur ein Platzhalter, bis der erste ResizeObserver-Callback feuert. */
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  justify-content: center;
-  align-content: center;
+  /* "safe center": zentriert wie gewohnt, solange alles reinpasst, faellt
+     aber auf Start-Ausrichtung zurueck statt Inhalt zu ueberlaufen, wenn der
+     Inhalt hoeher/breiter als der Container ist. Ohne "safe" wird bei
+     Ueberlauf mit reinem "center" das erste Element oben abgeschnitten UND
+     ist nicht mehr dorthin scrollbar (bekannte CSS-Falle bei
+     overflow:auto + align/justify-content:center). */
+  justify-content: safe center;
+  align-content: safe center;
   gap: 12px;
   width: 100%;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  /* Reserviert die Scrollbar-Breite IMMER, auch wenn (noch) nicht
+     gescrollt wird. Ohne das wird die Kachelbreite in MainMenu.ts anhand
+     der Breite VOR dem Erscheinen der Scrollbar berechnet -- sobald der
+     Inhalt dann hoch genug fuer eine Scrollbar wird, ist die gesetzte
+     Spaltenbreite um exakt deren Breite (konstant, unabhaengig von der
+     Bildschirmgroesse) zu breit, was permanent ein kleines horizontales
+     Scrollen ermoeglicht. */
+  scrollbar-gutter: stable;
   touch-action: pan-y;
 }
 
@@ -473,6 +527,23 @@ button {
   white-space: nowrap;
 }
 
+/* Bewusst andere Schriftart/-schnitt als Titel (var(--font)) und Untertitel
+   (erbt dieselbe) -- var(--font-display) + kursiv, damit der Zusatzhinweis
+   (z.B. "auch mit Huepftieren spielbar") klar als eigene, sekundaere
+   Notiz erkennbar ist statt wie ein Teil der Spielbeschreibung zu wirken. */
+.menu-tile__note {
+  display: block;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  font-size: calc(0.68rem * var(--menu-tile-scale, 1));
+  color: var(--tile-accent, var(--accent-dark));
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .menu-tile__icon {
   flex-shrink: 0;
   width: calc(46px * var(--menu-tile-scale, 1));
@@ -508,7 +579,17 @@ button {
 .highscore-board__game {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  /* Bewusst KEIN "overflow: hidden" mehr, um die abgerundeten Ecken an
+     Titel/letzter Zeile zu erzwingen (stattdessen runden Titel und letzte
+     Zeile ihre Ecken jetzt selbst ab, siehe unten): in diesem Headless-
+     Chromium (--disable-gpu) fuehrte "border-radius" + "overflow: hidden"
+     auf kurzen Containern (Titel + nur 1 Zeile) dazu, dass die Zeile
+     geometrisch korrekt lag (siehe getBoundingClientRect), aber komplett
+     unsichtbar war -- offenbar wurde sie an einer vom Layout abweichenden
+     Position gemalt und dadurch vom Clipping verschluckt. Bei mehrzeiligen
+     Sektionen (z.B. Passagiere zaehlen) trat der Effekt nicht auf, daher
+     fiel der Bug erst bei den meisten (einzeiligen) Spielen auf. Gleiches
+     Bug-Muster wie beim Hauptmenue (siehe MainMenu.ts/computeGridLayout). */
 }
 
 .highscore-board__game-title {
@@ -518,6 +599,11 @@ button {
   font-size: 0.95rem;
   color: #ffffff;
   background: var(--tile-accent, var(--primary));
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.highscore-board__row:last-child {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .highscore-board__row {
@@ -653,17 +739,49 @@ button {
   pointer-events: none;
 }
 
+/* Groessere, auffaelligere Variante fuer wichtige Auswahl-Buttons (z.B.
+   Memory: Spielart/Feldgroesse waehlen). Die Basis-.btn-Groesse ist in
+   festen px/rem definiert und skaliert nicht mit der Bildschirmgroesse --
+   auf grossen Kiosk-Bildschirmen wirken zentrale Auswahl-Buttons dadurch
+   verloren/winzig. clamp() sorgt dafuer, dass sie auf kleinen Screens nicht
+   groesser werden als vorher, auf grossen aber deutlich mitwachsen. */
+.btn--choice {
+  font-size: clamp(1.05rem, 2.8vw, 1.4rem);
+  padding: clamp(16px, 2.6vw, 24px) clamp(20px, 3.2vw, 32px);
+  border: 2px solid var(--accent-dark);
+}
+
 /* ---------- Modal / Overlay-Panels (Admin, Highscore-Namenseingabe, ...) ---------- */
 
 .modal-scrim {
   position: fixed;
-  inset: 0;
+  /* Vorher inset:0 -- die Kopf-/Fussleiste (z-index 1100, siehe .chrome-bar/
+     .chrome-footer-bar) liegen dadurch ueber dem oberen/unteren Rand des
+     Scrims, ein hoher Modal-Inhalt (z. B. Kiosk-Modus-Anleitung, Admin-
+     Bereich) konnte also visuell HINTER der Kopfleiste beginnen bzw. an der
+     Fussleiste enden -- der obere/untere Rand des Inhalts wirkte dadurch
+     abgeschnitten (gemeldeter Bug). Der Scrim (und damit auch das darin
+     zentrierte Panel samt max-height) reicht jetzt nur noch von knapp unter
+     der Kopfleiste bis knapp ueber der Fussleiste -- "knapp" durch die
+     zusaetzlichen 8px, das padding darunter sorgt fuer den vom Nutzer
+     gewuenschten kleinen Rest-Abstand.
+     Vgl. .stage-highscore-banner. */
+  top: calc(var(--header-h) + 8px + var(--safe-top));
+  bottom: calc(var(--footer-h) + 8px + var(--safe-bottom));
+  left: 0;
+  right: 0;
   background: rgba(30, 34, 37, 0.55);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* "safe center": bei zu grossem Inhalt (z.B. Admin-Login mit voller
+     Tastatur auf kleinem Bildschirm) faellt die Zentrierung auf Start-
+     Ausrichtung zurueck, statt den Anfang des Panels abzuschneiden und
+     unerreichbar zu machen (bekannte CSS-Falle bei align/justify-content:
+     center + Overflow, siehe auch .menu-grid). */
+  align-items: safe center;
+  justify-content: safe center;
   z-index: 1000;
-  padding: 20px;
+  padding: 12px 20px;
+  overflow-y: auto;
 }
 
 .modal-panel {
@@ -675,7 +793,14 @@ button {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
-  padding: 22px;
+  /* Oben bewusst mehr Polsterung als an den anderen Seiten: bei Panels mit
+     mehr Inhalt als Platz (z.B. Admin-Bereich, Kiosk-Modus-Anleitung) malt
+     dieses Headless-Chromium (--disable-gpu) den obersten Bereich eines
+     scrollbaren Containers (scrollTop 0) versetzt/ausserhalb seiner eigenen
+     Box -- der Titel wirkte dadurch abgeschnitten UND war nicht dorthin
+     scrollbar. Empirisch ermittelt: 22px Polsterung reichte nicht, ab ca.
+     40px war der Effekt zuverlaessig weg (siehe auch .modal-panel h2). */
+  padding: 44px 22px 22px;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15), 0 16px 40px rgba(0, 0, 0, 0.3);
 }
 
@@ -860,6 +985,44 @@ button {
   border-color: var(--accent-dark);
 }
 
+/* Erweiterte Tastatur (aktuell nur Admin-Login, siehe extraKeys-Option in
+   OnScreenKeyboard.ts): Buchstaben-Tastatur links, zusaetzliches
+   Zahlenfeld rechts daneben -- eine einzige Tastatur statt zwei getrennter. */
+.osk__with-extra {
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.osk__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.osk__numpad {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 132px;
+}
+
+.osk__numpad .osk__key {
+  height: 40px;
+  font-size: 1.05rem;
+}
+
+.osk__row--center {
+  justify-content: center;
+}
+
+.osk__row--center .osk__key {
+  flex: 0 0 auto;
+  width: 40px;
+}
+
 /* ---------- Generische Bausteine fuer Spiel-UIs (Chips, Listen, Breadcrumb) ---------- */
 
 .scroll-list {
@@ -874,20 +1037,31 @@ button {
   gap: 6px;
 }
 
+/* Verbindungssuche-Linienauswahl: Polsterung/Schrift schrumpfen mit der
+   Fensterhoehe (vh-basiert), damit auf Handy-Hochkant (wenig Hoehe, viele
+   Zeilen: 3 Verkehrsmittel-Gruppen mit je einer eigenen Chip-Reihe) das
+   Spiel eher ohne Scrollen komplett auf den Bildschirm passt. */
+
 /* Linien-Auswahl bei der Verbindungssuche: statt kleiner, eng gepackter
    Pillen ein responsives Raster, das den verfuegbaren Platz ausfuellt und
    auf breiteren/hoeheren Bildschirmen entsprechend groesser wird. */
 .chip-row--picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  gap: 8px;
+  /* Vorher CSS-Grid mit auto-fill: Reihen mit weniger Eintraegen als
+     Spalten (z.B. Tram mit nur 2-3 Linien) blieben dabei linksbuendig
+     stehen, mit leeren Spalten rechts -- wirkte nicht zentriert. Flexbox
+     mit wrap+justify-content:center zentriert kurze Reihen automatisch. */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(4px, 1.4vh, 8px);
   width: 100%;
 }
 
 .chip--picker {
-  padding: 16px 8px;
-  font-size: 1.05rem;
-  width: 100%;
+  padding: clamp(8px, 3vh, 16px) clamp(6px, 2vw, 8px);
+  font-size: clamp(0.84rem, 2.6vh, 1.05rem);
+  flex: 1 1 72px;
+  max-width: 150px;
 }
 
 .chip {
@@ -913,6 +1087,10 @@ button {
   background: transparent;
   color: var(--text-muted);
   box-shadow: none;
+}
+
+.chip--removable {
+  cursor: pointer;
 }
 
 .list-row {
@@ -1086,8 +1264,16 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--header-h) + 30px + var(--safe-top));
-  bottom: calc(var(--footer-h) + 16px + var(--safe-bottom));
+  /* Vorher top:+30px / bottom:+16px -- da Kopf- (86px) und Fussleiste
+     (54px) unterschiedlich hoch sind, ergab das einen Kasten, dessen Mitte
+     spuerbar UNTER der echten Bildschirmmitte lag (per Auslagerung eines
+     mit justify-content:center zentrierten Inhalts entsprechend sichtbar
+     "zu tief" -- gemeldeter Bug bei diversen Auswahl-Screens). Beide Seiten
+     nutzen jetzt denselben Ausdruck (Durchschnitt aus Kopf-/Fusshoehe + 20px
+     Luft) -- der Kasten ist dadurch unabhaengig von der unterschiedlichen
+     Balkenhoehe symmetrisch zur echten Bildschirmmitte. */
+  top: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-top));
+  bottom: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-bottom));
   z-index: 15;
   display: flex;
   flex-direction: column;
@@ -1295,8 +1481,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: clamp(4px, 1.6vw, 10px);
+  padding: clamp(3px, 1vw, 6px) clamp(6px, 2vw, 12px);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
   background: var(--panel-alt);
@@ -1305,7 +1491,8 @@ button {
 .seq-controls__bpm {
   font-family: var(--font-display);
   font-weight: 700;
-  min-width: 64px;
+  font-size: clamp(0.72rem, 2.8vw, 1rem);
+  min-width: clamp(46px, 13vw, 64px);
   text-align: center;
 }
 
@@ -1315,6 +1502,21 @@ button {
   height: 28px;
   accent-color: var(--primary);
   touch-action: pan-x;
+}
+
+/* Kopfleisten-Buttons (BPM/Takte +/-, Abspielen, Leeren) sollen mit dem
+   Sound-Raster darunter mitschrumpfen -- die generische .btn-Groesse ist
+   fest in px/rem definiert und wirkt auf kleinen Bildschirmen dadurch
+   unproportional gross neben den (per ResizeObserver responsiv
+   skalierten) Sound-Buttons/Taktfeldern. */
+.seq-controls-bar .btn {
+  padding: clamp(6px, 1.8vw, 12px) clamp(10px, 3vw, 22px);
+  font-size: clamp(0.74rem, 2.8vw, 1rem);
+  min-width: 0;
+}
+
+.seq-controls-bar .btn--accent {
+  min-width: clamp(96px, 26vw, 140px);
 }
 
 /* ---------- Zugfoto: Kamera-Ausloeser ---------- */
@@ -1370,7 +1572,7 @@ button {
 
 .berlin-map--collapsed {
   width: 100%;
-  height: 84px;
+  height: clamp(56px, 11vh, 84px);
   cursor: pointer;
 }
 
@@ -1398,6 +1600,16 @@ button {
   pointer-events: none;
 }
 
+.berlin-map__boundary {
+  fill: var(--primary);
+  fill-opacity: 0.07;
+  stroke: var(--primary);
+  stroke-opacity: 0.5;
+  stroke-width: 3;
+  stroke-dasharray: 6 5;
+  vector-effect: non-scaling-stroke;
+}
+
 .berlin-map__dot {
   fill: var(--text-faint);
   opacity: 0.45;
@@ -1414,6 +1626,20 @@ button {
 
 .berlin-map__marker--target {
   fill: var(--accent-dark);
+}
+
+.berlin-map__zoom-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.berlin-map__zoom-row .btn {
+  min-width: 52px;
+  padding: 8px 18px;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .berlin-map__label {

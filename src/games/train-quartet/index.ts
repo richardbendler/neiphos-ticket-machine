@@ -11,15 +11,46 @@ const GAME_ID = "train-quartet";
 const STAT_KEYS = Object.keys(STAT_LABELS) as (keyof TrainStats)[];
 const CARD_GAP = 12;
 const SLIDE_DURATION = 0.45;
+// Festes Seitenverhaeltnis (aus der frueheren Basisgroesse 340x460
+// abgeleitet) -- Karten behalten dadurch IMMER dieselbe Breite, egal ob
+// gerade eine (reveal-player) oder zwei (comparing) nebeneinander stehen.
+// Vorher hatte die Paar-Ansicht eine eigene, schmalere Breite (250px statt
+// 340px) -- die Karten "sprangen" beim Umschalten sichtbar in der Groesse,
+// was ausdruecklich nicht gewuenscht war.
+const CARD_ASPECT = 340 / 460;
+const MAX_CARD_WIDTH = 340;
+// Dauer des kurzen Aufleucht-Effekts am Zielstapel, nachdem die Karten dort
+// "gelandet" sind (siehe drawDeckStack/finishTransition).
+const STACK_FLASH_DURATION = 0.5;
+// Persistente Kartenstapel-Anzeige links (eigenes Deck) und rechts
+// (Computer-Deck) neben der Spielkarte, ersetzt die frühere reine Textzeile.
+// Basisgroesse bei scale=1 -- render() berechnet daraus einen Skalierungs-
+// faktor, der mit dem verfuegbaren Rand-Platz waechst (nie kleiner als 1),
+// damit der Stapel auf breiten Bildschirmen den vielen leeren Platz links/
+// rechts der Karte tatsaechlich nutzt statt winzig zu bleiben. Bis maximal
+// STACK_MAX_VISUAL gezeichnete Karten -- mehr wuerde optisch ueberladen,
+// ab da wird nur noch die Zahl groesser, nicht mehr der Stapel.
+const STACK_CARD_W = 30;
+const STACK_CARD_H = 42;
+const STACK_MAX_VISUAL = 10;
+const STACK_STEP_Y = 2.6;
+const STACK_FAN_X = 0.9;
+const STACK_MAX_SCALE = 2.6;
 // Klar begrenztes Rundensystem statt "spiele, bis jemand alle Karten hat"
 // (kann sich sonst ueber sehr viele Runden ziehen bzw. theoretisch nie
 // enden) -- 10 Runden, eine je Startkarte, macht klar erkennbar, wie lange
 // das Spiel noch geht.
 const TOTAL_ROUNDS = 10;
-const HIGHSCORE_POPUP_DELAY_MS = 2000;
+const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
 
-function formatRoundWins(value: number): string {
-  return value === 1 ? "1 Runde" : `${value} Runden`;
+// Highscore-Metrik ist die gesammelte Kartenzahl am Spielende, nicht die
+// Anzahl gewonnener Runden -- das eigentliche Spielprinzip (Top-Trumps) ist
+// "Karten sammeln", nicht "moeglichst viele Einzel-Vergleiche fuer sich
+// entscheiden" (bei Unentschieden wandern Karten erstmal nur in den Pot und
+// werden erst spaeter von jemand anderem "mitgenommen" -- Rundensiege und
+// gesammelte Karten sind also nicht 1:1 dasselbe).
+function formatCardCount(value: number): string {
+  return value === 1 ? "1 Karte" : `${value} Karten`;
 }
 
 // "sliding-in": die aufgedeckte Computer-Karte faehrt von rechts herein,
@@ -80,6 +111,10 @@ function createTrainQuartetGame(): MinigameModule {
   let chosenStat: keyof TrainStats | null = null;
   let outcome: Outcome | null = null;
   let animTimer = 0;
+  // Fuer den auf/ab-huepfenden Pfeil beim allerersten Zug jeder Partie
+  // (roundsPlayed === 0, siehe render()) -- laeuft einfach durch, kein
+  // Reset noetig (Bounce-Phase beim naechsten Spielstart ist irrelevant).
+  let tutorialPulseTimer = 0;
   // Schnappschuss der beiden Karten, die gerade verglichen werden --
   // getrennt vom "lebenden" Deck-Zustand (der schon direkt beim Aufdecken
   // mutiert wird), damit sliding-in/comparing/sliding-out immer noch die
@@ -87,6 +122,11 @@ function createTrainQuartetGame(): MinigameModule {
   // schon die naechste Runde meinen.
   let displayedPlayerCard: TrainCard | null = null;
   let displayedCpuCard: TrainCard | null = null;
+  // Kurzer Aufleucht-Effekt am Zielstapel, nachdem die Karten dort beim
+  // "sliding-out" gelandet sind -- side legt fest, welcher Stapel leuchtet,
+  // timer zaehlt bis STACK_FLASH_DURATION hoch (siehe update()/drawDeckStack()).
+  let stackFlashSide: "left" | "right" | null = null;
+  let stackFlashTimer = 0;
   let statRects: Array<{ stat: keyof TrainStats; rect: Rect }> = [];
   let continueBtn: HTMLButtonElement | null = null;
   let messageEl: HTMLDivElement | null = null;
@@ -111,6 +151,8 @@ function createTrainQuartetGame(): MinigameModule {
     outcome = null;
     displayedPlayerCard = null;
     displayedCpuCard = null;
+    stackFlashSide = null;
+    stackFlashTimer = 0;
     roundsPlayed = 0;
     playerRoundWins = 0;
     cpuRoundWins = 0;
@@ -196,6 +238,16 @@ function createTrainQuartetGame(): MinigameModule {
   }
 
   function finishTransition(): void {
+    // Zielstapel kurz aufleuchten lassen, wenn die Karten wirklich bei
+    // jemandem gelandet sind (bei einem Unentschieden wandern sie in den
+    // Pot, keiner der beiden Stapel "gewinnt" also etwas).
+    if (outcome === "player") {
+      stackFlashSide = "left";
+      stackFlashTimer = 0;
+    } else if (outcome === "cpu") {
+      stackFlashSide = "right";
+      stackFlashTimer = 0;
+    }
     displayedPlayerCard = null;
     displayedCpuCard = null;
     chosenStat = null;
@@ -207,15 +259,16 @@ function createTrainQuartetGame(): MinigameModule {
   }
 
   function finishGame(): void {
-    const outcomeResult = getHighscoreOutcome(GAME_ID, playerRoundWins, "higher-better");
+    const outcomeResult = getHighscoreOutcome(GAME_ID, playerDeck.length, "higher-better");
     if (outcomeResult === "none") return;
     highscoreTimer = setTimeout(() => {
       highscoreTimer = null;
       closeHighscoreModal = promptHighscoreName({
-        message: `${formatRoundWins(playerRoundWins)} gewonnen — ${outcomeResult === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        message: `${formatCardCount(playerDeck.length)} gesammelt — ${outcomeResult === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
         onDone: (name) => {
           closeHighscoreModal = null;
-          highscoreBanner.update(recordHighscore(GAME_ID, name, playerRoundWins, "higher-better"));
+          if (name === null) return;
+          highscoreBanner.update(recordHighscore(GAME_ID, name, playerDeck.length, "higher-better"));
         },
       });
     }, HIGHSCORE_POPUP_DELAY_MS);
@@ -241,6 +294,106 @@ function createTrainQuartetGame(): MinigameModule {
     ctx.closePath();
   }
 
+  /**
+   * Zeichnet einen einzelnen Kartenstapel (mehrere leicht versetzt gestapelte
+   * Kartenrueckseiten, oberste Karte mit Akzent-Streifen) samt Besitzer-
+   * Label und Kartenzahl darueber. anchorX ist die horizontale Mitte des
+   * Stapels, centerY die vertikale Mitte der gesamten Anzeige (Label +
+   * Stapel zusammen) -- dieselbe vertikale Mitte wie die Spielkarte(n) in
+   * der Bildschirmmitte, damit der Stapel nicht mehr nur in einem schmalen
+   * Kopfbereich klebt, sondern wirklich auf gleicher Hoehe "steht". scale
+   * skaliert Kartengroesse, Versatz UND Schrift gemeinsam -- waechst mit
+   * dem verfuegbaren Rand-Platz (siehe render()), schrumpft aber nie unter
+   * die urspruengliche Basisgroesse (scale >= 1). side steuert nur die
+   * Fächer-Richtung (Stapel faechert leicht nach aussen auf), damit linker
+   * und rechter Stapel sich optisch spiegeln statt identisch zu wirken.
+   * glowStrength (0-1) zeichnet einen kurzen, verblassenden Leuchtring
+   * dahinter -- signalisiert "hier sind die Karten gerade angekommen"
+   * (siehe stackFlashSide/-Timer).
+   */
+  function drawDeckStack(
+    ctx: CanvasRenderingContext2D,
+    anchorX: number,
+    centerY: number,
+    scale: number,
+    count: number,
+    side: "left" | "right",
+    glowStrength = 0,
+  ): void {
+    const owner = side === "left" ? "DU" : "COMPUTER";
+    const accent = side === "left" ? theme.accent : "#7e5330";
+
+    const cardW = STACK_CARD_W * scale;
+    const cardH = STACK_CARD_H * scale;
+    const stepY = STACK_STEP_Y * scale;
+    const fanX = STACK_FAN_X * scale;
+    const maxStackHeight = cardH + (STACK_MAX_VISUAL - 1) * stepY;
+    const labelFont = Math.round(12 * scale);
+    const countFont = Math.round(10 * scale);
+
+    // Label + Zahl sitzen als fester Block ueber der maximal moeglichen
+    // Stapelhoehe -- so bleibt ihre Position stabil, unabhaengig davon, wie
+    // hoch der Stapel gerade tatsaechlich ist (waechst nur nach unten in
+    // Richtung baseY).
+    const baseY = centerY + maxStackHeight / 2;
+    const labelY = baseY - maxStackHeight - 18 * scale;
+    const countY = baseY - maxStackHeight - 4 * scale;
+
+    if (glowStrength > 0) {
+      const glowCx = anchorX;
+      const glowCy = baseY - maxStackHeight / 2;
+      const glowR = Math.max(cardW, maxStackHeight) * 0.75;
+      const grad = ctx.createRadialGradient(glowCx, glowCy, 0, glowCx, glowCy, glowR);
+      grad.addColorStop(0, `rgba(255, 215, 90, ${0.55 * glowStrength})`);
+      grad.addColorStop(1, "rgba(255, 215, 90, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(glowCx, glowCy, glowR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.save();
+    if (count <= 0) {
+      // Leerer Stapel: gestrichelter Platzhalter statt einer "Karte", die
+      // es gar nicht mehr gibt.
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      roundRect(ctx, anchorX - cardW / 2, baseY - cardH, cardW, cardH, 5 * scale);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      const visual = Math.min(count, STACK_MAX_VISUAL);
+      const fanDir = side === "left" ? -1 : 1;
+      for (let i = visual - 1; i >= 0; i--) {
+        const cardX = anchorX - cardW / 2 + i * fanX * fanDir;
+        const cardY = baseY - cardH - i * stepY;
+        const isTop = i === 0;
+        ctx.fillStyle = isTop ? theme.paper : "#efe8d8";
+        roundRect(ctx, cardX, cardY, cardW, cardH, 5 * scale);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.2)";
+        ctx.lineWidth = 1;
+        roundRect(ctx, cardX, cardY, cardW, cardH, 5 * scale);
+        ctx.stroke();
+        if (isTop) {
+          ctx.fillStyle = accent;
+          roundRect(ctx, cardX + 5 * scale, cardY + 7 * scale, cardW - 10 * scale, 6 * scale, 3 * scale);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = `800 ${labelFont}px ${theme.fontDisplay}`;
+    ctx.textAlign = "center";
+    ctx.fillText(owner, anchorX, labelY);
+    ctx.fillStyle = theme.textFaint;
+    ctx.font = `600 ${countFont}px ${theme.font}`;
+    ctx.fillText(count === 1 ? "1 Karte" : `${count} Karten`, anchorX, countY);
+  }
+
   function drawCardFace(
     ctx: CanvasRenderingContext2D,
     rect: Rect,
@@ -260,7 +413,10 @@ function createTrainQuartetGame(): MinigameModule {
     // Bild bekommt nur, was danach uebrig bleibt. So ueberlappt bei wenig
     // Platz (z. B. Querformat mit geringer Bildschirmhoehe) nie der Text,
     // sondern hoechstens das Foto wird kleiner.
-    const rowHeight = 24;
+    // Vorher 24 -- auf ausdruecklichen Wunsch etwas groesser, damit klarer
+    // erkennbar ist, dass die Zeilen antippbare Ziele sind (nicht nur reiner
+    // Datentext).
+    const rowHeight = 29;
     const nameBlockHeight = 34;
     const statsBlockHeight = rowHeight * STAT_KEYS.length;
     const imgHeight = Math.max(36, rect.height - padding * 2 - nameBlockHeight - statsBlockHeight);
@@ -372,7 +528,7 @@ function createTrainQuartetGame(): MinigameModule {
       wrap.appendChild(continueBtn);
       env.overlay.appendChild(wrap);
 
-      highscoreBanner = mountHighscoreBanner(env.overlay, formatRoundWins);
+      highscoreBanner = mountHighscoreBanner(env.overlay, formatCardCount);
       highscoreBanner.update(getHighscoreBoard(GAME_ID));
 
       newGame();
@@ -392,6 +548,7 @@ function createTrainQuartetGame(): MinigameModule {
     },
 
     update(dt: number) {
+      tutorialPulseTimer += dt;
       if (phase === "sliding-in") {
         animTimer += dt;
         if (animTimer >= SLIDE_DURATION) {
@@ -406,6 +563,10 @@ function createTrainQuartetGame(): MinigameModule {
           finishTransition();
         }
       }
+      if (stackFlashSide) {
+        stackFlashTimer += dt;
+        if (stackFlashTimer >= STACK_FLASH_DURATION) stackFlashSide = null;
+      }
     },
 
     render(env: GameEnv) {
@@ -414,20 +575,37 @@ function createTrainQuartetGame(): MinigameModule {
       ctx.fillRect(0, 0, size.width, size.height);
 
       // Kartenblock wird innerhalb des verfuegbaren Platzes (unter der Kopf-
-      // zeile, ueber dem unteren Rand) vertikal zentriert, statt fest oben
-      // zu kleben -- auf hohen Bildschirmen blieb sonst darunter viel toter
-      // Platz.
-      const headerBottom = 210;
-      const bottomMargin = 70;
+      // zeile, ueber dem unteren Rand) platziert -- bewusst NICHT mehr exakt
+      // vertikal zentriert (siehe topBias unten), sondern naeher an der
+      // Kopfzeile, damit auf hohen Bildschirmen nicht so viel Platz ueber der
+      // Karte ungenutzt bleibt. bottomMargin ist grosszuegig genug bemessen,
+      // um die (variabel hohe) Rundenergebnis-Box unten IMMER unterzubringen,
+      // egal in welcher Phase -- vorher war das nur ein Schaetzwert (70px),
+      // der auf mittelgrossen Bildschirmen von der tatsaechlichen Box-Hoehe
+      // (Message + Punktzahl + Weiter-Button) ueberschritten wurde und sich
+      // sichtbar mit der Karte ueberlagerte (gemeldeter Bug).
+      const headerBottom = 232;
+      const bottomMargin = 210;
       const availableHeight = Math.max(120, size.height - headerBottom - bottomMargin);
-      const singleCardWidth = Math.min(size.width - 32, 340);
-      const pairCardWidth = Math.min((size.width - 32 - CARD_GAP) / 2, 250);
-      const cardHeight = Math.min(availableHeight, 460);
-      const topOffset = headerBottom + (availableHeight - cardHeight) / 2;
-      const singleX = (size.width - singleCardWidth) / 2;
-      const pairTotalWidth = pairCardWidth * 2 + CARD_GAP;
+      // Festes Seitenverhaeltnis (CARD_ASPECT) statt getrennter Breiten fuer
+      // Einzel-/Paar-Ansicht -- dieselbe cardWidth gilt fuer beide, damit die
+      // Karten beim Umschalten nicht mehr sichtbar schmaler/breiter werden.
+      const maxPairCardWidth = (size.width - 32 - CARD_GAP) / 2;
+      let cardWidth = Math.min(MAX_CARD_WIDTH, maxPairCardWidth);
+      let cardHeight = cardWidth / CARD_ASPECT;
+      if (cardHeight > availableHeight) {
+        cardHeight = availableHeight;
+        cardWidth = cardHeight * CARD_ASPECT;
+      }
+      // topBias < 0.5: die Karte sitzt naeher an der Kopfzeile als an der
+      // (grosszuegig bemessenen) unteren Reserve -- auf hohen Bildschirmen
+      // sammelt sich der uebrige Leerraum dadurch eher unten statt oben.
+      const topBias = 0.18;
+      const topOffset = headerBottom + (availableHeight - cardHeight) * topBias;
+      const singleX = (size.width - cardWidth) / 2;
+      const pairTotalWidth = cardWidth * 2 + CARD_GAP;
       const pairLeftX = (size.width - pairTotalWidth) / 2;
-      const pairRightX = pairLeftX + pairCardWidth + CARD_GAP;
+      const pairRightX = pairLeftX + cardWidth + CARD_GAP;
 
       // Rundenstand -- klar erkennbar, in welcher Runde man ist und wie
       // lange das Spiel (bis TOTAL_ROUNDS) noch geht. Deutlich tiefer als
@@ -436,18 +614,45 @@ function createTrainQuartetGame(): MinigameModule {
       // Schrift, da das der zentrale "wo stehe ich gerade"-Hinweis ist.
       const roundNumber = Math.min(TOTAL_ROUNDS, roundsPlayed + (phase === "reveal-player" ? 1 : 0));
       ctx.fillStyle = theme.accent;
-      ctx.font = `800 19px ${theme.fontDisplay}`;
+      ctx.font = `800 34px ${theme.fontDisplay}`;
       ctx.textAlign = "center";
-      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, 150);
+      // y=172 statt 150: die groessere Schrift (34px statt vorher 19px)
+      // ragte bei 150 bis in die darueberliegende Highscore-Banner-Pille
+      // hinein (die sitzt fix knapp unter dem Header, siehe
+      // stage-highscore-banner in style.css).
+      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, 172);
 
-      ctx.fillStyle = theme.textMuted;
-      ctx.font = `600 14px ${theme.font}`;
-      ctx.textAlign = "center";
-      ctx.fillText(
-        `Computer: ${cpuDeck.length} Karten${pot.length > 0 ? `  ·  Pot: ${pot.length}` : ""}  ·  Du: ${playerDeck.length} Karten`,
-        size.width / 2,
-        176,
-      );
+      if (pot.length > 0) {
+        ctx.fillStyle = theme.textFaint;
+        ctx.font = `600 11px ${theme.font}`;
+        ctx.textAlign = "center";
+        ctx.fillText(`Pot: ${pot.length}`, size.width / 2, 197);
+      }
+
+      // Kartenstapel links (DU) und rechts (Computer) -- persistent in jeder
+      // Phase sichtbar, wachsen/schrumpfen visuell mit der Kartenzahl UND
+      // (per stackScale) mit dem Rand-Platz neben der Spielkarte: auf
+      // schmalen Bildschirmen bleibt die Basisgroesse (scale=1) erhalten,
+      // auf breiten Bildschirmen mit viel Luft links/rechts der Karte
+      // wachsen die Stapel sichtbar mit -- vertikal auf gleicher Mitte wie
+      // die Karte(n) selbst, nicht mehr nur im schmalen Kopfbereich.
+      const sideMargin = Math.max(0, (size.width - pairTotalWidth) / 2);
+      const stackWidthScale = Math.max(1, (sideMargin - 24) / (STACK_CARD_W + 20));
+      const stackHeightScale = Math.max(1, cardHeight / 280);
+      const stackScale = Math.min(STACK_MAX_SCALE, Math.min(stackWidthScale, stackHeightScale));
+      const stackCenterY = topOffset + cardHeight / 2;
+      // Sicherheitsabstand zum echten Bildschirmrand -- auf sehr schmalen
+      // Bildschirmen waere sideMargin/2 sonst kleiner als der halbe (schon
+      // auf Basisgroesse skalierte) Stapel bzw. als das breitere "COMPUTER"-
+      // Label (34px halbe Breite bei scale=1, empirisch) und wuerde beide
+      // am Bildschirmrand abschneiden.
+      const stackEdgeSafeAnchor = Math.max((STACK_CARD_W * stackScale) / 2, 34 * stackScale) + 8;
+      const leftStackX = Math.max(stackEdgeSafeAnchor, sideMargin / 2);
+      const rightStackX = size.width - Math.max(stackEdgeSafeAnchor, sideMargin / 2);
+      const leftGlow = stackFlashSide === "left" ? 1 - stackFlashTimer / STACK_FLASH_DURATION : 0;
+      const rightGlow = stackFlashSide === "right" ? 1 - stackFlashTimer / STACK_FLASH_DURATION : 0;
+      drawDeckStack(ctx, leftStackX, stackCenterY, stackScale, playerDeck.length, "left", leftGlow);
+      drawDeckStack(ctx, rightStackX, stackCenterY, stackScale, cpuDeck.length, "right", rightGlow);
 
       const drawLabel = (text: string, rect: Rect) => {
         ctx.fillStyle = theme.textFaint;
@@ -459,12 +664,39 @@ function createTrainQuartetGame(): MinigameModule {
       if (phase === "reveal-player") {
         const playerCard = playerDeck[0];
         if (playerCard) {
-          const rect: Rect = { x: singleX, y: topOffset, width: singleCardWidth, height: cardHeight };
+          const rect: Rect = { x: singleX, y: topOffset, width: cardWidth, height: cardHeight };
           drawCardFace(ctx, rect, playerCard, { interactive: true, highlightStat: null });
-          ctx.fillStyle = theme.textMuted;
-          ctx.font = `700 15px ${theme.fontDisplay}`;
-          ctx.textAlign = "center";
-          ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 24);
+
+          if (roundsPlayed === 0) {
+            // Grosser, sanft huepfender Pfeil + fette Anzeige beim allerersten
+            // Zug JEDER Partie (nicht nur beim allerersten Mal ueberhaupt) --
+            // auf Anhieb soll klar sein, dass die Statzeilen auf der Karte
+            // selbst antippbar sind.
+            const bounce = Math.sin(tutorialPulseTimer * 3.4) * 6;
+            const arrowCenterX = size.width / 2;
+            const arrowTopY = rect.y + rect.height + 14 + bounce;
+            ctx.fillStyle = theme.accent;
+            ctx.beginPath();
+            ctx.moveTo(arrowCenterX, arrowTopY);
+            ctx.lineTo(arrowCenterX - 15, arrowTopY + 16);
+            ctx.lineTo(arrowCenterX - 6, arrowTopY + 16);
+            ctx.lineTo(arrowCenterX - 6, arrowTopY + 28);
+            ctx.lineTo(arrowCenterX + 6, arrowTopY + 28);
+            ctx.lineTo(arrowCenterX + 6, arrowTopY + 16);
+            ctx.lineTo(arrowCenterX + 15, arrowTopY + 16);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = theme.accent;
+            ctx.font = `800 19px ${theme.fontDisplay}`;
+            ctx.textAlign = "center";
+            ctx.fillText("Wähle eine Eigenschaft!", size.width / 2, arrowTopY + 54);
+          } else {
+            ctx.fillStyle = theme.textMuted;
+            ctx.font = `700 15px ${theme.fontDisplay}`;
+            ctx.textAlign = "center";
+            ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 24);
+          }
         }
         return;
       }
@@ -474,35 +706,50 @@ function createTrainQuartetGame(): MinigameModule {
 
       if (phase === "sliding-in") {
         const t = easeOutCubic(animTimer / SLIDE_DURATION);
-        const playerRect: Rect = {
-          x: lerp(singleX, pairLeftX, t),
-          y: topOffset,
-          width: lerp(singleCardWidth, pairCardWidth, t),
-          height: cardHeight,
-        };
-        const cpuRect: Rect = { x: lerp(size.width, pairRightX, t), y: topOffset, width: pairCardWidth, height: cardHeight };
+        const playerRect: Rect = { x: lerp(singleX, pairLeftX, t), y: topOffset, width: cardWidth, height: cardHeight };
+        const cpuRect: Rect = { x: lerp(size.width, pairRightX, t), y: topOffset, width: cardWidth, height: cardHeight };
         drawLabel("DU", playerRect);
         drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, highlightStat: null });
         drawLabel("COMPUTER", cpuRect);
         drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, highlightStat: null });
       } else if (phase === "comparing") {
-        const playerRect: Rect = { x: pairLeftX, y: topOffset, width: pairCardWidth, height: cardHeight };
-        const cpuRect: Rect = { x: pairRightX, y: topOffset, width: pairCardWidth, height: cardHeight };
+        const playerRect: Rect = { x: pairLeftX, y: topOffset, width: cardWidth, height: cardHeight };
+        const cpuRect: Rect = { x: pairRightX, y: topOffset, width: cardWidth, height: cardHeight };
         drawLabel("DU", playerRect);
         drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, opponent: displayedCpuCard, highlightStat: chosenStat });
         drawLabel("COMPUTER", cpuRect);
         drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, opponent: displayedPlayerCard, highlightStat: chosenStat });
       } else if (phase === "sliding-out") {
         const t = easeOutCubic(animTimer / SLIDE_DURATION);
-        const playerRect: Rect = { x: lerp(pairLeftX, -pairCardWidth - 30, t), y: topOffset, width: pairCardWidth, height: cardHeight };
-        const cpuRect: Rect = {
-          x: lerp(pairRightX, singleX, t),
-          y: topOffset,
-          width: lerp(pairCardWidth, singleCardWidth, t),
-          height: cardHeight,
-        };
-        drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, opponent: displayedCpuCard, highlightStat: chosenStat });
-        drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, opponent: displayedPlayerCard, highlightStat: chosenStat });
+        // Beide Karten fliegen gemeinsam zum Stapel der/des Gewinnenden
+        // (links = eigener Stapel, rechts = Computer) statt wie vorher fest
+        // "Spielerkarte nach links raus, Computerkarte wird neue Mittelkarte"
+        // unabhaengig vom Ergebnis zu animieren. Bei einem Unentschieden
+        // (Karten wandern in den Pot, gehoeren also niemandem) bleibt der
+        // bisherige neutrale Ablauf erhalten.
+        if (outcome === "player" || outcome === "cpu") {
+          const winnerX = outcome === "player" ? leftStackX : rightStackX;
+          const winnerY = stackCenterY;
+          const shrink = lerp(1, 0.1, t);
+          const w = cardWidth * shrink;
+          const h = cardHeight * shrink;
+          const playerCx = lerp(pairLeftX + cardWidth / 2, winnerX, t);
+          const playerCy = lerp(topOffset + cardHeight / 2, winnerY, t);
+          const cpuCx = lerp(pairRightX + cardWidth / 2, winnerX, t);
+          const cpuCy = lerp(topOffset + cardHeight / 2, winnerY, t);
+          const playerRect: Rect = { x: playerCx - w / 2, y: playerCy - h / 2, width: w, height: h };
+          const cpuRect: Rect = { x: cpuCx - w / 2, y: cpuCy - h / 2, width: w, height: h };
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - t * 1.15);
+          drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, opponent: displayedCpuCard, highlightStat: chosenStat });
+          drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, opponent: displayedPlayerCard, highlightStat: chosenStat });
+          ctx.restore();
+        } else {
+          const playerRect: Rect = { x: lerp(pairLeftX, -cardWidth - 30, t), y: topOffset, width: cardWidth, height: cardHeight };
+          const cpuRect: Rect = { x: lerp(pairRightX, singleX, t), y: topOffset, width: cardWidth, height: cardHeight };
+          drawCardFace(ctx, playerRect, displayedPlayerCard, { interactive: false, opponent: displayedCpuCard, highlightStat: chosenStat });
+          drawCardFace(ctx, cpuRect, displayedCpuCard, { interactive: false, opponent: displayedPlayerCard, highlightStat: chosenStat });
+        }
       }
     },
 
@@ -541,5 +788,5 @@ registerGame({
   badge: "ZQ",
   accent: "#7e5330",
   create: createTrainQuartetGame,
-  highscoreCategories: [{ board: "default", label: "Meiste Rundensiege", direction: "higher-better", formatValue: formatRoundWins }],
+  highscoreCategories: [{ board: "default", label: "Meiste gesammelte Karten", direction: "higher-better", formatValue: formatCardCount }],
 });

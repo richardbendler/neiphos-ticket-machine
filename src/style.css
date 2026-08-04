@@ -344,7 +344,7 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  max-width: min(50%, 260px);
+  max-width: min(60%, 340px);
   color: var(--bezel-dark);
   font-size: clamp(0.52rem, 2.2vw, 0.68rem);
   letter-spacing: 0.02em;
@@ -366,6 +366,18 @@ button {
 .chrome-footer-credit__line--sub {
   font-style: italic;
   font-size: 0.94em;
+}
+
+/* Einzige Fusszeilen-Zeile, die (im Unterschied zu den anderen) auf
+   mehreren Zeilen umbrechen darf -- ist ein ganzer Hinweissatz statt eines
+   kurzen Credits, passt sonst auf keine Bildschirmbreite. */
+.chrome-footer-credit__line--wrap {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  margin-top: 2px;
+  font-size: 0.86em;
+  opacity: 0.85;
 }
 
 /* ---------- Hauptmenue ---------- */
@@ -749,6 +761,23 @@ button {
   font-size: clamp(1.05rem, 2.8vw, 1.4rem);
   padding: clamp(16px, 2.6vw, 24px) clamp(20px, 3.2vw, 32px);
   border: 2px solid var(--accent-dark);
+}
+
+/* Kleines Inline-SVG-Icon vor Button-Beschriftungen -- bewusst statt Emoji
+   (siehe core/icons.ts), da Emoji auf Systemen ohne installierte
+   Emoji-Schriftart (z. B. frisches Raspberry Pi OS) als leere Flaeche
+   dargestellt werden. */
+.btn__icon {
+  display: inline-flex;
+  vertical-align: -0.2em;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.35em;
+}
+
+.btn__icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* ---------- Modal / Overlay-Panels (Admin, Highscore-Namenseingabe, ...) ---------- */

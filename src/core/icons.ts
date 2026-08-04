@@ -81,6 +81,16 @@ export const icons = {
      <circle cx="8" cy="19" r="2"/>
      <circle cx="17" cy="19" r="2"/>`,
   ),
+  // Vereinfachtes Huepftier (Rody-Stil: Ball-Koerper, zwei Ohren, vier
+  // Beine) -- als eigenstaendiges Icon statt eines Emojis (siehe
+  // games/memory/index.ts, games/train-spotter/index.ts), das auf Systemen
+  // ohne installierte Emoji-Schriftart (z. B. ein frisches Raspberry Pi OS)
+  // sonst als leere Flaeche/Tofu-Box angezeigt wird.
+  hopper: svg(
+    `<circle cx="12" cy="11" r="7"/>
+     <path d="M8.5 5.5 7 2.5M15.5 5.5 17 2.5"/>
+     <path d="M7 17 L5.5 21M10 18 L9 21.5M14 18 L15 21.5M17 17 L18.5 21"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

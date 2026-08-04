@@ -23,28 +23,30 @@ interface BoardSize {
   key: string;
   cols: number;
   rows: number;
-  label: string;
+  difficulty: string;
 }
 
 // "Schwer" ist bewusst kein Quadrat (5x8 statt z.B. 8x8): so werden alle
 // verfuegbaren Zugfotos genutzt, ohne echte Zuege durch spielfremde
 // Ablenkerbilder (Auto, Flugzeug, ...) auffuellen zu muessen.
 const TRAIN_BOARD_SIZES: BoardSize[] = [
-  { key: "4x4", cols: 4, rows: 4, label: "4 × 4 (leicht)" },
-  { key: "6x6", cols: 6, rows: 6, label: "6 × 6 (mittel)" },
-  { key: "5x8", cols: 5, rows: 8, label: "5 × 8 (schwer)" },
+  { key: "4x4", cols: 4, rows: 4, difficulty: "leicht" },
+  { key: "6x6", cols: 6, rows: 6, difficulty: "mittel" },
+  { key: "5x8", cols: 5, rows: 8, difficulty: "schwer" },
 ];
 
-// Nur 2 Stufen statt 3: es gibt (noch) nicht so viele unterschiedliche
-// Huepftier-Fotos wie Zugfotos -- eigene, von den Zug-Boardgroessen
-// getrennte "key"s, damit sich Highscores der beiden Themen nicht
-// gegenseitig in localStorage ueberschreiben (siehe registerGame unten).
-// "schwer" nutzt bewusst ALLE aktuell verfuegbaren Huepftierbilder als
-// Paare aus (hopperAnimalCards.length) -- bei weiterem Bildausbau darf/soll
-// diese Zahl mitwachsen.
+// Genauso drei Stufen wie bei den Zuegen (gleiche Optionen fuer beide
+// Themen) -- die Paarzahlen sind bewusst kleiner, weil es (noch) nicht so
+// viele unterschiedliche Huepftierfotos wie Zugfotos gibt. Eigene, von den
+// Zug-Boardgroessen getrennte "key"s, damit sich Highscores der beiden
+// Themen nicht gegenseitig in localStorage ueberschreiben (siehe
+// registerGame unten). "schwer" nutzt bewusst ALLE aktuell verfuegbaren
+// Huepftierbilder als Paare aus (hopperAnimalCards.length) -- bei weiterem
+// Bildausbau darf/soll diese Zahl (und die von "mittel") mitwachsen.
 const HOPPER_BOARD_SIZES: BoardSize[] = [
-  { key: "hopper-4x4", cols: 4, rows: 4, label: "4 × 4 (leicht)" },
-  { key: "hopper-4x6", cols: 4, rows: 6, label: "4 × 6 (schwer)" },
+  { key: "hopper-4x4", cols: 4, rows: 4, difficulty: "leicht" },
+  { key: "hopper-4x5", cols: 4, rows: 5, difficulty: "mittel" },
+  { key: "hopper-4x6", cols: 4, rows: 6, difficulty: "schwer" },
 ];
 
 function boardSizesFor(t: ContentTheme): BoardSize[] {
@@ -56,16 +58,25 @@ function boardSizesFor(t: ContentTheme): BoardSize[] {
  * Geraete-Ausrichtung an -- ein Feld, das "hochformatig" definiert ist
  * (mehr Zeilen als Spalten, z. B. 5x8), wird auf einem Querformat-
  * Bildschirm gespiegelt (8x5) angezeigt, und umgekehrt. Quadratische Felder
- * (4x4, 6x6) sind davon nicht betroffen.
+ * (4x4, 6x6) sind davon nicht betroffen. Standard ist Querformat: nur ein
+ * WIRKLICH hochkantiger Bildschirm (Hoehe > Breite) loest die Spiegelung
+ * aus, ein (seltener) exakt quadratischer Viewport bleibt beim
+ * Querformat-Standard.
  */
 function orientedCols(size: BoardSize): { cols: number; rows: number } {
-  const viewportIsLandscape = window.innerWidth > window.innerHeight;
+  const viewportIsPortrait = window.innerHeight > window.innerWidth;
   const sizeIsPortraitShaped = size.rows > size.cols;
   const sizeIsLandscapeShaped = size.cols > size.rows;
-  if ((viewportIsLandscape && sizeIsPortraitShaped) || (!viewportIsLandscape && sizeIsLandscapeShaped)) {
+  if ((viewportIsPortrait && sizeIsLandscapeShaped) || (!viewportIsPortrait && sizeIsPortraitShaped)) {
     return { cols: size.rows, rows: size.cols };
   }
   return { cols: size.cols, rows: size.rows };
+}
+
+/** Immer aus den AKTUELL orientierten cols/rows gebildet, nie aus einem statischen Text -- sonst weicht die Anzeige (z.B. Button-Beschriftung) von der tatsaechlich angezeigten Spaltenzahl ab. */
+function sizeLabel(size: BoardSize): string {
+  const { cols, rows } = orientedCols(size);
+  return `${cols} × ${rows} (${size.difficulty})`;
 }
 
 function imagesFor(t: ContentTheme): string[] {
@@ -105,6 +116,7 @@ function createMemoryGame(): MinigameModule {
   let contentTheme: ContentTheme = "trains";
   let mode: Mode = "solo";
   let boardSize: BoardSize | null = null;
+  let lastBaseSize: BoardSize | null = null;
   let cards: Card[] = [];
   let flipped: number[] = [];
   let moves = 0;
@@ -239,7 +251,7 @@ function createMemoryGame(): MinigameModule {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn btn--choice";
-        btn.textContent = size.label;
+        btn.textContent = sizeLabel(size);
         btn.addEventListener("click", () => selectSize(size));
         row.appendChild(btn);
       }
@@ -296,7 +308,7 @@ function createMemoryGame(): MinigameModule {
       again.type = "button";
       again.className = "btn btn--accent";
       again.textContent = "Nochmal";
-      again.addEventListener("click", () => boardSize && selectSize(boardSize));
+      again.addEventListener("click", () => lastBaseSize && selectSize(lastBaseSize));
 
       const change = document.createElement("button");
       change.type = "button";
@@ -329,12 +341,17 @@ function createMemoryGame(): MinigameModule {
   }
 
   function selectSize(size: BoardSize): void {
-    // Nicht-quadratische Spielfelder (aktuell nur "5 x 8 schwer") sollen zur
+    // Nicht-quadratische Spielfelder (5x8 bzw. 4x5/4x6) sollen zur
     // tatsaechlichen Geraete-Ausrichtung passen -- ein Querformat-Bildschirm
-    // (Breite > Hoehe) zeigt sie querformatig (8 Spalten x 5 Zeilen) statt
-    // wie bisher immer hochformatig (5 x 8), was auf breiten Bildschirmen
-    // ein unnoetig schmales, hohes (teils scrollendes) Raster ergab. Auf
-    // Hochformat-Geraeten bleibt es beim bisherigen Verhalten.
+    // (Breite > Hoehe) zeigt sie querformatig (z.B. 8 Spalten x 5 Zeilen)
+    // statt wie bisher immer hochformatig, was auf breiten Bildschirmen ein
+    // unnoetig schmales, hohes (teils scrollendes) Raster ergab. Auf
+    // Hochformat-Geraeten bleibt es beim bisherigen Verhalten. "size" bleibt
+    // bewusst die urspruengliche (nicht orientierte) Groesse -- lastBaseSize
+    // merkt sie sich fuer den "Nochmal"-Button, der sonst bei einer
+    // zwischenzeitlich schon orientierten boardSize erneut orientieren
+    // wuerde (bei stabiler Ausrichtung harmlos, aber unsauber).
+    lastBaseSize = size;
     boardSize = { ...size, ...orientedCols(size) };
     highscoreBanner.update(mode === "solo" ? getHighscoreBoard(GAME_ID, size.key) : null);
     cards = buildBoard((boardSize.cols * boardSize.rows) / 2, contentTheme);
@@ -426,7 +443,7 @@ function createMemoryGame(): MinigameModule {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
-          message: `${moves} Züge auf ${size.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          message: `${moves} Züge auf ${sizeLabel(size)} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
@@ -496,7 +513,7 @@ function createMemoryGame(): MinigameModule {
         if (mode === "solo") {
           ctx.fillStyle = theme.textMuted;
           ctx.font = `600 14px ${theme.font}`;
-          ctx.fillText(`${boardSize.label} · ${moves} Züge`, size.width / 2, 150);
+          ctx.fillText(`${sizeLabel(boardSize)} · ${moves} Züge`, size.width / 2, 150);
         } else {
           ctx.fillStyle = theme.textMuted;
           ctx.font = `600 14px ${theme.font}`;
@@ -554,13 +571,13 @@ registerGame({
   highscoreCategories: [
     ...TRAIN_BOARD_SIZES.map((size) => ({
       board: size.key,
-      label: size.label,
+      label: sizeLabel(size),
       direction: "lower-better" as const,
       formatValue: formatMoves,
     })),
     ...HOPPER_BOARD_SIZES.map((size) => ({
       board: size.key,
-      label: `Hüpftiere ${size.label}`,
+      label: `Hüpftiere ${sizeLabel(size)}`,
       direction: "lower-better" as const,
       formatValue: formatMoves,
     })),

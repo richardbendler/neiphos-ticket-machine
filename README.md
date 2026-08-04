@@ -35,6 +35,7 @@ Programm erreichbar) mit Kiosk-/Vollbild-Steuerung und Spielstatistik.
 - [Lokal entwickeln/testen](#lokal-entwickelntesten)
 - [Build](#build)
 - [Deployment auf einen normalen Webserver](#deployment-auf-einen-normalen-webserver)
+  - [`server/serve.js` dauerhaft auf einem eigenen VPS laufen lassen](#serverservejs-dauerhaft-auf-einem-eigenen-vps-laufen-lassen)
 - [Geräteübergreifende Synchronisation (optional)](#geräteübergreifende-synchronisation-optional)
 - [Deployment auf dem Raspberry Pi (Kiosk)](#deployment-auf-dem-raspberry-pi-kiosk)
 - [Kiosk-Modus unter Windows](#kiosk-modus-unter-windows-zum-testen-oder-als-alternativ-gerät)
@@ -246,6 +247,149 @@ unten); läuft die App auf reinem statischen Hosting ohne den, greift dafür
 automatisch ein `localStorage`-Fallback, alles andere funktioniert
 unverändert.
 
+### `server/serve.js` dauerhaft auf einem eigenen VPS laufen lassen
+
+**Nur relevant, wenn Feedback wirklich zentral (nicht nur pro Gerät als
+`localStorage`-Fallback) gespeichert werden soll, oder für die
+[geräteübergreifende Synchronisation](#geräteübergreifende-synchronisation-optional)
+weiter unten.** Reines Hochladen von `dist/*` in ein normales Webspace-
+Verzeichnis (z. B. per WinSCP/FTP) reicht dafür **nicht** – dabei läuft kein
+eigener Prozess, der die kleinen APIs (`/api/feedback`, `/api/highscores`, …)
+beantworten könnte, jede Anfrage dorthin läuft ins Leere und die App fällt
+automatisch auf den lokalen `localStorage`-Fallback zurück (unauffällig,
+aber eben nicht geräteübergreifend). Auf einem eigenen VPS mit SSH-Zugriff:
+
+**0. Node.js auf dem VPS installieren, falls noch nicht vorhanden** (`node
+--version` zeigt, ob und welche Version schon da ist; meldet die Shell
+„Kommando nicht gefunden", fehlt es komplett):
+
+```bash
+sudo apt update
+sudo apt install -y nodejs npm
+node --version
+```
+
+(Debian/Ubuntu – bei anderen Distributionen `dnf`/`yum`/`pacman` statt `apt`.
+`server/serve.js` nutzt nur eingebaute Node-Module und stellt daher keine
+besonderen Anforderungen an die genaue Node-Version.)
+
+**1. Projekt (inkl. `server/`, nicht nur `dist/`) auf den VPS bringen** – am
+einfachsten das ganze Repository klonen oder `dist/` UND den `server/`-Ordner
+gemeinsam hochladen:
+
+```bash
+scp -r dist server user@dein-vps:/pfad/zu/neiphos-ticket-machine/
+```
+
+`server/serve.js` braucht dafür kein `npm install` – nur eingebaute
+Node-Module, siehe Datei-Kommentar oben drin. Auf dem VPS sollten `server/`
+und `dist/` danach nebeneinander in einem gemeinsamen Projektordner liegen:
+
+```
+/pfad/zu/neiphos-ticket-machine/
+├── server/
+│   └── serve.js
+├── dist/
+│   └── index.html, assets/, …
+└── .env.local          ← kommt in Schritt 2 GENAU hierhin, NICHT in server/ oder dist/
+```
+
+**2. `.env.local` direkt auf dem VPS anlegen** (per SSH, **nicht** über einen
+erneuten Upload aus dem lokalen Projektordner – dort ist die Datei absichtlich
+nie eingecheckt, siehe [Admin-Passwort einrichten](#admin-passwort-einrichten)):
+auf **derselben Ebene wie `server/` und `dist/`**, also als deren
+gemeinsames Geschwister-Element (`server/serve.js` sucht sie automatisch
+genau dort, einen Ordner oberhalb von sich selbst):
+
+```bash
+ssh user@dein-vps
+cd /pfad/zu/neiphos-ticket-machine
+nano .env.local
+```
+
+Inhalt (Passwort muss **exakt** dem entsprechen, mit dem `dist/` lokal gebaut
+wurde – es steckt schon fest im hochgeladenen JS-Bundle):
+
+```
+VITE_ADMIN_PASSWORD=DasGleichePasswortWieBeimBuild
+```
+
+(Optional zusätzlich `NTM_SYNC=1` für die Synchronisation, siehe unten.)
+
+**3. Kurz manuell testen:**
+
+```bash
+node server/serve.js dist 8080
+# in einem zweiten Terminal/Fenster:
+curl -I http://localhost:8080
+```
+
+Mit Strg+C wieder beenden, sobald das funktioniert.
+
+**4. Dauerhaft laufen lassen, per systemd** (übersteht Neustarts und einen
+Absturz – identisches Muster wie beim Raspberry Pi, siehe
+[Autostart einrichten](#5-autostart-einrichten-linuxraspberry-pi-os), hier
+nur ohne den Kiosk-Browser-Teil):
+
+`/etc/systemd/system/ticketmachine-server.service`:
+
+```ini
+[Unit]
+Description=Neiphos Ticket Machine - Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /pfad/zu/neiphos-ticket-machine/server/serve.js /pfad/zu/neiphos-ticket-machine/dist 8080
+WorkingDirectory=/pfad/zu/neiphos-ticket-machine
+Restart=always
+User=dein-linux-benutzer
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now ticketmachine-server
+```
+
+**5. Die eigentliche Domain auf diesen Prozess zeigen lassen.** `serve.js`
+lauscht nur auf einem eigenen Port (hier `8080`), nicht auf Port 80/443 –
+ein bereits laufender Apache/Nginx auf dem VPS muss die öffentliche Domain
+also per **Reverse Proxy** dorthin weiterleiten, statt (wie bisher) direkt
+ein statisches Verzeichnis auszuliefern. Beispiel für Nginx
+(`/etc/nginx/sites-available/deine-domain.de`):
+
+```nginx
+server {
+    listen 80;
+    server_name deine-domain.de;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/deine-domain.de /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Bei Apache stattdessen `mod_proxy`/`mod_proxy_http` aktivieren und
+`ProxyPass / http://127.0.0.1:8080/` sowie `ProxyPassReverse / http://127.0.0.1:8080/`
+im vHost eintragen. Läuft auf dem VPS noch gar kein eigener Webserver und die
+Domain zeigt bereits direkt auf den Server, kann `serve.js` alternativ auch
+direkt an Port 80 gebunden werden (`node server/serve.js dist 80`) – dafür
+sind aber Root-Rechte nötig, ein Reverse Proxy ist der robustere Standardweg.
+
+Nach diesem Umbau übernimmt `server/serve.js` das komplette Ausliefern von
+`dist/` (nicht mehr das bisherige direkte Hochladen von `dist/*` ins
+Webspace-Verzeichnis) – künftige Updates bestehen dann aus: `dist/` neu
+hochladen (`.env.local` bleibt dabei unangetastet stehen, siehe oben) und den
+Service neu starten (`sudo systemctl restart ticketmachine-server`).
+
 ## Geräteübergreifende Synchronisation (optional)
 
 > **Wichtig, bevor du weiterliest:** Dieser Abschnitt ist ein rein
@@ -253,9 +397,12 @@ unverändert.
 > öffentlich erreichbaren Webserver läuft und mehrere Besucher-Endgeräte
 > (Handys, Laptops – nicht der eine Kiosk-Automat) denselben Stand teilen
 > sollen. Er hat **nichts** mit dem normalen Kiosk-Betrieb zu tun und
-> ändert an dessen Verhalten nichts: Ohne die unten beschriebene
-> Umgebungsvariable verhält sich der Server exakt so, als gäbe es diesen
-> Abschnitt nicht. Für die Einrichtung des eigentlichen, dauerhaft
+> ändert an dessen Verhalten nichts: Ohne den unten beschriebenen Schalter
+> verhält sich der Server exakt so, als gäbe es diesen Abschnitt nicht.
+> Setzt außerdem voraus, dass `server/serve.js` dort überhaupt als
+> dauerhafter Prozess läuft, siehe
+> [„server/serve.js dauerhaft auf einem eigenen VPS laufen lassen"](#serverservejs-dauerhaft-auf-einem-eigenen-vps-laufen-lassen)
+> weiter oben. Für die Einrichtung des eigentlichen, dauerhaft
 > offline laufenden Automaten bitte direkt zu
 > [Deployment auf dem Raspberry Pi (Kiosk)](#deployment-auf-dem-raspberry-pi-kiosk)
 > springen – der kommt komplett ohne das hier aus.
@@ -273,7 +420,27 @@ im Hauptmenü aus-/einblendet, gilt das sofort für alle.
 
 ### Aktivieren
 
-Rein serverseitig, per Umgebungsvariable beim Start von `server/serve.js`:
+**Empfohlen: eine Zeile in `.env.local`** (dieselbe Datei, die schon das
+Admin-Passwort enthält, siehe
+[Admin-Passwort einrichten](#admin-passwort-einrichten)) – im
+Projekt-Wurzelverzeichnis auf dem Webserver, **neben** `dist/`, nicht darin:
+
+```
+NTM_SYNC=1
+```
+
+Das ist bewusst der empfohlene Weg und keine Umgebungsvariable: `.env.local`
+liegt außerhalb von `dist/` und ist per `.gitignore` (`*.local`) von Git
+ausgeschlossen – ein erneutes `npm run build` **auf dem Entwicklungsrechner**
+und anschließendes Hochladen von nur `dist/*` (siehe
+[Deployment auf einen normalen Webserver](#deployment-auf-einen-normalen-webserver))
+rührt diese Datei auf dem Server also nie an. Einmal auf dem Server angelegt,
+bleibt die Synchronisation dauerhaft aktiv, ganz unabhängig davon, wie oft
+danach neuer Code hochgeladen wird.
+
+Alternativ (z. B. wenn ein systemd-Service die Variable ohnehin schon setzt)
+funktioniert weiterhin auch die klassische Umgebungsvariable beim Start von
+`server/serve.js`:
 
 ```bash
 # Linux/macOS/Pi:
@@ -286,12 +453,13 @@ $env:NTM_SYNC = "1"
 node server/serve.js dist 8080
 ```
 
-Ohne `NTM_SYNC=1` (der Standard – insbesondere auf dem Kiosk-Pi, siehe oben)
-antworten alle unten genannten Sync-Endpunkte mit `404`, als gäbe es sie
-nicht; die App fällt dann automatisch und lautlos auf rein lokale Speicherung
-zurück. Es ist also unbedenklich, denselben, unveränderten `server/serve.js`
-sowohl auf dem Offline-Kiosk (ohne die Variable) als auch auf einem
-Sync-Webserver (mit der Variable) einzusetzen.
+Ohne `NTM_SYNC=1` (der Standard – insbesondere auf dem Kiosk-Pi, siehe oben,
+wo diese Zeile in `.env.local` deshalb einfach wegzulassen ist) antworten
+alle unten genannten Sync-Endpunkte mit `404`, als gäbe es sie nicht; die App
+fällt dann automatisch und lautlos auf rein lokale Speicherung zurück. Es ist
+also unbedenklich, denselben, unveränderten `server/serve.js` sowohl auf dem
+Offline-Kiosk (ohne den Schalter) als auch auf einem Sync-Webserver (mit dem
+Schalter) einzusetzen.
 
 ### Was wird synchronisiert, und wo landet es
 

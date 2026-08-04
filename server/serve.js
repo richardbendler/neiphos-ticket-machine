@@ -18,8 +18,11 @@
  * ---------------------------------------------------------------------
  * Geraeteuebergreifende Synchronisation (Highscores/Statistik/Einstellungen)
  * ---------------------------------------------------------------------
- * Bewusst per Umgebungsvariable NTM_SYNC=1 deaktiviert, solange sie nicht
- * gesetzt ist -- der urspruengliche, weiterhin unterstuetzte Einsatzzweck
+ * Bewusst per Schalter NTM_SYNC=1 deaktiviert, solange er nicht gesetzt ist
+ * -- am bequemsten als eigene Zeile in .env.local (siehe unten, bleibt bei
+ * jedem Deployment/git-Pull unangetastet, da .env.local per .gitignore nie
+ * eingecheckt wird); alternativ weiterhin auch als echte Umgebungsvariable
+ * moeglich. Der urspruengliche, weiterhin unterstuetzte Einsatzzweck
  * dieses Projekts ist ein einzelnes, komplett offline laufendes Kiosk-
  * Geraet (siehe README, Abschnitt "Deployment auf dem Raspberry Pi"), bei
  * dem lokale Speicherung (localStorage) alles ist, was gebraucht wird. Die
@@ -53,19 +56,16 @@ const HIGHSCORES_DIR = path.resolve(ROOT, "..", "highscores");
 const STATS_DIR = path.resolve(ROOT, "..", "stats");
 const SETTINGS_FILE = path.resolve(ROOT, "..", "settings.json");
 
-const SYNC_ENABLED = process.env.NTM_SYNC === "1" || process.env.NTM_SYNC === "true";
-
-fs.mkdirSync(FEEDBACK_DIR, { recursive: true });
-if (SYNC_ENABLED) {
-  fs.mkdirSync(HIGHSCORES_DIR, { recursive: true });
-  fs.mkdirSync(STATS_DIR, { recursive: true });
-}
-
-// ------------------------------------------------------------- Admin-Passwort
+// ------------------------------------------------------------- .env.local
 //
 // Liest dieselbe .env.local wie Vite (KEY=value pro Zeile, # fuer
 // Kommentare) -- absichtlich ein simpler Parser statt eines dotenv-Pakets,
-// damit dieser Server weiterhin ganz ohne npm-Abhaengigkeiten auskommt.
+// damit dieser Server weiterhin ganz ohne npm-Abhaengigkeiten auskommt. Liegt
+// im Projekt-Wurzelverzeichnis NEBEN dist/ (nicht darin), ist per
+// .gitignore ausgeschlossen und wird deshalb von einem erneuten "git pull"
+// oder einem "scp -r dist/* ..."-Deployment (das ohnehin nur dist/
+// ueberschreibt) nie angetastet -- ideal fuer Einstellungen, die auf dem
+// Server dauerhaft gesetzt bleiben sollen, siehe NTM_SYNC unten.
 
 function loadEnvFile(filePath) {
   const result = {};
@@ -92,6 +92,20 @@ function loadEnvFile(filePath) {
 
 const envFile = loadEnvFile(path.join(PROJECT_ROOT, ".env.local"));
 const ADMIN_PASSWORD = process.env.VITE_ADMIN_PASSWORD || envFile.VITE_ADMIN_PASSWORD || "";
+
+// Bevorzugt aus .env.local (siehe oben) -- die Umgebungsvariable NTM_SYNC
+// bleibt zusaetzlich unterstuetzt (z. B. fuer einen systemd-Service, der sie
+// ohnehin schon setzt), .env.local ist aber der bequemere/dauerhaftere Weg.
+function isTruthyFlag(value) {
+  return value === "1" || value === "true";
+}
+const SYNC_ENABLED = isTruthyFlag(process.env.NTM_SYNC) || isTruthyFlag(envFile.NTM_SYNC);
+
+fs.mkdirSync(FEEDBACK_DIR, { recursive: true });
+if (SYNC_ENABLED) {
+  fs.mkdirSync(HIGHSCORES_DIR, { recursive: true });
+  fs.mkdirSync(STATS_DIR, { recursive: true });
+}
 
 function timingSafeEqual(a, b) {
   const bufA = Buffer.from(String(a), "utf-8");
@@ -565,6 +579,6 @@ server.listen(PORT, () => {
       console.warn("WARNUNG: Kein VITE_ADMIN_PASSWORD gefunden (.env.local) -- admin-geschuetzte Endpunkte (Einstellungen aendern, Zuruecksetzen, Feedback/Statistik lesen) bleiben gesperrt.");
     }
   } else {
-    console.log("Geraeteuebergreifende Synchronisation inaktiv (NTM_SYNC=1 setzen, um sie zu aktivieren).");
+    console.log("Geraeteuebergreifende Synchronisation inaktiv (NTM_SYNC=1 in .env.local setzen, um sie zu aktivieren).");
   }
 });

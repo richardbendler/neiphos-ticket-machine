@@ -1,9 +1,11 @@
 import { openModal } from "../core/modal";
 import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
 import { enterFullscreen, exitFullscreen, isFullscreenActive } from "../core/kiosk";
-import { getSummaryByGame, getSessionsForGame, clearAllStats, type GameSummary } from "../core/stats";
+import { summarizeSessions, filterSessionsForGame, getAllSessions, clearAllStats, type GameSummary, type PlaySession } from "../core/stats";
 import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
+import { setAdminSession, clearAdminSession } from "../core/adminSession";
+import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer } from "../core/sync";
 import { gameRegistry } from "../games/registry";
 
 // Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
@@ -297,6 +299,10 @@ export function openAdminPanel(onClose?: () => void): void {
       caseToggle: true,
       onSubmit: (value) => {
         if (value === ADMIN_PASSWORD) {
+          // Muss VOR renderAdminHome gesetzt werden -- die dortigen
+          // Server-Abgleiche (Statistik/Highscore-Reset) haengen fuer die
+          // admin-geschuetzten Endpunkte davon ab, siehe core/adminSession.ts.
+          setAdminSession(value);
           renderAdminHome(panel, close);
         } else {
           error.textContent = "Falsches Passwort.";
@@ -315,7 +321,14 @@ export function openAdminPanel(onClose?: () => void): void {
     cancelBtn.addEventListener("click", close);
     cancel.appendChild(cancelBtn);
     panel.appendChild(cancel);
-  }, { onClose });
+  }, {
+    onClose: () => {
+      // Passwort soll nicht ueber das Ende der Admin-Sitzung hinaus im
+      // Speicher bleiben (siehe core/adminSession.ts).
+      clearAdminSession();
+      onClose?.();
+    },
+  });
 }
 
 function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
@@ -326,6 +339,23 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   const h2 = document.createElement("h2");
   h2.textContent = "Admin-Bereich";
   panel.appendChild(h2);
+
+  // --- Sync-Status ---------------------------------------------------
+  // Nur eine Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen
+  // Abschnitte unten pruefen/pushen unabhaengig davon selbst (siehe
+  // core/sync.ts). Nutzt den admin-geschuetzten Statistik-Endpunkt als
+  // Signal, weil der (anders als die oeffentlichen Endpunkte) eindeutig
+  // zwischen "kein Server/Sync" (null) und "erreichbar" (Array, ggf. leer)
+  // unterscheidet.
+  const syncStatus = paragraph("Geräteübergreifende Synchronisation: wird geprüft …");
+  syncStatus.style.fontSize = "0.78rem";
+  panel.appendChild(syncStatus);
+  void pullStatsFromServer().then((sessions) => {
+    syncStatus.textContent =
+      sessions === null
+        ? "Geräteübergreifende Synchronisation: nicht aktiv (kein Server erreichbar oder serverseitig nicht freigeschaltet) — es werden nur lokale Daten dieses Geräts angezeigt."
+        : "Geräteübergreifende Synchronisation: aktiv — Einstellungen, Highscores und Statistik werden mit dem Server abgeglichen.";
+  });
 
   // --- Kiosk-Steuerung -----------------------------------------------
   const kioskSection = document.createElement("div");
@@ -427,7 +457,17 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   statsList.style.gap = "8px";
   panel.appendChild(statsList);
 
-  renderStatsList(statsList);
+  // Erst sofort mit dem lokalen Stand rendern (kein Warten auf den Server,
+  // siehe Datei-Kommentar in core/sync.ts), dann im Hintergrund die
+  // Server-Sessions ALLER Geraete dazuholen und (nur fuer diese Ansicht,
+  // ohne localStorage zu veraendern) zusammenfuehren.
+  let currentSessions = getAllSessions();
+  renderStatsList(statsList, currentSessions);
+  void pullStatsFromServer().then((serverSessions) => {
+    if (!serverSessions || serverSessions.length === 0) return;
+    currentSessions = mergeSessions(getAllSessions(), serverSessions);
+    renderStatsList(statsList, currentSessions);
+  });
 
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
@@ -437,7 +477,9 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   clearBtn.textContent = "Statistik zurücksetzen";
   clearBtn.addEventListener("click", () => {
     clearAllStats();
-    renderStatsList(statsList);
+    void resetStatsOnServer();
+    currentSessions = [];
+    renderStatsList(statsList, currentSessions);
   });
   panel.appendChild(clearBtn);
 
@@ -459,6 +501,7 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
         clearHighscoreBoard(game.id, category.board);
       }
     }
+    void resetHighscoresOnServer();
     highscoreResetBtn.textContent = "Highscores zurückgesetzt.";
     highscoreResetBtn.disabled = true;
   });
@@ -476,6 +519,8 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   gamesList.style.flexDirection = "column";
   gamesList.style.gap = "6px";
   panel.appendChild(gamesList);
+
+  const checkboxByGameId = new Map<string, HTMLInputElement>();
 
   for (const game of gameRegistry) {
     const row = document.createElement("label");
@@ -499,6 +544,7 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
       setGameEnabled(game.id, checkbox.checked);
     });
     row.appendChild(checkbox);
+    checkboxByGameId.set(game.id, checkbox);
 
     const label = document.createElement("span");
     label.textContent = game.title;
@@ -506,6 +552,15 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
 
     gamesList.appendChild(row);
   }
+
+  // Falls ein anderes Geraet die Sichtbarkeit inzwischen (server-seitig)
+  // geaendert hat, hier beim Oeffnen des Admin-Bereichs einmal nachziehen --
+  // ohne das wuerde ein versehentliches erneutes Anklicken einer Checkbox
+  // den fremden Stand sonst wieder ueberschreiben.
+  void pullSettingsFromServer().then((changed) => {
+    if (!changed) return;
+    for (const [gameId, checkbox] of checkboxByGameId) checkbox.checked = isGameEnabled(gameId);
+  });
 
   const gamesHint = document.createElement("p");
   gamesHint.style.fontSize = "0.78rem";
@@ -624,9 +679,29 @@ function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean): HTMLElement
   return row;
 }
 
-function renderStatsList(container: HTMLElement): void {
+/**
+ * Fuehrt lokale und vom Server geholte Sessions zusammen, OHNE Duplikate
+ * doppelt zu zaehlen -- auf genau dem Geraet, das eine Session selbst
+ * erzeugt hat, kommt sie sonst zweimal vor (einmal aus localStorage, einmal
+ * aus der eigenen, bereits an den Server gepushten Kopie). Sessions haben
+ * keine eigene ID (siehe core/stats.ts), daher Duplikat-Erkennung ueber die
+ * Kombination aus Inhaltsfeldern, die pro Session eindeutig ist.
+ */
+function mergeSessions(local: PlaySession[], server: PlaySession[]): PlaySession[] {
+  const seen = new Set(local.map((s) => `${s.gameId}|${s.startedAt}|${s.endedAt}|${s.durationMs}`));
+  const merged = [...local];
+  for (const s of server) {
+    const key = `${s.gameId}|${s.startedAt}|${s.endedAt}|${s.durationMs}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(s);
+  }
+  return merged;
+}
+
+function renderStatsList(container: HTMLElement, sessions: PlaySession[]): void {
   container.innerHTML = "";
-  const summaries = getSummaryByGame();
+  const summaries = summarizeSessions(sessions);
 
   if (summaries.length === 0) {
     const empty = document.createElement("p");
@@ -638,11 +713,11 @@ function renderStatsList(container: HTMLElement): void {
   }
 
   for (const summary of summaries) {
-    container.appendChild(buildStatsRow(summary));
+    container.appendChild(buildStatsRow(summary, sessions));
   }
 }
 
-function buildStatsRow(summary: GameSummary): HTMLElement {
+function buildStatsRow(summary: GameSummary, sessions: PlaySession[]): HTMLElement {
   const row = document.createElement("div");
   row.style.border = "1px solid var(--panel-border)";
   row.style.borderRadius = "var(--radius-sm)";
@@ -688,8 +763,8 @@ function buildStatsRow(summary: GameSummary): HTMLElement {
     detail.style.display = isOpen ? "none" : "block";
     if (!isOpen && !loaded) {
       loaded = true;
-      const sessions = getSessionsForGame(summary.gameId);
-      for (const session of sessions) {
+      const gameSessions = filterSessionsForGame(sessions, summary.gameId);
+      for (const session of gameSessions) {
         const line = document.createElement("div");
         line.style.display = "flex";
         line.style.justifyContent = "space-between";

@@ -1,10 +1,15 @@
 /**
  * Duenner Wrapper um localStorage: alle Keys sind unter "ntm:" (Neiphos
  * Ticket Machine) genamespaced, JSON (de)serialisierung inklusive.
- * localStorage ist geraetegebunden -- genau das will der Kiosk (Highscores
- * und Statistik ueberleben Neuladen/Neustart des Browsers, aber nichts
- * verlaesst das Geraet, da komplett offline).
+ * localStorage bleibt die alleinige, sofort verfuegbare (synchrone) Quelle
+ * fuer alle Lesezugriffe im Spielcode -- daran aendert sich auch mit der
+ * optionalen geraeteuebergreifenden Synchronisation (siehe core/sync.ts)
+ * nichts: recordHighscore/setGameEnabled schreiben weiterhin zuerst und vor
+ * allem lokal, ein Server-Abgleich ist nur ein zusaetzlicher, im Hintergrund
+ * laufender Nebeneffekt, der bei fehlendem/nicht konfiguriertem Server
+ * lautlos wirkungslos bleibt (siehe core/sync.ts fuer Details).
  */
+import { pushHighscoreAttempt, pushSettings } from "./sync";
 
 const NAMESPACE = "ntm";
 
@@ -116,6 +121,43 @@ export function recordHighscore(
   }
 
   saveJSON(["highscore", gameId, board], next);
+  // Fire-and-forget: bleibt bei fehlendem/deaktiviertem Server lautlos
+  // wirkungslos, siehe core/sync.ts.
+  pushHighscoreAttempt(gameId, board, entry, direction);
+  return next;
+}
+
+/**
+ * Wie recordHighscore, nimmt aber einen fertigen Eintrag (samt eigenem
+ * achievedAt) statt selbst einen mit "jetzt" zu erzeugen -- fuer den Abgleich
+ * mit vom Server empfangenen Eintraegen (siehe core/sync.ts,
+ * pullHighscoresFromServer). Loest KEINEN erneuten Server-Push aus (sonst
+ * wuerde ein synchronisierter Eintrag gleich wieder zurueckgeschickt).
+ * Duplikate (z. B. beim wiederholten Abgleich desselben Servereintrags)
+ * werden erkannt und nicht doppelt eingetragen.
+ */
+export function mergeHighscoreEntry(
+  gameId: string,
+  board: string,
+  entry: HighscoreEntry,
+  direction: HighscoreDirection,
+): HighscoreBoard {
+  const current = getHighscoreBoard(gameId, board);
+  let next: HighscoreBoard;
+  if (!current) {
+    next = { value: entry.value, entries: [entry] };
+  } else if (entry.value === current.value) {
+    const isDuplicate = current.entries.some(
+      (e) => e.name === entry.name && e.value === entry.value && e.achievedAt === entry.achievedAt,
+    );
+    next = isDuplicate ? current : { value: current.value, entries: [...current.entries, entry] };
+  } else if (isBetter(entry.value, current.value, direction)) {
+    next = { value: entry.value, entries: [entry] };
+  } else {
+    next = current;
+  }
+
+  if (next !== current) saveJSON(["highscore", gameId, board], next);
   return next;
 }
 
@@ -139,4 +181,12 @@ export function setGameEnabled(gameId: string, enabled: boolean): void {
   const current = getDisabledGameIds();
   const next = enabled ? current.filter((id) => id !== gameId) : current.includes(gameId) ? current : [...current, gameId];
   saveJSON(DISABLED_GAMES_KEY, next);
+  // Admin-geschuetzt server-seitig (siehe core/sync.ts) -- ohne aktive
+  // Admin-Session bzw. ohne Server bleibt der Aufruf wirkungslos.
+  pushSettings(next);
+}
+
+/** Ueberschreibt die lokale Liste ausgeblendeter Spiele 1:1 mit einem vom Server abgeglichenen Stand, OHNE das erneut zurueckzuschicken (siehe core/sync.ts, pullSettingsFromServer). */
+export function applyDisabledGameIds(disabledGameIds: string[]): void {
+  saveJSON(DISABLED_GAMES_KEY, disabledGameIds);
 }

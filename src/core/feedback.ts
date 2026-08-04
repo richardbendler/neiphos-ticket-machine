@@ -1,4 +1,5 @@
 import { loadJSON, saveJSON } from "./storage";
+import { getAdminSession } from "./adminSession";
 
 /**
  * Feedback wird primaer server-seitig als Datei abgelegt (siehe
@@ -8,7 +9,19 @@ import { loadJSON, saveJSON } from "./storage";
  * rein statisches Hosting ohne server/serve.js, oder beim Testen mit
  * `npm run dev`), faellt die App automatisch auf eine lokale Ablage in
  * localStorage zurueck, damit nichts verloren geht.
+ *
+ * Lesen (fetchFeedback) und Als-gelesen-Markieren sind server-seitig
+ * admin-geschuetzt (siehe server/serve.js) -- die einzigen Aufrufer sind
+ * ohnehin admin/AdminPanel.ts, wo zu diesem Zeitpunkt immer schon eine
+ * gueltige Admin-Session (core/adminSession.ts) vorliegt. Absenden selbst
+ * (submitFeedback) bleibt bewusst oeffentlich/ohne Login, das soll jede:r
+ * Besucher:in tun koennen.
  */
+
+function adminHeaders(): HeadersInit {
+  const password = getAdminSession();
+  return password ? { "X-Admin-Password": password } : {};
+}
 
 export interface FeedbackEntry {
   id: string;
@@ -60,7 +73,7 @@ export async function fetchFeedback(): Promise<{ entries: FeedbackEntry[]; serve
   const localEntries = loadLocalFallback();
 
   try {
-    const res = await fetch("./api/feedback");
+    const res = await fetch("./api/feedback", { headers: adminHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const serverEntries = (await res.json()) as FeedbackEntry[];
     const merged = [...serverEntries, ...localEntries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -77,7 +90,7 @@ export async function markFeedbackRead(entry: FeedbackEntry): Promise<void> {
     return;
   }
   try {
-    await fetch(`./api/feedback/${encodeURIComponent(entry.id)}/read`, { method: "POST" });
+    await fetch(`./api/feedback/${encodeURIComponent(entry.id)}/read`, { method: "POST", headers: adminHeaders() });
   } catch {
     // Server gerade nicht erreichbar -- bleibt serverseitig ungelesen, kein Absturz.
   }

@@ -413,6 +413,29 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === "/api/feedback/reset" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      for (const file of fs.readdirSync(FEEDBACK_DIR)) {
+        if (file.endsWith(".json")) fs.unlinkSync(path.join(FEEDBACK_DIR, file));
+      }
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    const deleteMatch = url.pathname.match(/^\/api\/feedback\/([^/]+)$/);
+    if (deleteMatch && req.method === "DELETE") {
+      if (!requireAdmin(req, res)) return;
+      const id = deleteMatch[1];
+      if (!isSafeId(id)) {
+        sendJson(res, 400, { error: "invalid_id" });
+        return;
+      }
+      const file = path.join(FEEDBACK_DIR, `${id}.json`);
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
     // ----------------------------------------------- Sync: Highscores/Stats/Settings
     //
     // Alles unterhalb bewusst NUR erreichbar, wenn NTM_SYNC=1 gesetzt ist

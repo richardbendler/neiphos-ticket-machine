@@ -99,3 +99,26 @@ export async function markFeedbackRead(entry: FeedbackEntry): Promise<void> {
 export function countUnread(entries: FeedbackEntry[]): number {
   return entries.filter((e) => !e.read).length;
 }
+
+/** Loescht einen einzelnen Feedback-Eintrag -- lokal-gespeicherte (Fallback) Eintraege direkt aus localStorage, server-gespeicherte per DELETE-Request. */
+export async function deleteFeedback(entry: FeedbackEntry): Promise<void> {
+  if (isLocalId(entry.id)) {
+    saveLocalFallback(loadLocalFallback().filter((e) => e.id !== entry.id));
+    return;
+  }
+  try {
+    await fetch(`./api/feedback/${encodeURIComponent(entry.id)}`, { method: "DELETE", headers: adminHeaders() });
+  } catch {
+    // Server gerade nicht erreichbar -- Eintrag bleibt dort bestehen, kein Absturz.
+  }
+}
+
+/** Loescht ALLES Feedback -- sowohl den lokalen Fallback-Speicher als auch (falls erreichbar) alle serverseitig abgelegten Eintraege. */
+export async function deleteAllFeedback(): Promise<void> {
+  saveLocalFallback([]);
+  try {
+    await fetch("./api/feedback/reset", { method: "POST", headers: adminHeaders() });
+  } catch {
+    // Server gerade nicht erreichbar -- lokaler Fallback ist trotzdem geleert.
+  }
+}

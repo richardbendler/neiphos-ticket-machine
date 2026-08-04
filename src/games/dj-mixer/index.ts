@@ -61,6 +61,7 @@ function createDjMixerGame(): MinigameModule {
   let volume = DEFAULT_VOLUME;
   let stepQueue: ScheduledStep[] = [];
   let visualStep = -1;
+  let lastPlayheadStep = -1;
 
   let panel: HTMLDivElement;
   let seqHost: HTMLDivElement;
@@ -160,8 +161,15 @@ function createDjMixerGame(): MinigameModule {
   }
 
   function toggleCell(row: number, step: number): void {
-    grid[row][step] = !grid[row][step];
-    syncCellVisuals();
+    const active = !grid[row][step];
+    grid[row][step] = active;
+    // Nur die EINE angetippte Zelle aktualisieren, nicht das komplette
+    // Gitter neu durchlaufen (syncCellVisuals() -- vorher hier ebenfalls
+    // aufgerufen) -- auf einem schwachen Geraet (Pi 3, Software-Rendering)
+    // fuehlte sich das bei jedem einzelnen Antippen spuerbar verzoegert an,
+    // weil dabei JEDE Zelle im Gitter angefasst wurde, obwohl sich nur eine
+    // einzige tatsaechlich geaendert hat.
+    cellEls[row]?.[step]?.classList.toggle("seq-cell--active", active);
   }
 
   function previewSound(row: number): void {
@@ -179,12 +187,26 @@ function createDjMixerGame(): MinigameModule {
     });
   }
 
+  /**
+   * Faerbt nur die ZWEI betroffenen Spalten um (alte + neue Playhead-
+   * Position), statt bei jedem Taktschritt das komplette Gitter
+   * durchzugehen (vorher: alle Zeilen x alle Spalten, mehrmals pro
+   * Sekunde) -- auf einem schwachen Geraet (Pi 3, Software-Rendering) trug
+   * das spuerbar zum allgemeinen Ruckeln bei, weil es exakt im Takt der
+   * Audio-Planung im selben Funktionsaufruf laeuft (siehe update()).
+   */
   function syncPlayheadVisuals(): void {
-    for (let r = 0; r < cellEls.length; r++) {
-      for (let s = 0; s < totalSteps(); s++) {
-        cellEls[r][s]?.classList.toggle("seq-cell--playhead", s === visualStep);
+    if (lastPlayheadStep !== -1) {
+      for (let r = 0; r < cellEls.length; r++) {
+        cellEls[r][lastPlayheadStep]?.classList.remove("seq-cell--playhead");
       }
     }
+    if (visualStep !== -1) {
+      for (let r = 0; r < cellEls.length; r++) {
+        cellEls[r][visualStep]?.classList.add("seq-cell--playhead");
+      }
+    }
+    lastPlayheadStep = visualStep;
   }
 
   function buildGridDom(): void {

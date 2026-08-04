@@ -785,6 +785,7 @@ button {
 }
 
 .modal-panel {
+  position: relative;
   width: 100%;
   max-width: 420px;
   max-height: calc(100% - 40px);
@@ -806,6 +807,32 @@ button {
 
 .modal-panel--wide {
   max-width: 720px;
+}
+
+/* Zusaetzlicher Schliessen-Button oben rechts, ergaenzend zum Button unten
+   im Inhalt -- bei langen, scrollbaren Panels (z. B. Admin-Bereich) muss
+   man sonst erst ganz nach unten scrollen, um schliessen zu koennen. */
+.modal-panel__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-alt);
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.modal-panel__close:hover {
+  background: var(--panel-border);
 }
 
 .modal-panel h2 {

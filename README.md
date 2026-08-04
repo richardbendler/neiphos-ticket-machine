@@ -864,14 +864,9 @@ Kiosk. Dafür müssen zwei Dinge automatisch starten: der lokale Server (kann
 schon vor jedem Login laufen, braucht keine grafische Oberfläche) und
 Chromium im Kiosk-Modus (braucht eine laufende Desktop-Sitzung).
 
-**a) Automatischen Desktop-Login aktivieren** (falls noch nicht geschehen):
-
-```bash
-sudo raspi-config
-```
-
-→ „System Options" → „Boot / Auto Login" → „Desktop Autologin" auswählen,
-neu starten.
+**a) Automatischen Desktop-Login aktivieren** – bereits in Schritt 1d
+erledigt (`sudo raspi-config` → „System Options" → „Boot / Auto Login" →
+„Desktop Autologin"), falls nicht: dort nachholen.
 
 **b) Server als systemd-Service** (startet schon beim Booten, unabhängig vom Login):
 

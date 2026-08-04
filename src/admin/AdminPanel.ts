@@ -3,7 +3,7 @@ import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
 import { enterFullscreen, exitFullscreen, isFullscreenActive, exitKioskBrowser } from "../core/kiosk";
 import { summarizeSessions, filterSessionsForGame, getAllSessions, clearAllStats, type GameSummary, type PlaySession } from "../core/stats";
 import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
-import { fetchFeedback, markFeedbackRead, countUnread, type FeedbackEntry } from "../core/feedback";
+import { fetchFeedback, markFeedbackRead, deleteFeedback, deleteAllFeedback, countUnread, type FeedbackEntry } from "../core/feedback";
 import { setAdminSession, clearAdminSession } from "../core/adminSession";
 import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer, checkServerSyncStatus } from "../core/sync";
 import { gameRegistry } from "../games/registry";
@@ -753,6 +753,22 @@ function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {
   list.style.margin = "10px 0";
   panel.appendChild(list);
 
+  const clearAllBtn = document.createElement("button");
+  clearAllBtn.type = "button";
+  clearAllBtn.className = "btn btn--ghost";
+  clearAllBtn.style.fontSize = "0.8rem";
+  clearAllBtn.style.marginBottom = "10px";
+  clearAllBtn.textContent = "Alles Feedback löschen";
+  clearAllBtn.addEventListener("click", () => {
+    confirmWithPassword(
+      "Löscht unwiderruflich ALLE Feedback-Einträge -- lokal und, falls erreichbar, auch auf dem Server.",
+      () => {
+        void deleteAllFeedback().then(() => load());
+      },
+    );
+  });
+  panel.appendChild(clearAllBtn);
+
   const backActions = document.createElement("div");
   backActions.className = "modal-actions";
   const backBtn = document.createElement("button");
@@ -763,30 +779,39 @@ function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {
   backActions.appendChild(backBtn);
   panel.appendChild(backActions);
 
-  fetchFeedback().then(({ entries, serverReachable }) => {
-    const unreadIds = new Set(entries.filter((e) => !e.read).map((e) => e.id));
+  function load(): void {
+    fetchFeedback().then(({ entries, serverReachable }) => {
+      const unreadIds = new Set(entries.filter((e) => !e.read).map((e) => e.id));
 
-    if (!serverReachable) {
-      status.textContent = "Kein Server erreichbar — es werden nur lokal auf diesem Gerät gespeicherte Rückmeldungen angezeigt.";
-    } else if (entries.length === 0) {
-      status.textContent = "Noch kein Feedback vorhanden.";
-    } else {
-      status.textContent = "";
-    }
+      if (!serverReachable) {
+        status.textContent = "Kein Server erreichbar — es werden nur lokal auf diesem Gerät gespeicherte Rückmeldungen angezeigt.";
+      } else if (entries.length === 0) {
+        status.textContent = "Noch kein Feedback vorhanden.";
+      } else {
+        status.textContent = "";
+      }
 
-    list.innerHTML = "";
-    for (const entry of entries) {
-      list.appendChild(buildFeedbackRow(entry, unreadIds.has(entry.id)));
-    }
+      list.innerHTML = "";
+      for (const entry of entries) {
+        list.appendChild(
+          buildFeedbackRow(entry, unreadIds.has(entry.id), () => {
+            confirmSimple("Diesen Feedback-Eintrag löschen?", "Ja, löschen", () => {
+              void deleteFeedback(entry).then(() => load());
+            });
+          }),
+        );
+      }
 
-    // Sobald das Feedback angeschaut wurde, gilt es als gelesen.
-    for (const entry of entries) {
-      if (!entry.read) void markFeedbackRead(entry);
-    }
-  });
+      // Sobald das Feedback angeschaut wurde, gilt es als gelesen.
+      for (const entry of entries) {
+        if (!entry.read) void markFeedbackRead(entry);
+      }
+    });
+  }
+  load();
 }
 
-function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean): HTMLElement {
+function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean, onDelete: () => void): HTMLElement {
   const row = document.createElement("div");
   row.style.border = "1px solid var(--panel-border)";
   row.style.borderRadius = "var(--radius-sm)";
@@ -798,12 +823,18 @@ function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean): HTMLElement
   head.style.justifyContent = "space-between";
   head.style.alignItems = "center";
   head.style.marginBottom = "4px";
+  head.style.gap = "8px";
+
+  const dateGroup = document.createElement("span");
+  dateGroup.style.display = "inline-flex";
+  dateGroup.style.alignItems = "center";
+  dateGroup.style.gap = "6px";
 
   const date = document.createElement("span");
   date.style.fontSize = "0.75rem";
   date.style.color = "var(--text-faint)";
   date.textContent = formatDateTime(entry.createdAt) + (entry.id.startsWith("local-") ? " · nur lokal" : "");
-  head.appendChild(date);
+  dateGroup.appendChild(date);
 
   if (wasUnread) {
     const badge = document.createElement("span");
@@ -811,8 +842,18 @@ function buildFeedbackRow(entry: FeedbackEntry, wasUnread: boolean): HTMLElement
     badge.style.fontWeight = "700";
     badge.style.color = "var(--accent)";
     badge.textContent = "NEU";
-    head.appendChild(badge);
+    dateGroup.appendChild(badge);
   }
+  head.appendChild(dateGroup);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "btn btn--ghost";
+  deleteBtn.style.fontSize = "0.72rem";
+  deleteBtn.style.padding = "3px 9px";
+  deleteBtn.textContent = "Löschen";
+  deleteBtn.addEventListener("click", onDelete);
+  head.appendChild(deleteBtn);
 
   row.appendChild(head);
 

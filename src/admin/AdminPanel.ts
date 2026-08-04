@@ -150,7 +150,7 @@ function openKioskGuideModal(): void {
     panel.appendChild(paragraph("Im Terminal auf dem Pi ausführen (Server muss bereits laufen, siehe unten):"));
     panel.appendChild(
       codeBlock(
-        `chromium-browser \\
+        `chromium \\
   --kiosk \\
   --user-data-dir=/home/pi/.config/ticketmachine-chromium \\
   --noerrdialogs \\
@@ -163,7 +163,7 @@ function openKioskGuideModal(): void {
       ),
     );
     panel.appendChild(
-      paragraph("Beenden dann nur noch per SSH/Tastatur am Gerät selbst, z. B. mit: pkill chromium-browser"),
+      paragraph("Beenden dann nur noch per SSH/Tastatur am Gerät selbst, z. B. mit: pkill chromium"),
     );
 
     panel.appendChild(sectionHeading("Raspberry Pi / Linux: Autostart einrichten"));
@@ -178,7 +178,7 @@ function openKioskGuideModal(): void {
         `#!/bin/bash
 # Kurz warten, bis der Server-Service sicher steht (nach einem Reboot).
 sleep 3
-chromium-browser \\
+chromium \\
   --kiosk \\
   --user-data-dir=/home/pi/.config/ticketmachine-chromium \\
   --noerrdialogs \\

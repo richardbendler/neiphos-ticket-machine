@@ -26,28 +26,28 @@ interface BoardSize {
   difficulty: string;
 }
 
-// "Schwer" ist bewusst kein Quadrat (5x8 statt z.B. 8x8): so werden alle
-// verfuegbaren Zugfotos genutzt, ohne echte Zuege durch spielfremde
-// Ablenkerbilder (Auto, Flugzeug, ...) auffuellen zu muessen.
-const TRAIN_BOARD_SIZES: BoardSize[] = [
-  { key: "4x4", cols: 4, rows: 4, difficulty: "leicht" },
-  { key: "6x6", cols: 6, rows: 6, difficulty: "mittel" },
-  { key: "5x8", cols: 5, rows: 8, difficulty: "schwer" },
+// Beide Themen (Zuege/Huepftiere) bieten bewusst EXAKT dieselben drei
+// Spielfeldgroessen an -- vorher hatten sie unterschiedliche Groessen
+// (Zuege 4x4/6x6/5x8, Huepftiere 4x4/4x5/4x6), was wie ein Bug wirkte. Die
+// Groessen sind an die Huepftier-Datenbank angelehnt (aktuell 8 Bilder,
+// siehe data/hopperAnimals.ts) -- "schwer" nutzt davon alle acht als Paare,
+// ohne dass ein Bild mehrfach vorkommen muesste (das wuerde das Zuordnen
+// verfaelschen). Die Zug-Datenbank haette zwar deutlich mehr Fotos her-
+// gegeben, aber gleiche Optionen fuer beide Themen war der explizite
+// Wunsch -- waechst die Huepftier-Datenbank weiter, duerfen/sollen diese
+// Groessen (fuer BEIDE Themen gemeinsam) mitwachsen.
+const SHARED_BOARD_SIZES: Array<Pick<BoardSize, "cols" | "rows" | "difficulty">> = [
+  { cols: 4, rows: 2, difficulty: "leicht" },
+  { cols: 4, rows: 3, difficulty: "mittel" },
+  { cols: 4, rows: 4, difficulty: "schwer" },
 ];
 
-// Genauso drei Stufen wie bei den Zuegen (gleiche Optionen fuer beide
-// Themen) -- die Paarzahlen sind bewusst kleiner, weil es (noch) nicht so
-// viele unterschiedliche Huepftierfotos wie Zugfotos gibt. Eigene, von den
-// Zug-Boardgroessen getrennte "key"s, damit sich Highscores der beiden
-// Themen nicht gegenseitig in localStorage ueberschreiben (siehe
-// registerGame unten). "schwer" nutzt bewusst ALLE aktuell verfuegbaren
-// Huepftierbilder als Paare aus (hopperAnimalCards.length) -- bei weiterem
-// Bildausbau darf/soll diese Zahl (und die von "mittel") mitwachsen.
-const HOPPER_BOARD_SIZES: BoardSize[] = [
-  { key: "hopper-4x4", cols: 4, rows: 4, difficulty: "leicht" },
-  { key: "hopper-4x5", cols: 4, rows: 5, difficulty: "mittel" },
-  { key: "hopper-4x6", cols: 4, rows: 6, difficulty: "schwer" },
-];
+// Eigene, von den Zug-Boardgroessen getrennte "key"s fuer die Huepftier-
+// Varianten, damit sich Highscores der beiden Themen nicht gegenseitig in
+// localStorage ueberschreiben (siehe registerGame unten), obwohl cols/rows
+// jetzt identisch sind.
+const TRAIN_BOARD_SIZES: BoardSize[] = SHARED_BOARD_SIZES.map((s) => ({ ...s, key: `${s.cols}x${s.rows}` }));
+const HOPPER_BOARD_SIZES: BoardSize[] = SHARED_BOARD_SIZES.map((s) => ({ ...s, key: `hopper-${s.cols}x${s.rows}` }));
 
 function boardSizesFor(t: ContentTheme): BoardSize[] {
   return t === "trains" ? TRAIN_BOARD_SIZES : HOPPER_BOARD_SIZES;
@@ -362,7 +362,12 @@ function createMemoryGame(): MinigameModule {
     phase = "playing";
     renderGrid();
     stopGridFit?.();
-    stopGridFit = fitAspectToContainer(gridHost, gridWrap, boardSize.cols, boardSize.rows, 460);
+    // Kein kleiner Fest-Deckel mehr (vorher 460px) -- das liess das Raster
+    // auf breiteren Bildschirmen winzig in der Mitte haengen, mit riesigen
+    // ungenutzten Raendern. 2000px ist grosszuegig genug, um auf jedem
+    // realistischen Kiosk-Bildschirm nie selbst zu limitieren -- die
+    // tatsaechliche Grenze bleibt der verfuegbare Platz in gridWrap.
+    stopGridFit = fitAspectToContainer(gridHost, gridWrap, boardSize.cols, boardSize.rows, 2000);
     gridHost.style.visibility = "visible";
     renderPanel();
   }
@@ -469,8 +474,13 @@ function createMemoryGame(): MinigameModule {
       // den verfuegbaren Platz hinauswachsen.
       gridWrap = document.createElement("div");
       gridWrap.style.position = "absolute";
-      gridWrap.style.left = "0";
-      gridWrap.style.right = "0";
+      // Kleiner Rand links/rechts (statt 0), damit das Raster nicht bis an
+      // die Bildschirmkante reicht -- die eigentliche Groessenbegrenzung
+      // (maxWidth bei fitAspectToContainer unten) sorgt dafuer, dass der
+      // verfuegbare Platz danach auch wirklich ausgefuellt wird, statt wie
+      // zuvor auf 460px gedeckelt zu bleiben.
+      gridWrap.style.left = "12px";
+      gridWrap.style.right = "12px";
       gridWrap.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
       gridWrap.style.bottom = "calc(var(--footer-h) + 16px + var(--safe-bottom))";
       gridWrap.style.display = "flex";

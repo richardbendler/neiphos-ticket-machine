@@ -155,3 +155,30 @@ export async function syncPublicDataFromServer(): Promise<{ settingsChanged: boo
   const [settingsChanged] = await Promise.all([pullSettingsFromServer(), pullHighscoresFromServer()]);
   return { settingsChanged };
 }
+
+// ------------------------------------------------------------ Status-Anzeige
+
+export type ServerSyncStatus = "no-server" | "server-sync-off" | "sync-active";
+
+/**
+ * Fuer die Anzeige im Admin-Bereich (siehe admin/AdminPanel.ts): unterscheidet
+ * DREI Faelle, nicht nur "Sync an/aus" -- wichtig, um z. B. "laeuft gerade
+ * lokal per npm run dev (kein server/serve.js)" von "server/serve.js laeuft,
+ * aber NTM_SYNC ist nicht gesetzt" zu unterscheiden. Trick: bei fehlendem
+ * server/serve.js (z. B. Vite-Dev-Server, reines statisches Hosting)
+ * antwortet ./api/settings entweder gar nicht (Netzwerkfehler) oder mit
+ * einer HTML-Seite (Vite-Fallback auf index.html, Content-Type text/html)
+ * -- nur server/serve.js selbst antwortet mit "Content-Type:
+ * application/json" (ob mit 200 bei aktivem Sync oder 404 bei
+ * "sync_disabled", siehe server/serve.js).
+ */
+export async function checkServerSyncStatus(): Promise<ServerSyncStatus> {
+  try {
+    const res = await fetch("./api/settings");
+    const isJson = (res.headers.get("content-type") || "").includes("application/json");
+    if (!isJson) return "no-server";
+    return res.ok ? "sync-active" : "server-sync-off";
+  } catch {
+    return "no-server";
+  }
+}

@@ -28,19 +28,13 @@ interface BoardSize {
 }
 
 // Beide Themen (Zuege/Huepftiere) bieten bewusst EXAKT dieselben drei
-// Spielfeldgroessen an -- vorher hatten sie unterschiedliche Groessen
-// (Zuege 4x4/6x6/5x8, Huepftiere 4x4/4x5/4x6), was wie ein Bug wirkte. Die
-// Groessen sind an die Huepftier-Datenbank angelehnt (aktuell 8 Bilder,
-// siehe data/hopperAnimals.ts) -- "schwer" nutzt davon alle acht als Paare,
-// ohne dass ein Bild mehrfach vorkommen muesste (das wuerde das Zuordnen
-// verfaelschen). Die Zug-Datenbank haette zwar deutlich mehr Fotos her-
-// gegeben, aber gleiche Optionen fuer beide Themen war der explizite
-// Wunsch -- waechst die Huepftier-Datenbank weiter, duerfen/sollen diese
-// Groessen (fuer BEIDE Themen gemeinsam) mitwachsen.
+// Spielfeldgroessen an (explizite Vorgabe) -- "schwer" (4x8 = 16 Paare)
+// braucht dafuer mindestens 16 klar unterscheidbare Bilder je Thema, siehe
+// data/trains.ts (21 Bilder) und data/hopperAnimals.ts.
 const SHARED_BOARD_SIZES: Array<Pick<BoardSize, "cols" | "rows" | "difficulty">> = [
-  { cols: 4, rows: 2, difficulty: "leicht" },
-  { cols: 4, rows: 3, difficulty: "mittel" },
-  { cols: 4, rows: 4, difficulty: "schwer" },
+  { cols: 4, rows: 3, difficulty: "leicht" },
+  { cols: 4, rows: 6, difficulty: "mittel" },
+  { cols: 4, rows: 8, difficulty: "schwer" },
 ];
 
 // Eigene, von den Zug-Boardgroessen getrennte "key"s fuer die Huepftier-

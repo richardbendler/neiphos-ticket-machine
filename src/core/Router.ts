@@ -6,6 +6,7 @@ import { recordSession } from "./stats";
 import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { isGameEnabled } from "./storage";
+import { syncPublicDataFromServer } from "./sync";
 import { renderMainMenu } from "../menu/MainMenu";
 import { renderHighscoreBoard } from "../menu/HighscoreBoard";
 import { openAdminPanel } from "../admin/AdminPanel";
@@ -206,6 +207,18 @@ export class Router {
     this.root.appendChild(element);
     this.screenEl = element;
     this.screenCleanup = destroy;
+
+    // Erst schnell mit dem lokalen Stand rendern (siehe oben), dann im
+    // Hintergrund den Server fragen, ob sich z. B. die Spiele-Sichtbarkeit
+    // (vom Admin auf einem ANDEREN Geraet geaendert) inzwischen geaendert
+    // hat -- bleibt bei fehlendem/deaktiviertem Server lautlos wirkungslos
+    // (siehe core/sync.ts). Nur neu rendern, wenn sich wirklich etwas
+    // geaendert hat UND man in der Zwischenzeit nicht schon weitergeklickt
+    // hat (sonst wuerde ein spaet eintreffender Sync ein laufendes Spiel
+    // unterbrechen).
+    void syncPublicDataFromServer().then(({ settingsChanged }) => {
+      if (settingsChanged && this.screenEl === element) this.showMenu();
+    });
   }
 
   private showHighscores(): void {

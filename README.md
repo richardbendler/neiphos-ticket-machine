@@ -16,8 +16,8 @@ Aus einem Hauptmenü heraus sind sieben Zug-/Bahn-Minigames erreichbar:
    Mitte oder rechts wählen, bevor die Sackgasse kommt.
 5. **Zug-Spotter** – ein Bilderraster, so schnell wie möglich alle Züge
    zwischen ähnlichen Fahrzeugen antippen.
-6. **Zug-Memory** – klassisches Memory mit Zugbildern, wählbare
-   Spielfeldgröße (4×4 / 6×6 / 8×8).
+6. **Zug-Memory** – klassisches Memory mit Zugbildern (auch mit
+   Hüpftier-Motiven spielbar), wählbare Spielfeldgröße (4×2 / 4×3 / 4×4).
 7. **DJ-Mischer** – ein 16-Step-Sequencer, mit dem sich aus synthetisierten
    Zuggeräuschen ein Beat bauen lässt.
 
@@ -35,6 +35,7 @@ Programm erreichbar) mit Kiosk-/Vollbild-Steuerung und Spielstatistik.
 - [Lokal entwickeln/testen](#lokal-entwickelntesten)
 - [Build](#build)
 - [Deployment auf einen normalen Webserver](#deployment-auf-einen-normalen-webserver)
+- [Geräteübergreifende Synchronisation (optional)](#geräteübergreifende-synchronisation-optional)
 - [Deployment auf dem Raspberry Pi (Kiosk)](#deployment-auf-dem-raspberry-pi-kiosk)
 - [Kiosk-Modus unter Windows](#kiosk-modus-unter-windows-zum-testen-oder-als-alternativ-gerät)
 - [Admin-Bereich](#admin-bereich)
@@ -245,6 +246,115 @@ unten); läuft die App auf reinem statischen Hosting ohne den, greift dafür
 automatisch ein `localStorage`-Fallback, alles andere funktioniert
 unverändert.
 
+## Geräteübergreifende Synchronisation (optional)
+
+> **Wichtig, bevor du weiterliest:** Dieser Abschnitt ist ein rein
+> optionales Extra für den Fall, dass die App auf einem echten,
+> öffentlich erreichbaren Webserver läuft und mehrere Besucher-Endgeräte
+> (Handys, Laptops – nicht der eine Kiosk-Automat) denselben Stand teilen
+> sollen. Er hat **nichts** mit dem normalen Kiosk-Betrieb zu tun und
+> ändert an dessen Verhalten nichts: Ohne die unten beschriebene
+> Umgebungsvariable verhält sich der Server exakt so, als gäbe es diesen
+> Abschnitt nicht. Für die Einrichtung des eigentlichen, dauerhaft
+> offline laufenden Automaten bitte direkt zu
+> [Deployment auf dem Raspberry Pi (Kiosk)](#deployment-auf-dem-raspberry-pi-kiosk)
+> springen – der kommt komplett ohne das hier aus.
+
+Im Grundzustand ist jedes Gerät für sich: Highscores, Spielstatistik und die
+Einstellung, welche Spiele im Hauptmenü erscheinen, liegen ausschließlich in
+`localStorage` des jeweiligen Browsers (nur Feedback landet ohnehin schon
+immer serverseitig, siehe [Feedback-Funktion](#feedback-funktion)). Läuft die
+App aber dauerhaft auf einem eigenen Webserver mit einem laufenden
+Node.js-Prozess (nicht nur reines statisches Hosting), kann sie stattdessen
+so tun, als würden alle Besucher:innen dasselbe Gerät benutzen: Highscores
+werden geräteübergreifend zusammengeführt, die Spielstatistik lässt sich im
+Admin-Bereich geräteübergreifend einsehen, und wenn der Admin z. B. ein Spiel
+im Hauptmenü aus-/einblendet, gilt das sofort für alle.
+
+### Aktivieren
+
+Rein serverseitig, per Umgebungsvariable beim Start von `server/serve.js`:
+
+```bash
+# Linux/macOS/Pi:
+NTM_SYNC=1 node server/serve.js dist 8080
+```
+
+```powershell
+# Windows (PowerShell):
+$env:NTM_SYNC = "1"
+node server/serve.js dist 8080
+```
+
+Ohne `NTM_SYNC=1` (der Standard – insbesondere auf dem Kiosk-Pi, siehe oben)
+antworten alle unten genannten Sync-Endpunkte mit `404`, als gäbe es sie
+nicht; die App fällt dann automatisch und lautlos auf rein lokale Speicherung
+zurück. Es ist also unbedenklich, denselben, unveränderten `server/serve.js`
+sowohl auf dem Offline-Kiosk (ohne die Variable) als auch auf einem
+Sync-Webserver (mit der Variable) einzusetzen.
+
+### Was wird synchronisiert, und wo landet es
+
+Genau wie beim Feedback (siehe oben) legt der Server alles als einzelne
+JSON-Dateien/-Ordner **neben** `dist/` ab, nicht darin (ein `npm run build`
+leert `dist/` bei jedem Lauf):
+
+- `highscores/` – ein Datei pro Highscore-Brett (`<Spiel>__<Board>.json`),
+  Inhalt identisch zum lokalen `localStorage`-Format. Ein neu erspielter
+  Highscore wird an den Server geschickt und dort mit dem bestehenden Brett
+  zusammengeführt (bei Gleichstand reihen sich mehrere Namen ein, siehe
+  `getHighscoreOutcome` in `core/storage.ts`); umgekehrt zieht jedes Gerät
+  beim Start und bei jedem Besuch des Hauptmenüs den aktuellen Serverstand,
+  merged ihn mit dem eigenen und zeigt so automatisch die
+  geräteübergreifende Bestenliste.
+- `stats/` – eine Datei pro Spielsitzung (wie beim Feedback, um
+  Schreibkonflikte bei gleichzeitigen Einsendungen verschiedener Geräte zu
+  vermeiden). Wird **nicht** in `localStorage` der Besucher-Geräte
+  zurückgemischt (das würde jedes Gerät dauerhaft mit fremden Sitzungen
+  aufblähen), sondern nur für die Admin-Statistik-Ansicht bei Bedarf vom
+  Server dazugeholt und dort mit den lokalen Sitzungen dieses Geräts
+  zusammengeführt angezeigt.
+- `settings.json` – aktuell nur `disabledGameIds` (welche Spiele im
+  Hauptmenü ausgeblendet sind). Wird vom Admin-Bereich aus geschrieben und
+  von jedem Gerät (nicht nur dem Admin-Gerät) gelesen, damit die
+  Menü-Sichtbarkeit wirklich für alle gleich ist.
+
+### Wie zuverlässig ist das?
+
+Bewusst "best effort", nicht wie eine klassische Datenbank mit Transaktionen:
+Jedes Schreiben (ein Highscore, eine Spielsitzung, eine Einstellungsänderung)
+wird lokal **zuerst und unabhängig vom Server** in `localStorage` abgelegt,
+der Versand an den Server passiert nur als zusätzlicher Hintergrund-Vorgang
+("fire and forget") und wird bei einem Netzwerkfehler oder nicht erreichbarem
+Server einfach stillschweigend übersprungen – kein Ladebildschirm, kein
+Fehlerdialog, kein blockierter Spielstart. Genauso lesen alle bestehenden
+Codepfade in den einzelnen Minispielen unverändert synchron aus
+`localStorage`; der Sync-Code (`core/sync.ts`) klinkt sich nur zusätzlich als
+Nebeneffekt ein, kein einziges Minigame musste dafür angepasst werden.
+
+### Zugriffsschutz
+
+Lesend öffentlich (jede:r Besucher:in braucht das für die Anzeige während des
+Spielens): `GET /api/highscores`, `GET /api/settings`, sowie das (rate-
+limitierte) Einsenden `POST /api/highscores` und `POST /api/stats`. Admin-
+geschützt per `X-Admin-Password`-Header (dasselbe Passwort wie
+`VITE_ADMIN_PASSWORD` in `.env.local`, siehe
+[Admin-Passwort einrichten](#admin-passwort-einrichten)): das Lesen der
+Statistik (`GET /api/stats`), Ändern der Einstellungen
+(`POST /api/settings`) sowie beide Zurücksetzen-Buttons im Admin-Bereich
+(`POST /api/highscores/reset`, `POST /api/stats/reset`). Ohne konfiguriertes
+Passwort bleiben diese Endpunkte serverseitig grundsätzlich gesperrt (`503`),
+nicht offen. Der Admin-Bereich zeigt oben einen kleinen Hinweis an, ob die
+Synchronisation gerade aktiv/erreichbar ist.
+
+Einsendungen bei den öffentlichen Highscore-/Statistik-Endpunkten werden nur
+grob auf Plausibilität geprüft (Zahlenformat, sinnvolle Wertegrenzen, keine
+absurd langen Namen) und pro IP-Adresse rate-limitiert – das ist **kein**
+echter Schutz vor absichtlichem Cheaten (dafür bräuchte es serverseitige
+Spiellogik oder echte Benutzerkonten), sondern fängt nur offensichtlichen
+Unsinn/Spam ab. Für den vorgesehenen Einsatzzweck (Festival-Aufsteller mit
+überschaubarem, bekanntem Publikum) ist das ausreichend.
+
 ## Deployment auf dem Raspberry Pi (Kiosk)
 
 **Betriebssystem-Wahl: Raspberry Pi OS (Linux), nicht Windows.** Für den
@@ -294,11 +404,15 @@ leeren SD-Karte bis zum laufenden Kiosk.
 5. „Storage" → die microSD-Karte auswählen.
 6. **Vor dem Schreiben** unten auf das Zahnrad („Einstellungen bearbeiten",
    alternativ Strg+Umschalt+X) klicken und dort:
-   - Hostname setzen (z. B. `neiphos-kiosk`)
+   - Hostname setzen (z. B. `neiphos-ticket-machine`) – lässt sich später
+     jederzeit per SSH mit `sudo hostnamectl set-hostname <name>` und
+     anschließendem `sudo reboot` ändern (der Reboot sorgt dafür, dass auch
+     die mDNS-Ankündigung für `<name>.local`, siehe unten, den neuen Namen
+     übernimmt)
    - „SSH aktivieren" anhaken, Passwort-Authentifizierung wählen
-   - Benutzername/Passwort festlegen (in den Befehlen unten wird `pi`
-     verwendet – falls ein anderer Name gewählt wurde, dort entsprechend
-     ersetzen)
+   - Benutzername/Passwort festlegen (in den Befehlen unten wird als
+     Beispiel `flipper` verwendet – der Benutzername ist frei wählbar,
+     bei einem anderen gewählten Namen dort einfach entsprechend ersetzen)
    - Falls kein Netzwerkkabel geplant ist: WLAN-SSID/Passwort eintragen
    - Locale/Tastaturlayout auf Deutschland stellen
    - **"Raspberry Pi Connect" nicht aktivieren** – das ist ein separater
@@ -321,15 +435,86 @@ leeren SD-Karte bis zum laufenden Kiosk.
    automatisch auf die volle Kartengröße vergrößert). Nach 1–2 Minuten
    sollte entweder der Desktop erscheinen oder – bei Headless-Einrichtung –
    der Pi im Netzwerk erreichbar sein.
-3. Vom Entwicklungsrechner aus per SSH verbinden:
+3. **Nur falls ein Monitor angeschlossen ist**, kann beim allerersten Start
+   trotzdem noch der grafische Einrichtungsassistent „Welcome to Raspberry
+   Pi" erscheinen, obwohl Benutzer/Passwort/WLAN schon per Imager gesetzt
+   wurden (bekannte Eigenart aktueller Raspberry Pi OS-Versionen
+   „Bookworm" – die Imager-Einstellungen werden trotzdem übernommen, der
+   Assistent fragt aber sicherheitshalber noch mal nach). Einfach
+   durchklicken:
+   - Wird erneut nach einem Benutzernamen/Passwort gefragt: irgendeinen
+     memorierbaren Namen vergeben (muss nicht zwingend mit dem im Imager
+     übereinstimmen) – **dieser** Name/Passwort ist danach der
+     maßgebliche für den Login und die SSH-Befehle unten, nicht mehr der
+     ursprünglich im Imager eingetragene.
+   - Bei der Frage nach dem Standardbrowser **unbedingt Chromium wählen,
+     nicht Firefox** – die komplette Kiosk-Einrichtung unten (Schritt 4/5)
+     baut auf Chromium auf; bei „Firefox" wird Chromium anschließend sogar
+     deinstalliert (siehe Hinweis unten bei Schritt c).
+   - Bei rein headless per SSH eingerichteten Pis (kein Monitor
+     angeschlossen) taucht dieser Assistent nicht auf; dann einfach mit
+     Schritt 4 weitermachen.
+4. Vom Entwicklungsrechner aus per SSH verbinden:
 
    ```bash
-   ssh pi@neiphos-kiosk.local
+   ssh flipper@neiphos-ticket-machine.local
    ```
 
-   (Hostname wie im Imager gesetzt; funktioniert dank mDNS/Bonjour meist
-   auch ohne bekannte IP-Adresse. Klappt das nicht, die IP-Adresse
-   stattdessen über die Router-Oberfläche nachschauen.)
+   (Hostname wie im Imager gesetzt; funktioniert dank mDNS/Bonjour auf
+   macOS/Linux meist auch ohne bekannte IP-Adresse. **Unter Windows
+   klappt `<name>.local` dagegen oft nicht ohne Weiteres** – der
+   eingebaute OpenSSH-Client von Windows unterstützt mDNS-Auflösung nur
+   eingeschränkt, das ist kein Zeichen für einen Fehler in der
+   Pi-Einrichtung. Fehlermeldungen wie „Unknown error“ oder „Could not
+   resolve hostname“ auf Port 22 deuten darauf hin.
+
+   **Dauerhafte Abhilfe (einmalig, funktioniert danach in praktisch jedem
+   WLAN, nicht nur zu Hause):** [Bonjour Print
+   Services](https://support.apple.com/kb/DL999) auf dem Windows-Rechner
+   installieren (kostenloser, kleiner Download von Apple) – rüstet
+   Windows um vollwertige mDNS-Auflösung nach, danach funktioniert
+   `<name>.local` genau wie unter macOS/Linux. Einzige Ausnahme: WLANs mit
+   aktivierter "Client-/AP-Isolation" (bei manchen öffentlichen/Festival-
+   Netzen der Fall) blockieren die dafür nötige Multicast-Kommunikation
+   zwischen Geräten grundsätzlich – dagegen hilft auch das nicht.
+
+   **Übergangsweise/ohne Installation:** die IP-Adresse des Pi über die
+   jeweilige Router-Oberfläche nachschauen (bei einer FritzBox z. B. unter
+   `http://fritz.box` → „Heimnetz" → „Netzwerk" in der Geräteliste, dort
+   taucht der Pi unter seinem Hostnamen auf) und sich stattdessen per
+   `ssh flipper@<IP-Adresse>` verbinden – funktioniert aber nur in
+   Netzwerken mit einer erreichbaren Router-Oberfläche, also z. B. nicht
+   in einem unbekannten Festival-WLAN.
+
+   **Garantierter Fallback, unabhängig von jedem Netzwerk (empfohlen für
+   unterwegs/das Festival):** eine gewöhnliche USB-Tastatur an den Pi
+   anschließen und direkt am angeschlossenen Kiosk-Display ein Terminal
+   öffnen (Taskleiste bzw. Rechtsklick auf den Desktop → „Terminal öffnen“
+   je nach Desktop-Umgebung) – das braucht überhaupt kein WLAN/Router/SSH
+   und funktioniert dadurch garantiert, egal wie das Netzwerk vor Ort
+   aussieht oder ob überhaupt eins vorhanden ist.
+
+   **Falls das Gerät im Netzwerk erreichbar ist (Ping/Namensauflösung
+   funktioniert), Port 22 aber trotzdem nicht antwortet:** Dann läuft der
+   SSH-Dienst auf dem Pi selbst nicht, obwohl „SSH aktivieren“ im Imager
+   angehakt war – das passiert insbesondere dann, wenn beim Erststart
+   (siehe Schritt 3 oben) zusätzlich noch der grafische
+   Ersteinrichtungsassistent durchlaufen und dort erneut ein
+   Benutzer/Passwort vergeben wurde: Dieser Assistent übernimmt dabei
+   offenbar nicht zuverlässig alle Imager-Einstellungen, insbesondere
+   nicht die SSH-Aktivierung. Abhilfe direkt am Pi (über das angeschlossene
+   Display/Tastatur, siehe Fallback oben):
+
+   ```bash
+   sudo systemctl status ssh
+   ```
+
+   Steht der Dienst auf `inactive`/`disabled`, dauerhaft aktivieren und
+   sofort starten (kein Neustart nötig):
+
+   ```bash
+   sudo systemctl enable --now ssh
+   ```)
 
 **c) System aktualisieren, Grundlagen installieren:**
 
@@ -380,7 +565,7 @@ oder USB-Stick auf den Pi kopieren:
 
 ```bash
 npm run build
-scp -r dist pi@raspberrypi.local:/home/pi/neiphos-ticket-machine
+scp -r dist flipper@neiphos-ticket-machine.local:/home/flipper/neiphos-ticket-machine
 ```
 
 ### 3. Lokalen Webserver auf dem Pi einrichten
@@ -397,7 +582,7 @@ zusätzlicher Pakete nötig außer Node selbst). Er liefert `dist/` aus **und**
 nimmt Feedback-Nachrichten entgegen (siehe [Feedback-Funktion](#feedback-funktion)):
 
 ```bash
-cd /home/pi/neiphos-ticket-machine
+cd /home/flipper/neiphos-ticket-machine
 node server/serve.js dist 8080
 ```
 
@@ -424,7 +609,7 @@ dauerhaft laufenden Touch-Kiosk:
 ```bash
 chromium-browser \
   --kiosk \
-  --user-data-dir=/home/pi/.config/ticketmachine-chromium \
+  --user-data-dir=/home/flipper/.config/ticketmachine-chromium \
   --noerrdialogs \
   --disable-infobars \
   --disable-session-crashed-bubble \
@@ -476,10 +661,10 @@ Description=Neiphos Ticket Machine - lokaler Server
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/node /home/pi/neiphos-ticket-machine/server/serve.js /home/pi/neiphos-ticket-machine/dist 8080
-WorkingDirectory=/home/pi/neiphos-ticket-machine
+ExecStart=/usr/bin/node /home/flipper/neiphos-ticket-machine/server/serve.js /home/flipper/neiphos-ticket-machine/dist 8080
+WorkingDirectory=/home/flipper/neiphos-ticket-machine
 Restart=always
-User=pi
+User=flipper
 
 [Install]
 WantedBy=multi-user.target
@@ -496,7 +681,7 @@ abweicht.)
 **c) Chromium per Desktop-Autostart** (startet automatisch nach dem
 Desktop-Login der PIXEL-/LXDE-Oberfläche):
 
-Kleines Startskript `/home/pi/neiphos-ticket-machine/start-kiosk.sh` anlegen:
+Kleines Startskript `/home/flipper/neiphos-ticket-machine/start-kiosk.sh` anlegen:
 
 ```bash
 #!/bin/bash
@@ -504,7 +689,7 @@ Kleines Startskript `/home/pi/neiphos-ticket-machine/start-kiosk.sh` anlegen:
 sleep 3
 chromium-browser \
   --kiosk \
-  --user-data-dir=/home/pi/.config/ticketmachine-chromium \
+  --user-data-dir=/home/flipper/.config/ticketmachine-chromium \
   --noerrdialogs \
   --disable-infobars \
   --disable-session-crashed-bubble \
@@ -516,7 +701,7 @@ chromium-browser \
 ```
 
 ```bash
-chmod +x /home/pi/neiphos-ticket-machine/start-kiosk.sh
+chmod +x /home/flipper/neiphos-ticket-machine/start-kiosk.sh
 ```
 
 Autostart-Eintrag `~/.config/autostart/ticketmachine-kiosk.desktop`:
@@ -525,7 +710,7 @@ Autostart-Eintrag `~/.config/autostart/ticketmachine-kiosk.desktop`:
 [Desktop Entry]
 Type=Application
 Name=Neiphos Ticket Machine Kiosk
-Exec=/home/pi/neiphos-ticket-machine/start-kiosk.sh
+Exec=/home/flipper/neiphos-ticket-machine/start-kiosk.sh
 X-GNOME-Autostart-enabled=true
 ```
 
@@ -733,13 +918,13 @@ jeweiligen Gerät ab, damit nichts verloren geht. Im Admin-Bereich werden
 Server- und lokal-gespeichertes Feedback gemeinsam angezeigt; rein lokal
 gespeicherte Einträge sind mit "· nur lokal" gekennzeichnet.
 
-Die Feedback-API ist bewusst ohne eigene Authentifizierung – sie liegt hinter
-demselben Admin-Passwort-Gate wie die Statistik-Ansicht in der Oberfläche,
-ein direkter Zugriff auf `/api/feedback` wäre aber technisch ohne Passwort
-möglich, sofern der Server von außerhalb des Kiosk-Geräts erreichbar ist. Für
-den vorgesehenen Einsatzzweck (ein isoliertes Kiosk-Gerät bzw. ein privater
-Testserver) ist das ausreichend, siehe auch die Einschränkung beim
-Admin-Passwort unten.
+Feedback **absenden** (`POST /api/feedback`) bleibt bewusst ohne
+Authentifizierung – das soll jede:r Besucher:in tun können. Feedback
+**lesen** (`GET /api/feedback`) und **als gelesen markieren** verlangen
+serverseitig dasselbe Admin-Passwort wie unten bei der [geräteübergreifenden
+Synchronisation](#geräteübergreifende-synchronisation-optional) beschrieben
+(`X-Admin-Password`-Header) – ohne gültige Admin-Sitzung im Browser (also
+außerhalb des Admin-Bereichs) bleiben diese beiden Endpunkte gesperrt.
 
 ## Neues Minigame hinzufügen
 

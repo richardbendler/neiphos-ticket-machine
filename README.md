@@ -1114,13 +1114,21 @@ niemand zwischen Groß-/Kleinschreibung unterscheiden könnte).
 
 Im Admin-Bereich:
 
-- **Kiosk-Modus starten/beenden** – schaltet den Browser-Vollbildmodus
+- **Kiosk-Modus starten/beenden** – schaltet nur den Browser-Vollbildmodus
   (Fullscreen API) dieser Webseite um. Das ist *nicht* dasselbe wie Chromium
-  komplett im `--kiosk`-Modus zu beenden (das kann eine Webseite aus
-  Sicherheitsgründen grundsätzlich nicht selbst auslösen) – wurde Chromium
-  mit `--kiosk` gestartet, hilft zum vollständigen Verlassen nur ein
-  Neustart/Beenden des Browserprozesses auf dem Gerät selbst (SSH, Tastatur,
-  oder das Deaktivieren des Autostart-Service und Neustart des Pi).
+  komplett im `--kiosk`-Modus zu beenden – eine Webseite kann aus
+  Sicherheitsgründen grundsätzlich nicht zuverlässig erkennen, ob sie gerade
+  in einem `--kiosk`-Browser läuft, daher zeigt dieser Button unabhängig
+  davon immer nur den Fullscreen-API-Status.
+- **Kiosk-Browser jetzt beenden (Notausgang)** – eigener, davon getrennter
+  Button: beendet den `--kiosk`-Chromium-Prozess auf dem Gerät wirklich
+  (`POST /api/kiosk/exit`, admin-geschützt, `pkill -f
+  "ticketmachine-chromium"` über den lokal laufenden Server) und legt damit
+  den darunterliegenden Desktop frei – gedacht für den Notfall, dass ohne
+  funktionierendes WLAN weder SSH noch ein anderer Fernzugriff möglich ist,
+  der Desktop aber z. B. für eine WLAN-Neueinrichtung erreichbar sein muss.
+  Braucht dafür zwingend einen laufenden `server/serve.js`-Prozess (siehe
+  [Deployment auf dem Raspberry Pi](#deployment-auf-dem-raspberry-pi-kiosk)).
 - **Spielstatistik** – pro Spiel, wie oft gespielt und Gesamtspielzeit;
   aufklappbar für die einzelnen Zeitpunkte/Dauern jeder Sitzung.
   "Statistik zurücksetzen" löscht die komplette Historie.

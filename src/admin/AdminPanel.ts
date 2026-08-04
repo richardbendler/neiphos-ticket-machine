@@ -159,11 +159,17 @@ function openKioskGuideModal(): void {
   --disable-pinch \\
   --overscroll-history-navigation=0 \\
   --autoplay-policy=no-user-gesture-required \\
+  --password-store=basic \\
   http://localhost:8080`,
       ),
     );
     panel.appendChild(
       paragraph("Beenden dann nur noch per SSH/Tastatur am Gerät selbst, z. B. mit: pkill chromium"),
+    );
+    panel.appendChild(
+      paragraph(
+        "Meldet Chromium \"MESA-LOADER: failed to open dri: ... Keine Berechtigung\", fehlt dem Benutzer die Berechtigung fuer die GPU-Geraetedateien (faellt sonst auf langsameres Software-Rendering zurueck): sudo usermod -aG render,video <benutzername>, danach neu starten.",
+      ),
     );
 
     panel.appendChild(sectionHeading("Raspberry Pi / Linux: Autostart einrichten"));
@@ -187,6 +193,7 @@ chromium \\
   --disable-pinch \\
   --overscroll-history-navigation=0 \\
   --autoplay-policy=no-user-gesture-required \\
+  --password-store=basic \\
   http://localhost:8080`,
       ),
     );

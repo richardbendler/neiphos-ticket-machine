@@ -69,19 +69,36 @@ function envGain(ctx: AudioContext, time: number, attack: number, decay: number,
 // Hi-Hat. Hier bahn-thematisch nachgebaut, damit sich damit ein richtiger
 // Rhythmus bauen laesst, der trotzdem nach Zug klingt.
 
-/** Kick: tiefer Radaufschlag auf der Schiene statt klassischer Bassdrum. */
+/**
+ * Kick: tiefer Radaufschlag auf der Schiene statt klassischer Bassdrum.
+ * Zielfrequenz am Ende des Sweeps auf ausdruecklichen Lautstaerke-Wunsch von
+ * 42 auf 60 Hz angehoben -- Amplitude war hier schon nahe der Decke (0.9),
+ * konnte also kaum lauter gestellt werden; 42 Hz liegt aber ausserhalb dessen,
+ * was kleine Kiosk-Lautsprecher ueberhaupt ordentlich wiedergeben (Bass-
+ * Frequenzen brauchen bei gleicher Lautstaerke-Wahrnehmung deutlich mehr
+ * Pegel als Mitten/Hoehen), 60 Hz wird auf typischen Kleinlautsprechern
+ * hoerbar praesenter. Decay etwas laenger (mehr Energie/RMS ohne hoeheren
+ * Spitzenpegel), Peak an die (per Lautstaerke-Messung ermittelte) sichere
+ * Decke von 0.95 angehoben.
+ */
 const playKick: PlayFn = (ctx, time, destination) => {
   const osc = ctx.createOscillator();
   osc.type = "sine";
   osc.frequency.setValueAtTime(130, time);
-  osc.frequency.exponentialRampToValueAtTime(42, time + 0.09);
-  const gain = envGain(ctx, time, 0.002, 0.22, 0.9);
+  osc.frequency.exponentialRampToValueAtTime(60, time + 0.09);
+  const gain = envGain(ctx, time, 0.002, 0.25, 0.95);
   osc.connect(gain).connect(destination);
   osc.start(time);
-  osc.stop(time + 0.26);
+  osc.stop(time + 0.29);
 };
 
-/** Snare: Kupplungsklacken -- kurzer Rauschimpuls plus tonaler Kern fuer Punch. */
+/**
+ * Snare: Kupplungsklacken -- kurzer Rauschimpuls plus tonaler Kern fuer Punch.
+ * Peaks knapp verdoppelt (Lautstaerke-Messung: Snare war mit ca. -27dB RMS
+ * eines der leisesten Elemente im ganzen Board, deutlich unter Kick/anderen
+ * Sample-Clips) -- reichlich Headroom war vorhanden (alter Peak nur ca. 0.48
+ * von maximal 1.0), daher ohne Verzerrungsrisiko moeglich.
+ */
 const playSnare: PlayFn = (ctx, time, destination) => {
   const noise = ctx.createBufferSource();
   noise.buffer = getNoiseBuffer(ctx);
@@ -89,7 +106,7 @@ const playSnare: PlayFn = (ctx, time, destination) => {
   filter.type = "bandpass";
   filter.frequency.value = 1400;
   filter.Q.value = 1.2;
-  const noiseGain = envGain(ctx, time, 0.001, 0.09, 0.5);
+  const noiseGain = envGain(ctx, time, 0.001, 0.09, 0.95);
   noise.connect(filter).connect(noiseGain).connect(destination);
   noise.start(time);
   noise.stop(time + 0.12);
@@ -97,20 +114,26 @@ const playSnare: PlayFn = (ctx, time, destination) => {
   const body = ctx.createOscillator();
   body.type = "triangle";
   body.frequency.value = 210;
-  const bodyGain = envGain(ctx, time, 0.001, 0.06, 0.35);
+  const bodyGain = envGain(ctx, time, 0.001, 0.06, 0.65);
   body.connect(bodyGain).connect(destination);
   body.start(time);
   body.stop(time + 0.08);
 };
 
-/** Hi-Hat: kurzer Druckluft-Tick, wie ein knappes Bremsluft-Zischen. */
+/**
+ * Hi-Hat: kurzer Druckluft-Tick, wie ein knappes Bremsluft-Zischen. Peak von
+ * 0.3 auf 0.75 angehoben (Lautstaerke-Messung: mit ca. -30dB RMS das
+ * leiseste Element im ganzen Board) -- bewusst knapp unter der sicheren
+ * Decke (0.93) belassen statt bis ans Maximum, damit das hochfrequente
+ * Zischen nicht unangenehm schrill wird.
+ */
 const playHiHat: PlayFn = (ctx, time, destination) => {
   const src = ctx.createBufferSource();
   src.buffer = getNoiseBuffer(ctx);
   const filter = ctx.createBiquadFilter();
   filter.type = "highpass";
   filter.frequency.value = 7500;
-  const gain = envGain(ctx, time, 0.001, 0.035, 0.3);
+  const gain = envGain(ctx, time, 0.001, 0.035, 0.75);
   src.connect(filter).connect(gain).connect(destination);
   src.start(time);
   src.stop(time + 0.05);
@@ -142,9 +165,12 @@ const playHopperSqueak: PlayFn = (ctx, time, destination) => {
   filter.frequency.value = 1700;
   filter.Q.value = 2.5;
 
-  // Peak vorher 0.5 -- ging im Mix mit den anderen (v.a. Kick bei 0.9)
-  // unter, auf ausdruecklichen Wunsch lauter gestellt.
-  const gain = envGain(ctx, time, 0.008, 0.17, 0.85);
+  // Peak schon zweimal erhoeht (zuletzt 0.5 -> 0.85), ging im Mix aber
+  // weiterhin unter -- der Bandpass-Filter oben schluckt einen grossen Teil
+  // des Rohsignals, der tatsaechliche Ausgangspegel lag laut Lautstaerke-
+  // Messung bei nur ca. -24dB RMS (eines der leiseren Elemente). Deutlich
+  // hoeher gestellt, damit nach dem Filter wirklich spuerbar mehr ankommt.
+  const gain = envGain(ctx, time, 0.008, 0.17, 1.7);
   osc.connect(filter).connect(gain).connect(destination);
 
   osc.start(time);
@@ -308,8 +334,8 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "kick", label: "Tür zu", hint: "Dumpfes Schließgeräusch (Kick)", play: playKick },
   { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
   { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
-  { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 1, 1) },
-  { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl, 2) },
+  { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 0.76, 1) },
+  { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl, 2.3) },
   // War vorher "Ansage 2" -- die dritte, kuenstlich klingende Ansage
   // ("announcement"/bahnhofsansage.mp3) klang identisch zu "DB-Ansage",
   // aber schlechter, und wurde deshalb entfernt; dieser Sound ruecky auf
@@ -318,26 +344,28 @@ export const SOUND_DEFS: SoundDef[] = [
   // Ansage bei schnellerem Tempo wie eine Micky-Maus-Stimme. Die Datei selbst
   // wurde ausserdem auf nur den ersten Satz gekuerzt (vorher ~8.8s, jetzt
   // ~3.2s) und ihre minimale Anfangsstille weggeschnitten.
-  { id: "ansageDb", label: "Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl, 1, undefined, undefined, true) },
-  { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2) },
+  { id: "ansageDb", label: "Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl, 1.12, undefined, undefined, true) },
+  { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2.5) },
   // Drei kurze, echte Bahnsteig-/Haltestellen-Ansagen -- auf ausdruecklichen
   // Wunsch ergaenzt, wieder ohne Ruecksicht auf Lizenzfragen (siehe
   // Datei-Kommentar oben).
-  { id: "einsteigenBitte", label: "Einsteigen", hint: "„Einsteigen bitte“ (Sample-Clip)", play: makeSamplePlayFn(einsteigenBitteUrl) },
-  { id: "zurueckbleiben", label: "Zurückbleiben", hint: "„Zurückbleiben bitte“ (Sample-Clip)", play: makeSamplePlayFn(zurueckbleibenUrl) },
-  { id: "haltestellengong", label: "Halte-Gong", hint: "Haltestellengong Bus/Tram (Sample-Clip)", play: makeSamplePlayFn(haltestellengongUrl, 1.6) },
-  { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 3, 1.1) },
-  { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.8, 0.8) },
-  { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.5, 1) },
+  { id: "einsteigenBitte", label: "Einsteigen", hint: "„Einsteigen bitte“ (Sample-Clip)", play: makeSamplePlayFn(einsteigenBitteUrl, 0.72) },
+  { id: "zurueckbleiben", label: "Zurückbleiben", hint: "„Zurückbleiben bitte“ (Sample-Clip)", play: makeSamplePlayFn(zurueckbleibenUrl, 0.5) },
+  { id: "haltestellengong", label: "Halte-Gong", hint: "Haltestellengong Bus/Tram (Sample-Clip)", play: makeSamplePlayFn(haltestellengongUrl, 1.65) },
+  { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 4.5, 1.1) },
+  { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.4, 0.8) },
+  { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.6, 1) },
   // maxDuration von 0.8 auf 2.0: der Glockenklang klingt hoerbar nach, 0.8s
   // schnitt ihn mitten im Ausklingen brutal ab (siehe gemeldeter Bug).
-  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 2.6, 2.0) },
-  { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 1, 1.2) },
-  { id: "hornChina", label: "Horn China", hint: "Chinesisches Diesellok-Horn (Sample-Clip)", play: makeSamplePlayFn(hornChinaUrl, 1, 1.2) },
-  { id: "hornJapan", label: "Horn Japan", hint: "Japanisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornJapanUrl, 1.35, 1.2) },
-  // gainBoost vorher 1 -- auf ausdruecklichen Wunsch etwas leiser gestellt.
-  { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 0.65, 1.2) },
-  { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 1, 1.3) },
+  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 3.5, 2.0) },
+  { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 0.55, 1.2) },
+  { id: "hornChina", label: "Horn China", hint: "Chinesisches Diesellok-Horn (Sample-Clip)", play: makeSamplePlayFn(hornChinaUrl, 0.25, 1.2) },
+  { id: "hornJapan", label: "Horn Japan", hint: "Japanisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornJapanUrl, 1.14, 1.2) },
+  // gainBoost vorher 1, dann 0.65 -- Lautstaerke-Messung zeigte, dass es
+  // trotz der vorherigen Reduktion immer noch eines der lautesten Elemente
+  // im ganzen Board war, daher nochmals deutlich abgesenkt.
+  { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 0.31, 1.2) },
+  { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 0.98, 1.3) },
   { id: "hopperSqueak", label: "Hüpftier", hint: "Quietschendes Gummi-Hüpftier", play: playHopperSqueak },
 ];
 

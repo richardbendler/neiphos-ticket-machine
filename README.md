@@ -738,6 +738,18 @@ build`) läuft ohnehin auf dem Entwicklungsrechner, nicht auf dem Pi selbst
 (siehe Schritt 2 unten, ein Vite-Build auf der vergleichsweise schwachen
 Pi-3-CPU wäre unnötig langsam).
 
+**Emoji-Schriftart nachinstallieren** – ein frisches Raspberry Pi OS bringt
+oft keine Farb-Emoji-Schriftart mit; die App nutzt an einigen Stellen (z. B.
+Admin-Statusmeldungen, kleine Hinweistexte) einzelne Emoji als Symbol – ohne
+passende Schriftart bleiben die als leere Fläche sichtbar. Die
+funktional wichtigsten Symbole (z. B. Zug-/Hüpftier-Auswahl bei Memory und
+Zug-Spotter) sind bewusst als eigene, schriftartunabhängige Icons gebaut
+(siehe `core/icons.ts`) und daher davon nicht betroffen – für den Rest:
+
+```bash
+sudo apt install -y fonts-noto-color-emoji
+```
+
 **d) Automatischen Desktop-Login aktivieren** (Voraussetzung, damit
 Chromium nach jedem Neustart automatisch startet, siehe Schritt 5):
 

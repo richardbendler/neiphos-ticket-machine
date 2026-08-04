@@ -132,6 +132,7 @@ export class Router {
     credit.innerHTML = `
       <span class="chrome-footer-credit__line"><span>präsentiert von</span> <strong>DJ Flipper</strong></span>
       <span class="chrome-footer-credit__line chrome-footer-credit__line--sub">Freitag 22:30 Uhr - Trashfloor</span>
+      <span class="chrome-footer-credit__line chrome-footer-credit__line--wrap">Du willst im Camp oder in Berlin weiterspielen? Das kannst du auf neiphos.blankiball.de tun</span>
     `;
 
     // Design bewusst an den "Tarifinfo"-Button der Vorlage angelehnt (silbern

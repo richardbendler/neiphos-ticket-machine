@@ -10,6 +10,7 @@ import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { fitSquareToContainer } from "../../core/squareFit";
+import { icons } from "../../core/icons";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-spotter";
@@ -227,7 +228,7 @@ function createTrainSpotterGame(): MinigameModule {
     const trainsBtn = document.createElement("button");
     trainsBtn.type = "button";
     trainsBtn.className = "btn btn--choice";
-    trainsBtn.textContent = "🚂 Züge";
+    trainsBtn.innerHTML = `<span class="btn__icon">${icons.locomotive}</span>Züge`;
     trainsBtn.addEventListener("click", () => {
       contentTheme = "trains";
       themeOverlay.style.display = "none";
@@ -238,7 +239,7 @@ function createTrainSpotterGame(): MinigameModule {
     const hoppersBtn = document.createElement("button");
     hoppersBtn.type = "button";
     hoppersBtn.className = "btn btn--choice";
-    hoppersBtn.textContent = "🦘 Hüpftiere";
+    hoppersBtn.innerHTML = `<span class="btn__icon">${icons.hopper}</span>Hüpftiere`;
     hoppersBtn.addEventListener("click", () => {
       contentTheme = "hoppers";
       themeOverlay.style.display = "none";

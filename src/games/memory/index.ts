@@ -6,6 +6,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { fitAspectToContainer } from "../../core/squareFit";
+import { icons } from "../../core/icons";
 import { registerGame } from "../registry";
 
 const GAME_ID = "memory";
@@ -166,14 +167,14 @@ function createMemoryGame(): MinigameModule {
       const trainsBtn = document.createElement("button");
       trainsBtn.type = "button";
       trainsBtn.className = "btn btn--choice";
-      trainsBtn.textContent = "🚂 Züge";
+      trainsBtn.innerHTML = `<span class="btn__icon">${icons.locomotive}</span>Züge`;
       trainsBtn.addEventListener("click", () => selectTheme("trains"));
       row.appendChild(trainsBtn);
 
       const hoppersBtn = document.createElement("button");
       hoppersBtn.type = "button";
       hoppersBtn.className = "btn btn--choice";
-      hoppersBtn.textContent = "🦘 Hüpftiere";
+      hoppersBtn.innerHTML = `<span class="btn__icon">${icons.hopper}</span>Hüpftiere`;
       hoppersBtn.addEventListener("click", () => selectTheme("hoppers"));
       row.appendChild(hoppersBtn);
 

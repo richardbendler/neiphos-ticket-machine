@@ -981,6 +981,35 @@ liegen: `xinput_calibrator` bzw. die Kalibrierungsroutine des jeweiligen
 Touch-Controllers verwenden. Die App selbst reagiert responsiv auf jede
 Auflösung/Seitenverhältnis (siehe `core/Canvas.ts`, DPR-bewusstes Skalieren).
 
+### 7. Updates auf einem bereits eingerichteten Pi einspielen
+
+**Nur relevant, wenn Schritte 1–6 oben schon einmal erledigt sind** (Pi
+läuft bereits als Kiosk) **und du nur neuen Code hochladen willst** – die
+Schritte 1–6 sind reine Ersteinrichtung, für ein Update davon nichts mehr
+nötig.
+
+```bash
+# Auf dem Entwicklungsrechner:
+npm run build
+scp -r dist server flipper@neiphos-ticket-machine.local:/home/flipper/neiphos-ticket-machine/
+```
+
+(`server/` nur nötig, wenn sich dort etwas geändert hat – schadet aber
+nicht, immer mitzuschicken. `.env.local` wird dabei nie angefasst, siehe
+oben.)
+
+Danach den Pi einmal neu starten, damit sowohl der Server (neues `dist/`)
+als auch Chromium (zeigt sonst weiter die alte, bereits geladene Seite) den
+neuen Stand übernehmen:
+
+```bash
+ssh flipper@neiphos-ticket-machine.local "sudo reboot"
+```
+
+Das war's – kein erneutes `npm install`, keine Änderungen an
+systemd-Service oder Autostart-Eintrag nötig, solange sich nur der
+Anwendungscode (nicht z. B. der Server-Port oder Dateipfade) geändert hat.
+
 ## Kiosk-Modus unter Windows (zum Testen oder als Alternativ-Gerät)
 
 Der eigentliche Zielort ist der Raspberry Pi, aber Server und Kiosk-Modus

@@ -44,3 +44,25 @@ export function mountHighscoreBanner(container: HTMLElement, formatValue: (value
     destroy: () => el.remove(),
   };
 }
+
+/**
+ * Misst, wo unterhalb der Kopfleiste (und eines ggf. gerade sichtbaren
+ * Highscore-Banners) tatsaechlich Platz fuer Spielinhalt beginnt --
+ * per getBoundingClientRect(), NICHT ueber einen geschaetzten/fest
+ * verdrahteten Pixel-Wert. Ein geschaetzter Wert reichte auf manchen
+ * Bildschirmen/Aufloesungen nicht aus, sobald der Banner wirklich Inhalt
+ * zeigt, und ueberlappte dann sichtbar mit dem Spielfeld/den Kartentexten
+ * (in mehreren Spielen unabhaengig voneinander gemeldeter Bug, siehe
+ * games/memory/index.ts und games/train-quartet/index.ts). Am besten direkt
+ * NACH einem highscoreBanner.update()-Aufruf verwenden, wenn dessen
+ * Sichtbarkeit/Inhalt schon feststeht.
+ */
+export function measurePlayAreaTop(): number {
+  const header = document.querySelector(".chrome-bar");
+  const headerBottom = header ? header.getBoundingClientRect().bottom : 60;
+  const banner = document.querySelector(".stage-highscore-banner");
+  if (banner && getComputedStyle(banner).display !== "none") {
+    return banner.getBoundingClientRect().bottom;
+  }
+  return headerBottom + 8;
+}

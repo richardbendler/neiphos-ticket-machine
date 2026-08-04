@@ -4,7 +4,7 @@ import { trainCards } from "../../data/trains";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
-import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { fitAspectToContainer } from "../../core/squareFit";
 import { icons } from "../../core/icons";
 import { registerGame } from "../registry";
@@ -133,6 +133,12 @@ function createMemoryGame(): MinigameModule {
   let gridWrap: HTMLDivElement;
   let gridHost: HTMLDivElement;
   let stopGridFit: (() => void) | null = null;
+  // Y-Position (CSS-Pixel, Canvas-Koordinaten) fuer die "Groesse · Zuege"-
+  // Textzeile -- wird in selectSize() ECHT gemessen (siehe measurePlayAreaTop
+  // in core/highscoreBanner.ts), nicht mehr fest verdrahtet. Fallback-Wert
+  // nur fuer den (nie vorkommenden) Fall, dass render() vor dem ersten
+  // selectSize()-Aufruf feuert.
+  let moveTextY = 150;
 
   function renderPanel(): void {
     panel.innerHTML = "";
@@ -363,6 +369,13 @@ function createMemoryGame(): MinigameModule {
     phase = "playing";
     renderGrid();
     stopGridFit?.();
+    // Echt gemessen (siehe measurePlayAreaTop) statt fest verdrahtet -- ein
+    // geschaetzter Pixel-Wert liess das Spielfeld auf manchen Aufloesungen
+    // den Highscore-Banner ueberlappen (gemeldeter Bug). moveTextY sitzt
+    // knapp darunter, fuer die "Groesse · Zuege"-Zeile in render().
+    const playAreaTop = measurePlayAreaTop();
+    moveTextY = playAreaTop + 26;
+    gridWrap.style.top = `${playAreaTop + 44}px`;
     // Kein kleiner Fest-Deckel mehr (vorher 460px) -- das liess das Raster
     // auf breiteren Bildschirmen winzig in der Mitte haengen, mit riesigen
     // ungenutzten Raendern. 2000px ist grosszuegig genug, um auf jedem
@@ -524,11 +537,11 @@ function createMemoryGame(): MinigameModule {
         if (mode === "solo") {
           ctx.fillStyle = theme.textMuted;
           ctx.font = `600 14px ${theme.font}`;
-          ctx.fillText(`${sizeLabel(boardSize)} · ${moves} Züge`, size.width / 2, 150);
+          ctx.fillText(`${sizeLabel(boardSize)} · ${moves} Züge`, size.width / 2, moveTextY);
         } else {
           ctx.fillStyle = theme.textMuted;
           ctx.font = `600 14px ${theme.font}`;
-          ctx.fillText(`Spieler 1: ${playerScores[0]} · Spieler 2: ${playerScores[1]}`, size.width / 2, 150);
+          ctx.fillText(`Spieler 1: ${playerScores[0]} · Spieler 2: ${playerScores[1]}`, size.width / 2, moveTextY);
 
           // Deutlich groesser + eigener Farbklecks dahinter, damit auf
           // Anhieb klar ist, wer gerade dran ist -- vorher war das kaum
@@ -539,7 +552,7 @@ function createMemoryGame(): MinigameModule {
           const badgeW = textWidth + 36;
           const badgeH = 36;
           const badgeX = size.width / 2 - badgeW / 2;
-          const badgeY = 168;
+          const badgeY = moveTextY + 18;
           ctx.fillStyle = theme.accent;
           ctx.beginPath();
           ctx.roundRect(badgeX, badgeY, badgeW, badgeH, badgeH / 2);

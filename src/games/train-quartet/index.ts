@@ -4,7 +4,7 @@ import { trainCards, STAT_LABELS, type TrainCard, type TrainStats } from "../../
 import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
-import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-quartet";
@@ -19,6 +19,13 @@ const SLIDE_DURATION = 0.45;
 // was ausdruecklich nicht gewuenscht war.
 const CARD_ASPECT = 340 / 460;
 const MAX_CARD_WIDTH = 340;
+// Kartenhoehe, fuer die die Innenabstaende/Zeilenhoehen/Schriftgroessen in
+// drawCardFace() urspruenglich von Hand austariert wurden (340 / CARD_ASPECT)
+// -- auf einem niedrigeren Bildschirm wird die tatsaechliche Karte oft
+// kleiner als das (siehe render(), cardHeight), drawCardFace() skaliert
+// dann alle inneren Masse proportional mit, statt bei fest bleibenden
+// Massen die Statzeilen aus der Karte herausragen zu lassen (gemeldeter Bug).
+const CARD_REFERENCE_HEIGHT = MAX_CARD_WIDTH / CARD_ASPECT;
 // Dauer des kurzen Aufleucht-Effekts am Zielstapel, nachdem die Karten dort
 // "gelandet" sind (siehe drawDeckStack/finishTransition).
 const STACK_FLASH_DURATION = 0.5;
@@ -135,6 +142,12 @@ function createTrainQuartetGame(): MinigameModule {
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  // Gecacht statt bei jedem render()-Frame per getBoundingClientRect() neu
+  // gemessen (siehe refreshPlayAreaTop) -- render() laeuft mit bis zu 60fps,
+  // eine DOM-Messung darin waere selbst eine Performance-Bremse auf
+  // schwacher Hardware. Wird stattdessen nur bei tatsaechlichen Aenderungen
+  // (Spielstart, neuer Highscore) neu bestimmt.
+  let cachedPlayAreaTop = 60;
 
   let roundsPlayed = 0;
   let playerRoundWins = 0;
@@ -269,6 +282,7 @@ function createTrainQuartetGame(): MinigameModule {
           closeHighscoreModal = null;
           if (name === null) return;
           highscoreBanner.update(recordHighscore(GAME_ID, name, playerDeck.length, "higher-better"));
+          cachedPlayAreaTop = measurePlayAreaTop();
         },
       });
     }, HIGHSCORE_POPUP_DELAY_MS);
@@ -408,7 +422,16 @@ function createTrainQuartetGame(): MinigameModule {
     roundRect(ctx, rect.x, rect.y, rect.width, rect.height, 14);
     ctx.stroke();
 
-    const padding = 10;
+    // Alle inneren Masse (Abstaende, Zeilenhoehen, Schriftgroessen) skalieren
+    // proportional zur tatsaechlichen Kartenhoehe (relativ zu der Hoehe, fuer
+    // die sie urspruenglich von Hand austariert wurden) -- nie groesser als
+    // 1, damit auf normalen/grossen Bildschirmen (rect.height >=
+    // CARD_REFERENCE_HEIGHT) exakt das bisherige Aussehen erhalten bleibt.
+    // Auf einem niedrigeren Bildschirm (kleinere rect.height, siehe render())
+    // schrumpft dadurch alles gleichmaessig mit, statt dass die festen Masse
+    // von vorher aus der Karte herausragen/sich ueberlappen (gemeldeter Bug).
+    const scale = Math.min(1, rect.height / CARD_REFERENCE_HEIGHT);
+    const padding = 10 * scale;
     // Statzeilen bekommen zuerst eine feste, garantiert lesbare Hoehe -- das
     // Bild bekommt nur, was danach uebrig bleibt. So ueberlappt bei wenig
     // Platz (z. B. Querformat mit geringer Bildschirmhoehe) nie der Text,
@@ -416,10 +439,10 @@ function createTrainQuartetGame(): MinigameModule {
     // Vorher 24 -- auf ausdruecklichen Wunsch etwas groesser, damit klarer
     // erkennbar ist, dass die Zeilen antippbare Ziele sind (nicht nur reiner
     // Datentext).
-    const rowHeight = 29;
-    const nameBlockHeight = 34;
+    const rowHeight = 29 * scale;
+    const nameBlockHeight = 34 * scale;
     const statsBlockHeight = rowHeight * STAT_KEYS.length;
-    const imgHeight = Math.max(36, rect.height - padding * 2 - nameBlockHeight - statsBlockHeight);
+    const imgHeight = Math.max(24, rect.height - padding * 2 - nameBlockHeight - statsBlockHeight);
     const imgRect: Rect = { x: rect.x + padding, y: rect.y + padding, width: rect.width - padding * 2, height: imgHeight };
 
     ctx.save();
@@ -444,15 +467,15 @@ function createTrainQuartetGame(): MinigameModule {
     }
     ctx.restore();
 
-    let textY = imgRect.y + imgRect.height + 8;
+    let textY = imgRect.y + imgRect.height + 8 * scale;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = theme.paperText;
-    ctx.font = `700 15px ${theme.fontDisplay}`;
-    ctx.fillText(card.name, rect.x + padding, textY + 12);
+    ctx.font = `700 ${Math.max(9, 15 * scale)}px ${theme.fontDisplay}`;
+    ctx.fillText(card.name, rect.x + padding, textY + 12 * scale);
     ctx.fillStyle = theme.paperMuted;
-    ctx.font = `500 10px ${theme.font}`;
-    ctx.fillText(card.category, rect.x + padding, textY + 26);
+    ctx.font = `500 ${Math.max(7, 10 * scale)}px ${theme.font}`;
+    ctx.fillText(card.category, rect.x + padding, textY + 26 * scale);
 
     textY += nameBlockHeight;
     statRects = opts.interactive ? [] : statRects;
@@ -475,13 +498,13 @@ function createTrainQuartetGame(): MinigameModule {
       }
 
       ctx.fillStyle = theme.paperText;
-      ctx.font = `600 11px ${theme.font}`;
+      ctx.font = `600 ${Math.max(7, 11 * scale)}px ${theme.font}`;
       ctx.textAlign = "left";
-      ctx.fillText(STAT_LABELS[key].label, rowRect.x + 6, rowRect.y + rowRect.height / 2 + 4);
+      ctx.fillText(STAT_LABELS[key].label, rowRect.x + 6 * scale, rowRect.y + rowRect.height / 2 + 4 * scale);
 
-      ctx.font = `700 12px ${theme.fontDisplay}`;
+      ctx.font = `700 ${Math.max(8, 12 * scale)}px ${theme.fontDisplay}`;
       ctx.textAlign = "right";
-      ctx.fillText(formatStatValue(key, card.stats[key]), rowRect.x + rowRect.width - 6, rowRect.y + rowRect.height / 2 + 4);
+      ctx.fillText(formatStatValue(key, card.stats[key]), rowRect.x + rowRect.width - 6 * scale, rowRect.y + rowRect.height / 2 + 4 * scale);
 
       if (opts.interactive) {
         statRects.push({ stat: key, rect: rowRect });
@@ -530,6 +553,7 @@ function createTrainQuartetGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatCardCount);
       highscoreBanner.update(getHighscoreBoard(GAME_ID));
+      cachedPlayAreaTop = measurePlayAreaTop();
 
       newGame();
       closeIntro = showGameIntro({
@@ -584,8 +608,25 @@ function createTrainQuartetGame(): MinigameModule {
       // der auf mittelgrossen Bildschirmen von der tatsaechlichen Box-Hoehe
       // (Message + Punktzahl + Weiter-Button) ueberschritten wurde und sich
       // sichtbar mit der Karte ueberlagerte (gemeldeter Bug).
-      const headerBottom = 232;
-      const bottomMargin = 210;
+      // headerBottom baut jetzt auf cachedPlayAreaTop auf -- einer ECHTEN,
+      // per getBoundingClientRect() gemessenen Position (siehe init()/
+      // finishGame(), core/highscoreBanner.ts#measurePlayAreaTop), nicht
+      // mehr auf einem geschaetzten Pixel-/Prozentwert. Vorher (fester Wert
+      // 232) ragte auf manchen Bildschirmen/Aufloesungen die Karte/der
+      // Rundentext in die Kopfzeile bzw. den Highscore-Banner hinein
+      // (gemeldeter Bug), da 232 nicht immer ausreichte -- und auf sehr
+      // niedrigen Bildschirmen wiederum unnoetig viel Platz beanspruchte.
+      // 76px Reserve darunter fuer die "Runde X/Y"- und "Pot: N"-Textzeilen
+      // (siehe unten).
+      const headerBottom = cachedPlayAreaTop + 76;
+      // bottomMargin bleibt ein grosszuegig bemessener, aber proportional
+      // mit der Bildschirmhoehe skalierender Wert -- schuetzt die (variabel
+      // hohe) Rundenergebnis-Box unten. Auf sehr niedrigen Bildschirmen
+      // uebertrafen headerBottom+bottomMargin zusammen frueher schon die
+      // gesamte Bildschirmhoehe (gemeldeter Bug), jetzt skaliert bottomMargin
+      // mit herunter (Obergrenze = bisheriger, auf normalen/grossen
+      // Bildschirmen unveraendert bleibender Wert).
+      const bottomMargin = Math.min(210, size.height * 0.32);
       const availableHeight = Math.max(120, size.height - headerBottom - bottomMargin);
       // Festes Seitenverhaeltnis (CARD_ASPECT) statt getrennter Breiten fuer
       // Einzel-/Paar-Ansicht -- dieselbe cardWidth gilt fuer beide, damit die
@@ -608,25 +649,23 @@ function createTrainQuartetGame(): MinigameModule {
       const pairRightX = pairLeftX + cardWidth + CARD_GAP;
 
       // Rundenstand -- klar erkennbar, in welcher Runde man ist und wie
-      // lange das Spiel (bis TOTAL_ROUNDS) noch geht. Deutlich tiefer als
-      // frueher (150 statt 96), sonst ragte der Text hinter die permanente
-      // Highscore-Anzeige oben und wirkte halb abgeschnitten. Groessere
-      // Schrift, da das der zentrale "wo stehe ich gerade"-Hinweis ist.
+      // lange das Spiel (bis TOTAL_ROUNDS) noch geht. Groessere Schrift, da
+      // das der zentrale "wo stehe ich gerade"-Hinweis ist.
       const roundNumber = Math.min(TOTAL_ROUNDS, roundsPlayed + (phase === "reveal-player" ? 1 : 0));
       ctx.fillStyle = theme.accent;
       ctx.font = `800 34px ${theme.fontDisplay}`;
       ctx.textAlign = "center";
-      // y=172 statt 150: die groessere Schrift (34px statt vorher 19px)
-      // ragte bei 150 bis in die darueberliegende Highscore-Banner-Pille
-      // hinein (die sitzt fix knapp unter dem Header, siehe
-      // stage-highscore-banner in style.css).
-      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, 172);
+      // An cachedPlayAreaTop gekoppelt (echt gemessen, siehe oben bei
+      // headerBottom) statt eines fest verdrahteten Werts -- ragte sonst auf
+      // manchen Bildschirmen/Aufloesungen in die Kopfzeile/den Highscore-
+      // Banner hinein (gemeldeter Bug).
+      ctx.fillText(`Runde ${roundNumber} / ${TOTAL_ROUNDS}`, size.width / 2, cachedPlayAreaTop + 32);
 
       if (pot.length > 0) {
         ctx.fillStyle = theme.textFaint;
         ctx.font = `600 11px ${theme.font}`;
         ctx.textAlign = "center";
-        ctx.fillText(`Pot: ${pot.length}`, size.width / 2, 197);
+        ctx.fillText(`Pot: ${pot.length}`, size.width / 2, cachedPlayAreaTop + 57);
       }
 
       // Kartenstapel links (DU) und rechts (Computer) -- persistent in jeder

@@ -4,6 +4,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
+import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
 
 const GAME_ID = "switch-run";
@@ -131,6 +132,7 @@ function createSwitchRunGame(): MinigameModule {
       onStart: () => {
         closeIntro = null;
         started = true;
+        startTrainChug();
       },
     });
   }
@@ -152,6 +154,7 @@ function createSwitchRunGame(): MinigameModule {
 
   function finishOutcome(): void {
     if (crashed) {
+      stopTrainChug();
       phase = "game-over";
       const outcome = getHighscoreOutcome(GAME_ID, score, "higher-better");
       updateHud();
@@ -400,6 +403,7 @@ function createSwitchRunGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      preloadTrainChug();
       buttonBar = document.createElement("div");
       buttonBar.style.display = "none";
       buttonBar.style.gap = "12px";
@@ -560,12 +564,20 @@ function createSwitchRunGame(): MinigameModule {
           ctx.textAlign = "center";
           ctx.font = `800 26px ${theme.fontDisplay}`;
           ctx.fillStyle = crashed ? theme.danger : theme.success;
-          ctx.fillText(crashed ? "Sackgasse!" : "Weiche geschafft!", size.width / 2, size.height * 0.2);
+          // "Keine Wahl getroffen" statt "Sackgasse!", wenn schlicht nicht
+          // rechtzeitig gewaehlt wurde (Zug haelt einfach an, siehe Intro-Text
+          // "Ohne Wahl haeltst du am Ende einfach an") -- vorher stand hier
+          // (anders als im spaeteren Game-Over-Panel, siehe renderGameOver
+          // oben) IMMER "Sackgasse!", auch wenn man gar keine falsche Richtung
+          // gewaehlt, sondern nur gar nicht reagiert hat (gemeldet).
+          const crashText = chosenLane === null ? "Keine Wahl getroffen!" : "Sackgasse!";
+          ctx.fillText(crashed ? crashText : "Weiche geschafft!", size.width / 2, size.height * 0.2);
         }
       }
     },
 
     cleanup() {
+      stopTrainChug();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;
       closeHighscoreModal?.();

@@ -6,6 +6,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
+import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
 
 const imageCache = new Map<string, HTMLImageElement>();
@@ -170,6 +171,7 @@ function createCountPassengersGame(): MinigameModule {
   }
 
   function startInputPhase(): void {
+    stopTrainChug();
     phase = "input";
     renderPanel();
   }
@@ -396,6 +398,7 @@ function createCountPassengersGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      preloadTrainChug();
       for (const card of hopperAnimalCards) getImage(card.image);
 
       speedPanel = document.createElement("div");
@@ -444,7 +447,10 @@ function createCountPassengersGame(): MinigameModule {
       if (!started) return;
       if (phase === "countdown") {
         countdown -= dt;
-        if (countdown <= 0) phase = "running";
+        if (countdown <= 0) {
+          phase = "running";
+          startTrainChug();
+        }
       } else if (phase === "running" && selectedLevel) {
         trainOffsetX += selectedLevel.speedPxS * dt;
         if (trainOffsetX > 20000) return; // Sicherheitsnetz, sollte nie erreicht werden
@@ -487,6 +493,7 @@ function createCountPassengersGame(): MinigameModule {
     },
 
     cleanup() {
+      stopTrainChug();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;
       closeIntro?.();

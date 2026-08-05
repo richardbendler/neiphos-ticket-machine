@@ -5,6 +5,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-sim";
@@ -267,6 +268,7 @@ function createTrainSimGame(): MinigameModule {
     travelT = 0;
     phase = "traveling";
     updateSheetVisibility();
+    startTrainChug();
     // Kamera waehrend der Fahrt auf genau Start- und Zielstation einrahmen
     // (statt wie bisher die aktuelle Station + ALLE waehlbaren Nachbarn) --
     // das zoomt automatisch enger heran, siehe TRAVEL_ZOOM_BOOST fuer den
@@ -275,6 +277,7 @@ function createTrainSimGame(): MinigameModule {
   }
 
   function arriveAtTarget(): void {
+    stopTrainChug();
     previousCityId = currentCityId;
     currentCityId = targetCityId!;
     targetCityId = null;
@@ -588,6 +591,7 @@ function createTrainSimGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      preloadTrainChug();
       topBar = document.createElement("div");
       topBar.className = "stage-top-bar";
 
@@ -821,6 +825,7 @@ function createTrainSimGame(): MinigameModule {
     },
 
     cleanup() {
+      stopTrainChug();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;
       closeIntro?.();

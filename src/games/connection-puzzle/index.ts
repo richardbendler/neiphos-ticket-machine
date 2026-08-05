@@ -6,6 +6,7 @@ import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { createBerlinMap, type BerlinMapHandle } from "../../core/berlinMap";
+import { playTrainChugBurst, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
 import { pickRandomPair, validateLineSequence, type LineRoute } from "./graph";
 import { renderScreen, type Phase, type ScreenState } from "./ui";
@@ -152,6 +153,10 @@ function createConnectionPuzzleGame(): MinigameModule {
       return;
     }
 
+    // Verbindende Auswahl -- der Zug "faehrt" diese Route jetzt, unabhaengig
+    // davon, ob sie sich gleich als optimal herausstellt.
+    playTrainChugBurst();
+
     const playerLines = selectedLines.length;
     const optimalLines = roundState.optimal.lineIds.length;
 
@@ -237,6 +242,7 @@ function createConnectionPuzzleGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      preloadTrainChug();
       allStations = getAllStations();
 
       panel = document.createElement("div");

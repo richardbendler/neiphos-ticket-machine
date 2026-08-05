@@ -6,6 +6,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
+import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
 
 const imageCache = new Map<string, HTMLImageElement>();
@@ -147,6 +148,7 @@ function createTrainPhotoGame(): MinigameModule {
   }
 
   function finishRound(): void {
+    stopTrainChug();
     phase = "result";
     updateShutterVisibility();
     renderSheet();
@@ -392,6 +394,7 @@ function createTrainPhotoGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      preloadTrainChug();
       for (const card of hopperAnimalCards) getImage(card.image);
 
       sheet = document.createElement("div");
@@ -443,7 +446,10 @@ function createTrainPhotoGame(): MinigameModule {
         updateShutterVisibility();
       } else if (phase === "waiting") {
         waitTimer -= dt;
-        if (waitTimer <= 0) phase = "running";
+        if (waitTimer <= 0) {
+          phase = "running";
+          startTrainChug();
+        }
         updateShutterVisibility();
       } else if (phase === "running") {
         trainOffsetX += SPEED_PX_S * dt;
@@ -517,6 +523,7 @@ function createTrainPhotoGame(): MinigameModule {
     },
 
     cleanup() {
+      stopTrainChug();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;
       closeIntro?.();

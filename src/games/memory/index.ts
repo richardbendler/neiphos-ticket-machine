@@ -369,7 +369,15 @@ function createMemoryGame(): MinigameModule {
     // knapp darunter, fuer die "Groesse · Zuege"-Zeile in render().
     const playAreaTop = measurePlayAreaTop();
     moveTextY = playAreaTop + 26;
-    gridWrap.style.top = `${playAreaTop + 44}px`;
+    // Im Duo-Modus steht unter der Punktezeile zusaetzlich noch der grosse
+    // "Spieler X ist dran"-Badge (siehe render(), badgeY = moveTextY + 18,
+    // badgeH = 36 -- endet also bei moveTextY + 54 = playAreaTop + 80). Der
+    // feste 44px-Abstand (passt fuer den Solo-Modus mit nur einer Zeile)
+    // liess das DOM-Kartenraster im Duo-Modus ueber diesem Badge beginnen
+    // und es fast komplett verdecken -- nur im Gap zwischen zwei Karten
+    // schimmerte ein duenner Streifen davon durch (gemeldeter Bug, sah aus
+    // wie ein zufaelliger gelber Strich ueber dem Raster).
+    gridWrap.style.top = `${playAreaTop + (mode === "duo" ? 90 : 44)}px`;
     // Kein kleiner Fest-Deckel mehr (vorher 460px) -- das liess das Raster
     // auf breiteren Bildschirmen winzig in der Mitte haengen, mit riesigen
     // ungenutzten Raendern. 2000px ist grosszuegig genug, um auf jedem

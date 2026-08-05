@@ -319,6 +319,10 @@ start "" "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk --
  */
 function confirmWithPassword(warningText: string, onConfirmed: () => void): void {
   openModal((panel, close) => {
+    // Ohne diese Klasse blieb das Panel (und damit die Bildschirmtastatur
+    // darin) beim schmaleren Standard-Modal-Panel -- wirkte im Vergleich
+    // zur (bewusst breiteren) Login-Tastatur gedraengt (gemeldeter Bug).
+    panel.classList.add("modal-panel--wide");
     addCloseCorner(panel, close);
     const h2 = document.createElement("h2");
     h2.textContent = "Sicher?";

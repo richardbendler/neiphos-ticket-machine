@@ -11,21 +11,57 @@ const GAME_ID = "train-quartet";
 const STAT_KEYS = Object.keys(STAT_LABELS) as (keyof TrainStats)[];
 const CARD_GAP = 12;
 const SLIDE_DURATION = 0.45;
-// Festes Seitenverhaeltnis (aus der frueheren Basisgroesse 340x460
-// abgeleitet) -- Karten behalten dadurch IMMER dieselbe Breite, egal ob
-// gerade eine (reveal-player) oder zwei (comparing) nebeneinander stehen.
-// Vorher hatte die Paar-Ansicht eine eigene, schmalere Breite (250px statt
-// 340px) -- die Karten "sprangen" beim Umschalten sichtbar in der Groesse,
-// was ausdruecklich nicht gewuenscht war.
-const CARD_ASPECT = 340 / 460;
-const MAX_CARD_WIDTH = 340;
-// Kartenhoehe, fuer die die Innenabstaende/Zeilenhoehen/Schriftgroessen in
-// drawCardFace() urspruenglich von Hand austariert wurden (340 / CARD_ASPECT)
-// -- auf einem niedrigeren Bildschirm wird die tatsaechliche Karte oft
-// kleiner als das (siehe render(), cardHeight), drawCardFace() skaliert
-// dann alle inneren Masse proportional mit, statt bei fest bleibenden
-// Massen die Statzeilen aus der Karte herausragen zu lassen (gemeldeter Bug).
-const CARD_REFERENCE_HEIGHT = MAX_CARD_WIDTH / CARD_ASPECT;
+// Festes Seitenverhaeltnis -- Karten behalten dadurch IMMER dieselbe
+// Breite, egal ob gerade eine (reveal-player) oder zwei (comparing)
+// nebeneinander stehen. Vorher hatte die Paar-Ansicht eine eigene,
+// schmalere Breite (250px statt 340px) -- die Karten "sprangen" beim
+// Umschalten sichtbar in der Groesse, was ausdruecklich nicht gewuenscht
+// war.
+// Etwas hochkantiger als die fruehere Basis (340x460, Verhaeltnis 0.739)
+// -- auf dem Hochformat-Kioskbildschirm blieb unterhalb der Karte viel
+// Platz ungenutzt, weil die Breite (die sich mit den seitlichen
+// Kartenstapeln die Bildschirmbreite teilen muss) frueher der einzige
+// Hebel war, um die Karte insgesamt groesser zu machen. Ein hochkantigeres
+// Verhaeltnis (340x520, 0.654 -- naeher an echten Quartett-/Sammelkarten)
+// nutzt stattdessen den reichlich vorhandenen Vertikalraum, OHNE den
+// Kartenstapeln links/rechts Breite wegzunehmen (gemeldeter Wunsch: Karten
+// UND Stapel sollen beide groesser werden).
+const CARD_ASPECT = 340 / 520;
+// Deutlich hoeher als vorher (340) -- das war eine willkuerliche, feste
+// Pixel-Obergrenze, die auf dem eigentlichen Kioskbildschirm (Breite meist
+// > 700px in Canvas-Pixeln) lange vor der eigentlich verfuegbaren Breite
+// griff und die Karte klein hielt, obwohl noch reichlich Platz da war
+// (gemeldeter Bug: "Bildschirmflaeche wird nicht effizient genutzt").
+// Der tatsaechlich wirksame Deckel ist jetzt praktisch immer
+// maxPairCardWidth (siehe render()), dieser Wert verhindert nur ein
+// unrealistisch breites Ausufern auf sehr breiten Desktop-/Tablet-
+// Testbildschirmen.
+const MAX_CARD_WIDTH = 620;
+// Seitlicher Platz, der der Kartenbreiten-Berechnung (maxPairCardWidth in
+// render()) je Seite fuer Kartenstapel + "DU"/"COMPUTER"-Label reserviert
+// wird -- ersetzt die fruehere feste 32px-Gesamtreserve (16px je Seite),
+// die kaum mehr als einen schmalen Rand liess und den Stapeln nur zufaellig
+// genug Platz liess, WEIL die Karte durch MAX_CARD_WIDTH ohnehin klein
+// blieb. Jetzt bewusst bemessen, damit Kartenstapel beim Vergroessern der
+// Karten (siehe oben) nicht kleiner werden als bisher gewohnt.
+const STACK_RESERVE_PER_SIDE = 105;
+// Breite, fuer die die Innenabstaende/Zeilenhoehen/Schriftgroessen in
+// drawCardFace() urspruenglich von Hand austariert wurden -- bewusst
+// getrennt von MAX_CARD_WIDTH (siehe oben): MAX_CARD_WIDTH ist nur noch
+// eine grosszuegige Obergrenze fuer sehr breite Bildschirme, waehrend
+// TUNED_CARD_WIDTH die tatsaechliche Referenzgroesse fuer "scale=1" bleibt.
+// Wuerden beide gleichgesetzt, waere CARD_REFERENCE_HEIGHT durch das
+// angehobene MAX_CARD_WIDTH viel zu gross, wodurch drawCardFace() auf jeder
+// normalen Bildschirmgroesse faelschlich VERKLEINERN statt vergroessern
+// wuerde (scale < 1).
+const TUNED_CARD_WIDTH = 340;
+// Kartenhoehe, fuer die drawCardFace() ebenfalls austariert wurde (340 /
+// CARD_ASPECT) -- auf einem kleineren/groesseren Bildschirm skaliert
+// drawCardFace() alle inneren Masse proportional zu dieser Referenz mit
+// (siehe scale in drawCardFace()), statt bei fest bleibenden Massen die
+// Statzeilen aus der Karte herausragen zu lassen (gemeldeter Bug) bzw. bei
+// einer groesseren Karte unnoetig klein zu bleiben (ebenfalls gemeldet).
+const CARD_REFERENCE_HEIGHT = TUNED_CARD_WIDTH / CARD_ASPECT;
 // Dauer des kurzen Aufleucht-Effekts am Zielstapel, nachdem die Karten dort
 // "gelandet" sind (siehe drawDeckStack/finishTransition).
 const STACK_FLASH_DURATION = 0.5;
@@ -424,14 +460,30 @@ function createTrainQuartetGame(): MinigameModule {
 
     // Alle inneren Masse (Abstaende, Zeilenhoehen, Schriftgroessen) skalieren
     // proportional zur tatsaechlichen Kartenhoehe (relativ zu der Hoehe, fuer
-    // die sie urspruenglich von Hand austariert wurden) -- nie groesser als
-    // 1, damit auf normalen/grossen Bildschirmen (rect.height >=
-    // CARD_REFERENCE_HEIGHT) exakt das bisherige Aussehen erhalten bleibt.
-    // Auf einem niedrigeren Bildschirm (kleinere rect.height, siehe render())
-    // schrumpft dadurch alles gleichmaessig mit, statt dass die festen Masse
-    // von vorher aus der Karte herausragen/sich ueberlappen (gemeldeter Bug).
-    const scale = Math.min(1, rect.height / CARD_REFERENCE_HEIGHT);
+    // die sie urspruenglich von Hand austariert wurden). Bewusst OHNE
+    // Obergrenze bei 1 (frueher `Math.min(1, ...)`) -- auf einem
+    // niedrigeren Bildschirm schrumpft dadurch weiterhin alles gleichmaessig
+    // mit (Statzeilen ragten sonst aus der Karte heraus, gemeldeter Bug),
+    // aber auf einer groesseren Karte (rect.height > CARD_REFERENCE_HEIGHT)
+    // waechst jetzt auch die Schrift/das Bild mit, statt bei fester
+    // Referenzgroesse stehen zu bleiben und die vergroesserte Karte
+    // unproportional viel Leerraum um kleinbleibenden Text herum zu geben
+    // (gemeldeter Wunsch: Karten UND die dazugehoerige Schrift groesser).
+    const scale = rect.height / CARD_REFERENCE_HEIGHT;
     const padding = 10 * scale;
+    // Die Schriftgroessen weiter unten (ctx.font) haben feste Untergrenzen
+    // (Math.max(7|8|9, ...) -- die fruehesten greifen ab scale < ~0.64-0.7),
+    // damit Text auf kleinen Karten lesbar bleibt statt auf 1-2px zu
+    // schrumpfen. rowHeight/nameBlockHeight hatten frueher KEINE
+    // entsprechende Untergrenze und schrumpften proportional immer weiter --
+    // auf einem sehr schmalen Bildschirm (z. B. Handy-Breite) wurde die
+    // (durch ihre Untergrenze bereits relativ zu grosse) Schrift dadurch
+    // groesser als ihre Zeile und ueberlappte sichtbar die Nachbarzeile
+    // (gemeldeter Bug -- vorher praktisch unerreichbar, weil die Karte durch
+    // den alten festen MAX_CARD_WIDTH-Deckel kaum je so klein wurde).
+    // blockScale bremst das Schrumpfen der Zeilenhoehen an genau dem Punkt,
+    // an dem die erste Schriftgroessen-Untergrenze greift.
+    const blockScale = Math.max(scale, 0.7);
     // Statzeilen bekommen zuerst eine feste, garantiert lesbare Hoehe -- das
     // Bild bekommt nur, was danach uebrig bleibt. So ueberlappt bei wenig
     // Platz (z. B. Querformat mit geringer Bildschirmhoehe) nie der Text,
@@ -439,8 +491,15 @@ function createTrainQuartetGame(): MinigameModule {
     // Vorher 24 -- auf ausdruecklichen Wunsch etwas groesser, damit klarer
     // erkennbar ist, dass die Zeilen antippbare Ziele sind (nicht nur reiner
     // Datentext).
-    const rowHeight = 29 * scale;
-    const nameBlockHeight = 34 * scale;
+    const rowHeight = 29 * blockScale;
+    // War 34 -- der Abstand zwischen Name- und Kategorie-Textzeile war zu
+    // knapp bemessen (14*scale Basislinien-Abstand fuer eine 15*scale
+    // grosse Namensschrift), wodurch Namen mit Unterlaengen (z. B.
+    // "Stephenson's Rocket") sichtbar in die Kategoriezeile hineinragten --
+    // seit die Karte insgesamt groesser werden kann (scale nicht mehr bei 1
+    // gedeckelt, siehe oben) fiel das erst richtig auf. Der Zeilenabstand
+    // unten (siehe "textY + 30 * scale") ist entsprechend mitgewachsen.
+    const nameBlockHeight = 38 * blockScale;
     const statsBlockHeight = rowHeight * STAT_KEYS.length;
     const imgHeight = Math.max(24, rect.height - padding * 2 - nameBlockHeight - statsBlockHeight);
     const imgRect: Rect = { x: rect.x + padding, y: rect.y + padding, width: rect.width - padding * 2, height: imgHeight };
@@ -472,10 +531,10 @@ function createTrainQuartetGame(): MinigameModule {
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = theme.paperText;
     ctx.font = `700 ${Math.max(9, 15 * scale)}px ${theme.fontDisplay}`;
-    ctx.fillText(card.name, rect.x + padding, textY + 12 * scale);
+    ctx.fillText(card.name, rect.x + padding, textY + 12 * blockScale);
     ctx.fillStyle = theme.paperMuted;
     ctx.font = `500 ${Math.max(7, 10 * scale)}px ${theme.font}`;
-    ctx.fillText(card.category, rect.x + padding, textY + 26 * scale);
+    ctx.fillText(card.category, rect.x + padding, textY + 30 * blockScale);
 
     textY += nameBlockHeight;
     statRects = opts.interactive ? [] : statRects;
@@ -631,7 +690,7 @@ function createTrainQuartetGame(): MinigameModule {
       // Festes Seitenverhaeltnis (CARD_ASPECT) statt getrennter Breiten fuer
       // Einzel-/Paar-Ansicht -- dieselbe cardWidth gilt fuer beide, damit die
       // Karten beim Umschalten nicht mehr sichtbar schmaler/breiter werden.
-      const maxPairCardWidth = (size.width - 32 - CARD_GAP) / 2;
+      const maxPairCardWidth = (size.width - STACK_RESERVE_PER_SIDE * 2 - CARD_GAP) / 2;
       let cardWidth = Math.min(MAX_CARD_WIDTH, maxPairCardWidth);
       let cardHeight = cardWidth / CARD_ASPECT;
       if (cardHeight > availableHeight) {

@@ -126,6 +126,25 @@ function paragraph(text: string): HTMLParagraphElement {
 }
 
 /**
+ * Zeigt kurz nach einem Element eine Warnung an, wenn eine Server-Aktion
+ * (Reset/Loeschen) fehlgeschlagen ist -- vorher wurden solche Fehler still
+ * verschluckt (z. B. bei einer abgelaufenen Admin-Sitzung), der Eintrag/
+ * Wert stand danach kommentarlos einfach weiter da (gemeldeter Bug). Die
+ * rein lokale Aenderung ist davon unabhaengig immer schon wirksam, siehe
+ * jeweiligen Aufrufer.
+ */
+function showServerActionError(afterEl: HTMLElement, message: string): void {
+  const warn = document.createElement("p");
+  warn.style.fontSize = "0.78rem";
+  warn.style.color = "var(--danger)";
+  warn.style.fontWeight = "600";
+  warn.style.margin = "4px 0 0";
+  warn.textContent = message;
+  afterEl.insertAdjacentElement("afterend", warn);
+  setTimeout(() => warn.remove(), 8000);
+}
+
+/**
  * Ausfuehrliche Anleitung, wie der Kiosk-Modus WIRKLICH (auf Betriebssystem-
  * statt nur Browser-Vollbild-Ebene) gestartet und fuer den Autostart
  * eingerichtet wird -- inhaltlich identisch zu den entsprechenden
@@ -622,9 +641,11 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
       "Löscht unwiderruflich die gesamte Spielstatistik (alle Sitzungen, aller Spiele) -- lokal und, falls Synchronisation aktiv ist, auch auf dem Server.",
       () => {
         clearAllStats();
-        void resetStatsOnServer();
         currentSessions = [];
         renderStatsList(statsList, currentSessions);
+        void resetStatsOnServer().then((ok) => {
+          if (!ok) showServerActionError(statsList, "Auf dem Server konnte die Statistik nicht zurückgesetzt werden (z. B. abgelaufene Admin-Sitzung) -- lokal ist sie trotzdem geleert. Bitte Admin-Bereich neu öffnen und erneut versuchen.");
+        });
       },
     );
   });
@@ -651,9 +672,11 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
             clearHighscoreBoard(game.id, category.board);
           }
         }
-        void resetHighscoresOnServer();
         highscoreResetBtn.textContent = "Highscores zurückgesetzt.";
         highscoreResetBtn.disabled = true;
+        void resetHighscoresOnServer().then((ok) => {
+          if (!ok) showServerActionError(highscoreResetBtn, "Auf dem Server konnten die Highscores nicht zurückgesetzt werden (z. B. abgelaufene Admin-Sitzung) -- lokal sind sie trotzdem geleert. Bitte Admin-Bereich neu öffnen und erneut versuchen.");
+        });
       },
     );
   });
@@ -763,7 +786,10 @@ function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {
     confirmWithPassword(
       "Löscht unwiderruflich ALLE Feedback-Einträge -- lokal und, falls erreichbar, auch auf dem Server.",
       () => {
-        void deleteAllFeedback().then(() => load());
+        void deleteAllFeedback().then((ok) => {
+          load();
+          if (!ok) showServerActionError(clearAllBtn, "Auf dem Server konnte das Feedback nicht vollständig gelöscht werden (z. B. abgelaufene Admin-Sitzung) -- lokal ist es trotzdem geleert. Bitte Admin-Bereich neu öffnen und erneut versuchen.");
+        });
       },
     );
   });
@@ -796,7 +822,10 @@ function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {
         list.appendChild(
           buildFeedbackRow(entry, unreadIds.has(entry.id), () => {
             confirmSimple("Diesen Feedback-Eintrag löschen?", "Ja, löschen", () => {
-              void deleteFeedback(entry).then(() => load());
+              void deleteFeedback(entry).then((ok) => {
+                load();
+                if (!ok) showServerActionError(list, "Auf dem Server konnte dieser Eintrag nicht gelöscht werden (z. B. abgelaufene Admin-Sitzung) -- er taucht deshalb weiterhin auf. Bitte Admin-Bereich neu öffnen und erneut versuchen.");
+              });
             });
           }),
         );

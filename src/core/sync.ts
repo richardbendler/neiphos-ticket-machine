@@ -67,11 +67,20 @@ export async function pullHighscoresFromServer(): Promise<void> {
   }
 }
 
-export async function resetHighscoresOnServer(): Promise<void> {
+/**
+ * Gibt zurueck, ob das Server-seitige Zuruecksetzen wirklich geklappt hat --
+ * vorher wurde jeder Fehler (auch z. B. 403 bei einer nicht mehr gueltigen
+ * Admin-Sitzung) still verschluckt, admin/AdminPanel.ts zeigte trotzdem
+ * "Highscores zurückgesetzt." an, obwohl auf dem Server ggf. nichts
+ * passiert war (gemeldeter Bug). Das rein lokale Zuruecksetzen (siehe
+ * storage.ts) bleibt davon unabhaengig immer wirksam.
+ */
+export async function resetHighscoresOnServer(): Promise<boolean> {
   try {
-    await fetch("./api/highscores/reset", { method: "POST", headers: adminHeaders() });
+    const res = await fetch("./api/highscores/reset", { method: "POST", headers: adminHeaders() });
+    return res.ok;
   } catch {
-    // Kein Server erreichbar -- lokales Zuruecksetzen (siehe storage.ts) bleibt trotzdem wirksam.
+    return false;
   }
 }
 
@@ -106,11 +115,13 @@ export async function pullStatsFromServer(): Promise<PlaySession[] | null> {
   }
 }
 
-export async function resetStatsOnServer(): Promise<void> {
+/** Gibt zurueck, ob das Server-seitige Zuruecksetzen wirklich geklappt hat -- siehe resetHighscoresOnServer. */
+export async function resetStatsOnServer(): Promise<boolean> {
   try {
-    await fetch("./api/stats/reset", { method: "POST", headers: adminHeaders() });
+    const res = await fetch("./api/stats/reset", { method: "POST", headers: adminHeaders() });
+    return res.ok;
   } catch {
-    // Kein Server erreichbar -- lokales Zuruecksetzen bleibt trotzdem wirksam.
+    return false;
   }
 }
 

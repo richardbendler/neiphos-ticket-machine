@@ -1,6 +1,6 @@
 /**
  * Stark vereinfachtes, aber an echten Fernverkehrsverbindungen orientiertes
- * Streckennetz zwischen 16 grossen deutschen Staedten (angelehnt an reale
+ * Streckennetz zwischen 36 grossen deutschen Staedten (angelehnt an reale
  * ICE-/IC-Linien). Entfernungen sind grobe Bahnkilometer-Naeherungen, keine
  * exakten Werte -- fuer den Kilometerzaehler im Spiel reicht das.
  */
@@ -42,6 +42,28 @@ export const RAIL_CITIES: RailCity[] = [
   { id: "dresden", name: "Dresden", lat: 51.05, lon: 13.74 },
   { id: "neustadtDosse", name: "Neustadt (Dosse)", lat: 52.85, lon: 12.4 },
   { id: "breddin", name: "Breddin", lat: 52.94, lon: 12.4 },
+  // 20 weitere Staedte, auf ausdruecklichen Wunsch ergaenzt -- dichteres,
+  // groesseres Netz mit mehr Routen-Varianz.
+  { id: "kiel", name: "Kiel", lat: 54.32, lon: 10.14 },
+  { id: "luebeck", name: "Lübeck", lat: 53.87, lon: 10.68 },
+  { id: "rostock", name: "Rostock", lat: 54.09, lon: 12.14 },
+  { id: "schwerin", name: "Schwerin", lat: 53.63, lon: 11.42 },
+  { id: "magdeburg", name: "Magdeburg", lat: 52.13, lon: 11.63 },
+  { id: "braunschweig", name: "Braunschweig", lat: 52.27, lon: 10.52 },
+  { id: "osnabrueck", name: "Osnabrück", lat: 52.28, lon: 8.05 },
+  { id: "muenster", name: "Münster", lat: 51.96, lon: 7.63 },
+  { id: "bielefeld", name: "Bielefeld", lat: 52.02, lon: 8.53 },
+  { id: "kassel", name: "Kassel", lat: 51.32, lon: 9.5 },
+  { id: "erfurt", name: "Erfurt", lat: 50.98, lon: 11.03 },
+  { id: "halle", name: "Halle (Saale)", lat: 51.48, lon: 11.97 },
+  { id: "chemnitz", name: "Chemnitz", lat: 50.83, lon: 12.92 },
+  { id: "bonn", name: "Bonn", lat: 50.74, lon: 7.1 },
+  { id: "aachen", name: "Aachen", lat: 50.78, lon: 6.08 },
+  { id: "mainz", name: "Mainz", lat: 49.99, lon: 8.27 },
+  { id: "freiburg", name: "Freiburg", lat: 47.99, lon: 7.85 },
+  { id: "augsburg", name: "Augsburg", lat: 48.37, lon: 10.9 },
+  { id: "regensburg", name: "Regensburg", lat: 49.02, lon: 12.1 },
+  { id: "wuerzburg", name: "Würzburg", lat: 49.79, lon: 9.93 },
   // Kleine Startorte ("Kaffs") -- jeweils per kurzer Stichstrecke an eine
   // der grossen Staedte angebunden (siehe RAIL_EDGES unten). Die eigentliche
   // Fahrt startet IMMER an einem dieser Orte, nie direkt in einer Grossstadt
@@ -93,6 +115,40 @@ export const RAIL_EDGES: RailEdge[] = [
   { from: "nuernberg", to: "muenchen", km: 170 },
   { from: "nuernberg", to: "leipzig", km: 280 },
   { from: "leipzig", to: "dresden", km: 115 },
+  // Strecken zu/zwischen den 20 neu ergaenzten Staedten.
+  { from: "hamburg", to: "kiel", km: 90 },
+  { from: "hamburg", to: "luebeck", km: 65 },
+  { from: "luebeck", to: "rostock", km: 100 },
+  { from: "rostock", to: "schwerin", km: 70 },
+  { from: "schwerin", to: "hamburg", km: 100 },
+  { from: "berlin", to: "magdeburg", km: 150 },
+  { from: "magdeburg", to: "hannover", km: 140 },
+  { from: "braunschweig", to: "hannover", km: 65 },
+  { from: "braunschweig", to: "magdeburg", km: 90 },
+  { from: "hannover", to: "bielefeld", km: 100 },
+  { from: "bielefeld", to: "dortmund", km: 90 },
+  { from: "hannover", to: "osnabrueck", km: 110 },
+  { from: "osnabrueck", to: "bremen", km: 100 },
+  { from: "osnabrueck", to: "muenster", km: 50 },
+  { from: "muenster", to: "dortmund", km: 60 },
+  { from: "hannover", to: "kassel", km: 150 },
+  { from: "kassel", to: "frankfurt", km: 190 },
+  { from: "frankfurt", to: "erfurt", km: 220 },
+  { from: "erfurt", to: "leipzig", km: 120 },
+  { from: "leipzig", to: "halle", km: 35 },
+  { from: "leipzig", to: "chemnitz", km: 80 },
+  { from: "chemnitz", to: "dresden", km: 75 },
+  { from: "koeln", to: "bonn", km: 30 },
+  { from: "koeln", to: "aachen", km: 70 },
+  { from: "frankfurt", to: "mainz", km: 40 },
+  { from: "mainz", to: "mannheim", km: 55 },
+  { from: "karlsruhe", to: "freiburg", km: 130 },
+  { from: "stuttgart", to: "augsburg", km: 130 },
+  { from: "augsburg", to: "muenchen", km: 65 },
+  { from: "nuernberg", to: "regensburg", km: 100 },
+  { from: "regensburg", to: "muenchen", km: 120 },
+  { from: "frankfurt", to: "wuerzburg", km: 120 },
+  { from: "wuerzburg", to: "nuernberg", km: 110 },
   // Kurze Stichstrecken zu den kleinen Startorten.
   { from: "hamburg", to: "buchholz", km: 30 },
   { from: "bremen", to: "verden", km: 30 },

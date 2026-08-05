@@ -237,6 +237,16 @@ die App genauso wie lokal; für den eigentlichen Kiosk-Betrieb auf dem Pi ist
 das aber nur zum Testen/Vorführen gedacht, nicht der Normalbetrieb (der läuft
 komplett offline, siehe unten).
 
+**Erneut hochladen (Update):** In diesem einfachen Fall (reines statisches
+Hosting, kein eigener `server/serve.js`-Prozess) genügt es, exakt denselben
+Befehl noch einmal auszuführen – `npm run build` gefolgt vom erneuten
+`scp -r dist/* ...`. Vorhandene Dateien werden dabei überschrieben, ein
+Neustart oder sonst irgendein weiterer Schritt ist nicht nötig, der
+Webserver liefert beim nächsten Seitenaufruf automatisch den neuen Stand
+aus. (Läuft stattdessen `server/serve.js` auf einem eigenen VPS, gilt
+stattdessen der eigene Update-Ablauf weiter unten, der zusätzlich einen
+Neustart des Server-Prozesses braucht.)
+
 Es reicht ein beliebiger Webserver, der statische Dateien mit korrekten
 MIME-Types ausliefert (Apache, Nginx, GitHub Pages, Netlify, ein einfacher
 Shared-Hosting-Webspace, ...) – für die Spiele selbst wird kein
@@ -413,9 +423,37 @@ Let's-Encrypt-SSL wie oben, das unabhängig vom Proxy-Ziel weiterläuft).
 
 Nach diesem Umbau übernimmt `server/serve.js` das komplette Ausliefern von
 `dist/` (nicht mehr das bisherige direkte Hochladen von `dist/*` ins
-Webspace-Verzeichnis) – künftige Updates bestehen dann aus: `dist/` neu
-hochladen (`.env.local` bleibt dabei unangetastet stehen, siehe oben) und den
-Service neu starten (`sudo systemctl restart ticketmachine-server`).
+Webspace-Verzeichnis).
+
+#### Updates auf diesen VPS einspielen
+
+**Nur relevant, wenn Schritte 0–5 oben schon einmal erledigt sind** (der
+Server läuft bereits dauerhaft per systemd) **und du nur neuen Code hochladen
+willst:**
+
+```bash
+# Auf dem Entwicklungsrechner:
+npm run build
+scp -r dist server user@dein-vps:/pfad/zu/neiphos-ticket-machine/
+```
+
+(`server/` nur nötig, wenn sich dort etwas geändert hat – schadet aber
+nicht, immer mitzuschicken. `.env.local` wird dabei nie angefasst, das liegt
+ja gar nicht im lokalen Projektordner, siehe Schritt 2 oben.)
+
+Danach den Server-Prozess neu starten, damit er das neue `dist/` wirklich
+ausliefert (ein bereits laufender `serve.js`-Prozess merkt von sich aus
+nichts von neu hochgeladenen Dateien):
+
+```bash
+ssh user@dein-vps "sudo systemctl restart ticketmachine-server"
+```
+
+Das war's – kein erneutes `npm install`, keine Änderungen an der
+systemd-Unit oder am Reverse-Proxy nötig, solange sich nur der
+Anwendungscode (nicht z. B. der Server-Port) geändert hat. Ein Reverse
+Proxy (Nginx/Apache, siehe Schritt 5) merkt vom Neustart des dahinterliegenden
+Node-Prozesses nichts und muss dafür nicht selbst neu gestartet werden.
 
 ## Geräteübergreifende Synchronisation (optional)
 

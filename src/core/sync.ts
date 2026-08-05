@@ -21,12 +21,38 @@ import { getAdminSession } from "./adminSession";
 // pushSettings von hier) -- in ES-Modulen unproblematisch, da beide Seiten
 // die importierten Namen nur INNERHALB von Funktionsruempfen verwenden, nie
 // auf oberster Modulebene (siehe core/storage.ts, Datei-Kommentar).
-import { mergeHighscoreEntry, getDisabledGameIds, applyDisabledGameIds, type HighscoreDirection, type HighscoreEntry } from "./storage";
+import {
+  replaceHighscoreBoard,
+  getDisabledGameIds,
+  applyDisabledGameIds,
+  type HighscoreDirection,
+  type HighscoreEntry,
+  type HighscoreBoard,
+} from "./storage";
 import type { PlaySession } from "./stats";
+import { flushLocalFeedback } from "./feedback";
 
 function adminHeaders(): HeadersInit {
   const password = getAdminSession();
   return password ? { "X-Admin-Password": password } : {};
+}
+
+// ------------------------------------------------------- Sync-Aktiv-Status
+//
+// Wird von pullHighscoresFromServer bei jedem Aufruf aktuell gehalten (eine
+// erfolgreiche Antwort von /api/highscores ist gleichzeitig der Beweis, dass
+// NTM_SYNC serverseitig aktiv ist -- siehe dortiger Kommentar), OHNE dafuer
+// eine eigene Anfrage zu brauchen. core/stats.ts fragt das ab, um bei
+// aktiver Synchronisation Sessions NICHT mehr zusaetzlich dauerhaft lokal zu
+// speichern (nur noch Server, siehe recordSession) -- unproblematisch, weil
+// Statistik reine Admin-Telemetrie ohne Spieler-sichtbare Anzeige ist, siehe
+// core/stats.ts. Default false: vor dem allerersten Abgleich (kurz nach
+// App-Start) lieber vorsichtshalber lokal mitschreiben als riskieren, eine
+// Session zu verlieren, nur weil der erste Check noch nicht durch ist.
+let syncActive = false;
+
+export function isSyncActive(): boolean {
+  return syncActive;
 }
 
 // ------------------------------------------------------------- Highscores
@@ -42,28 +68,40 @@ export function pushHighscoreAttempt(gameId: string, board: string, entry: Highs
 }
 
 /**
- * Holt ALLE auf dem Server bekannten Highscore-Boards und speist jeden
- * Eintrag durch dieselbe Merge-Logik wie ein frisch erspielter lokaler
- * Highscore (siehe core/storage.ts, mergeHighscoreEntry) -- danach liefert
- * jedes normale getHighscoreBoard()/getHighscoreOutcome() automatisch den
- * abgeglichenen Stand, ohne dass Spiel-Code irgendetwas davon wissen muss.
+ * Holt ALLE auf dem Server bekannten Highscore-Boards und ERSETZT (nicht
+ * mehr mergt) damit den lokalen Cache jedes bekannten Spiels/Boards -- siehe
+ * core/storage.ts#replaceHighscoreBoard. Eine erfolgreiche Antwort ist
+ * gleichzeitig der Beweis, dass Synchronisation gerade aktiv ist (ohne
+ * NTM_SYNC antwortet der Server auf /api/highscores mit 404, siehe
+ * server/serve.js) -- deshalb ist es hier sicher, fehlende Boards als
+ * "wirklich leer" zu behandeln statt als "noch nicht synchronisiert": wurde
+ * ein Board serverseitig zurueckgesetzt, verschwindet seine Datei dort
+ * komplett, taucht also hier nicht mehr auf. Vorher wurde nur additiv
+ * gemergt (nie geloescht) -- ein einmal lokal gemergter Highscore ueberlebte
+ * dadurch jeden spaeteren Server-Reset auf JEDEM Geraet, das ihn schon
+ * gesehen hatte (gemeldetes Problem). Wird bei jedem Menuebesuch und beim
+ * App-Start aufgerufen (siehe core/Router.ts, main.ts) -- ein Reset setzt
+ * sich dadurch spaetestens beim naechsten "Verbinden" jedes Geraets durch,
+ * ohne dass dafuer ein eigener Zeitstempel-Abgleich noetig waere.
  */
 export async function pullHighscoresFromServer(): Promise<void> {
   try {
     const res = await fetch("./api/highscores");
-    if (!res.ok) return;
-    const boards = (await res.json()) as Record<string, { value: number; entries: HighscoreEntry[] }>;
+    if (!res.ok) {
+      syncActive = false;
+      return;
+    }
+    syncActive = true;
+    const boards = (await res.json()) as Record<string, HighscoreBoard>;
     for (const game of gameRegistry) {
       for (const category of game.highscoreCategories ?? []) {
-        const board = boards[`${game.id}__${category.board}`];
-        if (!board) continue;
-        for (const entry of board.entries) {
-          mergeHighscoreEntry(game.id, category.board, entry, category.direction);
-        }
+        const board = boards[`${game.id}__${category.board}`] ?? null;
+        replaceHighscoreBoard(game.id, category.board, board);
       }
     }
   } catch {
     // Kein Server/kein Sync aktiv -- bleibt rein lokal, siehe Datei-Kommentar oben.
+    syncActive = false;
   }
 }
 
@@ -161,9 +199,19 @@ export async function pullSettingsFromServer(): Promise<boolean> {
   }
 }
 
-/** Buendelt die beiden "jeder Besucher"-Abgleiche (nicht die Admin-only-Statistik) -- siehe main.ts (einmalig) und core/Router.ts (bei jedem Menuebesuch). */
+/**
+ * Buendelt die "jeder Besucher"-Abgleiche (nicht die Admin-only-Statistik)
+ * -- siehe main.ts (einmalig) und core/Router.ts (bei jedem Menuebesuch).
+ * flushLocalFeedback() gehoert bewusst mit dazu: bei jedem dieser
+ * Gelegenheiten wird auch versucht, noch unversandtes lokales Feedback
+ * (siehe core/feedback.ts -- entstanden, weil der Server beim urspruenglichen
+ * Absenden nicht erreichbar war) doch noch zum Server nachzureichen. Erst
+ * dadurch werden auch AELTERE, vor einer erfolgreichen Verbindung lokal
+ * "gestrandete" Feedback-Eintraege ueberhaupt zentral loeschbar (gemeldeter
+ * Wunsch) -- ohne das blieben sie sonst fuer immer nur auf dem einen Geraet.
+ */
 export async function syncPublicDataFromServer(): Promise<{ settingsChanged: boolean }> {
-  const [settingsChanged] = await Promise.all([pullSettingsFromServer(), pullHighscoresFromServer()]);
+  const [settingsChanged] = await Promise.all([pullSettingsFromServer(), pullHighscoresFromServer(), flushLocalFeedback()]);
   return { settingsChanged };
 }
 

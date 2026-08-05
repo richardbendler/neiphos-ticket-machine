@@ -95,6 +95,25 @@ export function clearHighscoreBoard(gameId: string, board = "default"): void {
   removeKey(["highscore", gameId, board]);
 }
 
+/**
+ * Ersetzt (NICHT mergt) den lokalen Cache eines Boards durch einen vom
+ * Server erhaltenen Stand -- fuer core/sync.ts#pullHighscoresFromServer,
+ * wenn Synchronisation aktiv ist. Anders als mergeHighscoreEntry (haengt nur
+ * an, entfernt nie etwas) macht replaceHighscoreBoard den Server bei aktiver
+ * Synchronisation zur alleinigen Wahrheit: setzt jemand auf dem Server
+ * (Admin-Reset) ein Board zurueck, verschwindet die alte lokale Kopie beim
+ * naechsten Abgleich (Menuebesuch/App-Start) ebenfalls -- vorher blieb sie
+ * auf jedem Geraet, das den alten Stand schon einmal gemergt hatte, fuer
+ * immer bestehen, selbst nach einem Reset (gemeldetes Problem: "geloeschte
+ * Highscores tauchen auf einzelnen Geraeten weiter auf"). next=null bedeutet
+ * "Server kennt dieses Board nicht (mehr)" -- wird dann ebenfalls lokal
+ * geleert, nicht als "noch nicht synchronisiert" missverstanden.
+ */
+export function replaceHighscoreBoard(gameId: string, board: string, next: HighscoreBoard | null): void {
+  if (next) saveJSON(["highscore", gameId, board], next);
+  else removeKey(["highscore", gameId, board]);
+}
+
 export function recordHighscore(
   gameId: string,
   name: string,

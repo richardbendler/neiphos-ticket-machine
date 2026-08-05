@@ -10,6 +10,7 @@
  * lautlos wirkungslos bleibt (siehe core/sync.ts fuer Details).
  */
 import { pushHighscoreAttempt, pushSettings } from "./sync";
+import { playHighscoreChime } from "./sound";
 
 const NAMESPACE = "ntm";
 
@@ -138,6 +139,11 @@ export function recordHighscore(
   } else {
     next = current;
   }
+
+  // next !== current heisst hier zuverlaessig "das zaehlt als Highscore"
+  // (neuer Bestwert ODER Gleichstand-Beitritt) -- im "war schlechter"-Fall
+  // oben wird next bewusst auf die unveraenderte current-Referenz gesetzt.
+  if (next !== current) playHighscoreChime();
 
   saveJSON(["highscore", gameId, board], next);
   // Fire-and-forget: bleibt bei fehlendem/deaktiviertem Server lautlos

@@ -277,10 +277,20 @@ button {
   bottom: 0;
   height: calc(var(--footer-h) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
-  display: flex;
+  /* War ein flex-row mit absolut & per transform zentriertem Credit-Block
+     (siehe Git-Historie) -- dessen vertikale Position war rechnerisch von
+     der eigenen Blockhoehe abhaengig, nicht von der Leistenhoehe, wodurch
+     je nach Zeilenzahl/Umbruch mal ein sehr grosser Leerraum unten und ein
+     sehr kleiner oben entstand (gemeldeter Bug). Grid mit drei Spalten
+     zentriert jede Spalte unabhaengig und tatsaechlich symmetrisch relativ
+     zur Leistenhoehe. padding-top ohne Gegenstueck unten verschiebt die
+     Mitte danach noch bewusst ein kleines Stueck nach unten, wie gewuenscht
+     ("oben etwas mehr Luft, unten war deutlich zu viel"). */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  padding-top: 6px;
   padding-left: calc(10px + var(--safe-left));
   padding-right: calc(10px + var(--safe-right));
   background: var(--panel-alt);
@@ -340,21 +350,22 @@ button {
 }
 
 .chrome-footer-credit {
-  /* Aus dem gleichen Grund absolut mittig wie .chrome-bar__title -- links
-     steht der Feedback-Button, rechts der (schmalere) Admin-Button, flex-
-     zentrierung wuerde also die Luecke zwischen unterschiedlich breiten
-     Nachbarn zentrieren statt wirklich die Bildschirmmitte zu treffen. */
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--safe-bottom) / 2);
-  transform: translate(-50%, -50%);
+  /* Jetzt eine normale (mittlere) Grid-Spalte statt absoluter Positionierung
+     -- links steht der Feedback-Button, rechts der (schmalere) Admin-Button,
+     die 1fr-Mittelspalte zentriert sich dadurch von selbst zwischen beiden,
+     ohne die fruehere transform-Rechnerei (siehe .chrome-footer-bar). */
+  justify-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  max-width: min(60%, 340px);
+  /* Deutlich grosszuegiger als vorher (war min(60%, 340px)) -- die lange
+     Hinweiszeile (__line--wrap) soll, wenn der Platz reicht, auf einer
+     Zeile bleiben statt (wie vorher durch die enge Breite erzwungen) immer
+     umzubrechen. Nur die kurzen Zeilen darueber bleiben durch ihr eigenes
+     white-space:nowrap unabhaengig davon kompakt. */
+  max-width: min(94%, 640px);
   color: var(--bezel-dark);
-  font-size: clamp(0.52rem, 2.2vw, 0.68rem);
   letter-spacing: 0.02em;
   pointer-events: none;
 }
@@ -371,20 +382,33 @@ button {
   font-weight: 700;
 }
 
+/* Namenszeile ("praesentiert von DJ Flipper") -- soll die groesste der drei
+   Zeilen sein, aber nur etwas groesser als zuvor (war clamp(0.52rem, 2.2vw,
+   0.68rem) fuer alle drei Zeilen gemeinsam, wodurch sich Haupt- und
+   Subzeile kaum unterschieden -- gemeldet). */
+.chrome-footer-credit__line--main {
+  font-size: clamp(0.58rem, 2.5vw, 0.76rem);
+}
+
 .chrome-footer-credit__line--sub {
   font-style: italic;
-  font-size: 0.94em;
+  /* Deutlich kleiner als die Namenszeile (vorher nur 0.94em davon, kaum
+     wahrnehmbar kleiner -- gemeldet). */
+  font-size: clamp(0.44rem, 1.85vw, 0.58rem);
 }
 
 /* Einzige Fusszeilen-Zeile, die (im Unterschied zu den anderen) auf
    mehreren Zeilen umbrechen darf -- ist ein ganzer Hinweissatz statt eines
-   kurzen Credits, passt sonst auf keine Bildschirmbreite. */
+   kurzen Credits, passt sonst auf keine Bildschirmbreite. Bewusst gleich
+   gross gelassen wie zuvor (rechnerisch identisch zum alten 0.86em von
+   0.68rem), waehrend Haupt- und Subzeile jetzt eigene, davon unabhaengige
+   Groessen bekommen. */
 .chrome-footer-credit__line--wrap {
   white-space: normal;
   text-align: center;
   line-height: 1.25;
   margin-top: 2px;
-  font-size: 0.86em;
+  font-size: clamp(0.45rem, 1.9vw, 0.58rem);
   opacity: 0.85;
 }
 

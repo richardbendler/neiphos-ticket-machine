@@ -130,7 +130,7 @@ export class Router {
     const credit = document.createElement("div");
     credit.className = "chrome-footer-credit";
     credit.innerHTML = `
-      <span class="chrome-footer-credit__line"><span>präsentiert von</span> <strong>DJ Flipper</strong></span>
+      <span class="chrome-footer-credit__line chrome-footer-credit__line--main"><span>präsentiert von</span> <strong>DJ Flipper</strong></span>
       <span class="chrome-footer-credit__line chrome-footer-credit__line--sub">Freitag 22:30 Uhr - Trashfloor</span>
       <span class="chrome-footer-credit__line chrome-footer-credit__line--wrap">Du willst im Camp oder in Berlin weiterspielen? Das kannst du auf neiphos.blankiball.de tun</span>
     `;

@@ -491,7 +491,8 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
       syncStatus.textContent = "🌐 Server erreichbar, geräteübergreifende Synchronisation aber nicht aktiviert (NTM_SYNC fehlt) — Highscores/Statistik/Einstellungen bleiben lokal.";
       syncStatus.style.color = "var(--text)";
     } else {
-      syncStatus.textContent = "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen werden geteilt.";
+      syncStatus.textContent =
+        "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen/Feedback werden geteilt. Löschen/Zurücksetzen wirkt zentral, auch auf anderen Geräten (spätestens bei deren nächstem Menübesuch).";
       syncStatus.style.color = "var(--success)";
     }
   });

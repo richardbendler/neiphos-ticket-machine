@@ -1,5 +1,5 @@
 import { loadJSON, saveJSON } from "./storage";
-import { pushStatsSession } from "./sync";
+import { pushStatsSession, isSyncActive } from "./sync";
 
 export interface PlaySession {
   gameId: string;
@@ -14,15 +14,25 @@ const STATS_PATH = ["stats", "sessions"];
 const MAX_SESSIONS = 5000;
 
 export function recordSession(gameId: string, startedAtMs: number, endedAtMs: number): void {
-  const sessions = loadJSON<PlaySession[]>(STATS_PATH, []);
   const session: PlaySession = {
     gameId,
     startedAt: new Date(startedAtMs).toISOString(),
     endedAt: new Date(endedAtMs).toISOString(),
     durationMs: Math.max(0, Math.round(endedAtMs - startedAtMs)),
   };
-  sessions.push(session);
-  saveJSON(STATS_PATH, sessions.slice(-MAX_SESSIONS));
+  // Bei aktiver geraeteuebergreifender Synchronisation zaehlt nur noch der
+  // Server als Speicherort (gewuenscht: ein Admin-Reset der Statistik soll
+  // nicht durch liegengebliebene lokale Kopien auf einzelnen Geraeten
+  // unterlaufen werden koennen) -- die Statistik ist reine Admin-Telemetrie
+  // ohne jede Spieler-sichtbare Anzeige (anders als Highscores), ein
+  // Verlust einer einzelnen Session bei einem kurzen Netzwerk-Aussetzer ist
+  // also unproblematisch. Ohne aktive Synchronisation (Offline-Kiosk, `npm
+  // run dev`, ...) unveraendert lokal, wie bisher.
+  if (!isSyncActive()) {
+    const sessions = loadJSON<PlaySession[]>(STATS_PATH, []);
+    sessions.push(session);
+    saveJSON(STATS_PATH, sessions.slice(-MAX_SESSIONS));
+  }
   // Fire-and-forget: bleibt bei fehlendem/deaktiviertem Server lautlos
   // wirkungslos, siehe core/sync.ts. Bewusst NICHT zusaetzlich in
   // localStorage anderer Geraete gemergt (anders als bei Highscores) -- die

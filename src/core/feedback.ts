@@ -69,6 +69,36 @@ export async function submitFeedback(message: string): Promise<{ ok: boolean; st
   }
 }
 
+/**
+ * Versucht, lokal "gestrandete" Feedback-Eintraege (siehe submitFeedback --
+ * entstehen nur, wenn der Server beim Absenden nicht erreichbar war)
+ * nachtraeglich doch noch zum Server zu senden -- sobald das klappt, gehoert
+ * der Eintrag serverseitig dazu und ist von dort ganz normal loeschbar (vorher
+ * blieb er, egal wie oft man's spaeter versucht haette, fuer immer nur auf
+ * diesem einen Geraet liegen, siehe core/sync.ts#syncPublicDataFromServer,
+ * das diese Funktion bei jedem Menuebesuch aufruft). Bewusst oeffentlich
+ * (kein Admin-Login noetig) -- genau wie submitFeedback selbst, laeuft im
+ * Hintergrund auf JEDEM Geraet, nicht nur beim Admin-Besuch.
+ */
+export async function flushLocalFeedback(): Promise<void> {
+  const pending = loadLocalFallback();
+  if (pending.length === 0) return;
+  const stillPending: FeedbackEntry[] = [];
+  for (const entry of pending) {
+    try {
+      const res = await fetch("./api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: entry.message }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      stillPending.push(entry);
+    }
+  }
+  if (stillPending.length !== pending.length) saveLocalFallback(stillPending);
+}
+
 export async function fetchFeedback(): Promise<{ entries: FeedbackEntry[]; serverReachable: boolean }> {
   const localEntries = loadLocalFallback();
 

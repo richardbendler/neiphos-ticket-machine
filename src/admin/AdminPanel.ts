@@ -562,7 +562,23 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
       () => {
         exitBtn.disabled = true;
         exitBtn.textContent = "Wird beendet …";
-        void exitKioskBrowser();
+        void exitKioskBrowser().then(({ ok, killed }) => {
+          // Hat killed wirklich geklappt, beendet sich diese Seite gleich
+          // von selbst mit -- der Code hier laeuft dann meist gar nicht
+          // mehr zu Ende. Kommt trotzdem eine Antwort an (kein Server, kein
+          // passender Prozess gefunden), bekommt die Admin-Person jetzt
+          // eine erklaerende Meldung STATT dass der Button (wie zuvor)
+          // unbegrenzt bei "Wird beendet..." haengen bleibt, ohne dass
+          // jemals etwas passiert (gemeldeter Bug -- die Antwort wurde
+          // vorher client-seitig ueberhaupt nicht ausgewertet).
+          exitBtn.disabled = false;
+          exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
+          if (!ok) {
+            showServerActionError(exitBtn, "Kein Server erreichbar oder Admin-Sitzung ungültig -- läuft server/serve.js? Bitte Admin-Bereich neu öffnen und erneut versuchen.");
+          } else if (!killed) {
+            showServerActionError(exitBtn, "Es wurde kein laufender Kiosk-Chromium-Prozess gefunden -- läuft der Kiosk gerade wirklich über --user-data-dir=.../ticketmachine-chromium (siehe Kiosk-Modus-Anleitung)?");
+          }
+        });
       },
     );
   });

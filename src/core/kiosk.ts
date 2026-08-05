@@ -108,6 +108,13 @@ export async function toggleFullscreen(): Promise<void> {
   }
 }
 
+export interface KioskExitResult {
+  /** true = die Anfrage kam beim Server an und wurde dort ausgefuehrt (unabhaengig davon, ob ein Prozess gefunden wurde). false = Server nicht erreichbar/Anfrage fehlgeschlagen. */
+  ok: boolean;
+  /** true = es wurde wirklich ein passender Kiosk-Prozess gefunden und beendet. */
+  killed: boolean;
+}
+
 /**
  * Notausgang aus einem echten, per --kiosk gestarteten Chromium (siehe
  * README) -- absichtlich KEIN Umschalter mit Statusanzeige, weil eine
@@ -117,18 +124,25 @@ export async function toggleFullscreen(): Promise<void> {
  * beendet (server/serve.js) -- z. B. fuer den Notfall, dass ohne
  * funktionierendes WLAN weder SSH noch ein anderer Fernzugriff moeglich ist,
  * aber der darunterliegende Desktop (fuer WLAN-Neueinrichtung etc.)
- * erreichbar sein muss. Gibt true zurueck, wenn die Anfrage den Server
- * erreicht hat (unabhaengig davon, ob dort wirklich ein Kiosk-Prozess lief).
+ * erreichbar sein muss.
+ *
+ * Gibt (anders als vorher) zurueck, ob wirklich ein Prozess beendet wurde --
+ * admin/AdminPanel.ts muss das auswerten und der Person eine erklaerende
+ * Meldung zeigen, wenn nicht (z. B. falscher/kein --user-data-dir-Pfad).
+ * Wurde wirklich beendet, beendet sich diese Seite selbst gleich mit, ein
+ * weiteres UI-Update ist dann ohnehin hinfaellig.
  */
-export async function exitKioskBrowser(): Promise<boolean> {
+export async function exitKioskBrowser(): Promise<KioskExitResult> {
   try {
     const password = getAdminSession();
     const res = await fetch("./api/kiosk/exit", {
       method: "POST",
       headers: password ? { "X-Admin-Password": password } : {},
     });
-    return res.ok;
+    if (!res.ok) return { ok: false, killed: false };
+    const data = (await res.json().catch(() => null)) as { killed?: boolean } | null;
+    return { ok: true, killed: data?.killed === true };
   } catch {
-    return false;
+    return { ok: false, killed: false };
   }
 }

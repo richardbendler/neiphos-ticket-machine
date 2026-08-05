@@ -591,13 +591,31 @@ const server = http.createServer(async (req, res) => {
     // verdrahteter Befehl ohne jeden Teil aus der Anfrage (kein Injection-
     // Risiko) -- passt nur auf das eigene, feste --user-data-dir-Profil
     // (siehe README/Kiosk-Anleitung), trifft also keine fremden Chromium-
-    // Prozesse. "pkill" liefert Exit-Code 1, wenn nichts gefunden wurde --
-    // das ist hier kein Fehler (Kiosk laeuft z. B. schon gar nicht), daher
-    // die Antwort in beiden Faellen 200.
+    // Prozesse.
+    //
+    // "killed" im JSON meldet, ob wirklich ein Prozess gefunden+beendet
+    // wurde ("pkill"-Exit-Code 0) oder nicht (Exit-Code 1 -- kein Fehler,
+    // nur "nichts zu tun", z. B. wenn der Kiosk-Browser gar nicht unter
+    // diesem Profilnamen laeuft) -- der Client (core/kiosk.ts,
+    // admin/AdminPanel.ts) zeigt bei killed:false eine erklaerende Meldung
+    // an, STATT wie zuvor unbegrenzt "Wird beendet..." anzuzeigen, ohne dass
+    // je etwas passiert (gemeldeter Bug: die alte Version werten die
+    // Antwort auf Client-Seite ueberhaupt nicht aus).
     if (url.pathname === "/api/kiosk/exit" && req.method === "POST") {
       if (!requireAdmin(req, res)) return;
-      execFile("pkill", ["-f", "ticketmachine-chromium"], () => {
-        sendJson(res, 200, { ok: true });
+      execFile("pkill", ["-f", "ticketmachine-chromium"], (error) => {
+        if (error && typeof error.code !== "number") {
+          // Spawn-Fehler (z. B. "pkill" nicht installiert/nicht im PATH) --
+          // error.code ist dann ein String wie "ENOENT", kein Exit-Code.
+          sendJson(res, 500, { ok: false, killed: false, error: String(error.code || error.message || "spawn_failed") });
+          return;
+        }
+        const exitCode = error ? error.code : 0;
+        if (exitCode > 1) {
+          sendJson(res, 500, { ok: false, killed: false, exitCode });
+          return;
+        }
+        sendJson(res, 200, { ok: true, killed: exitCode === 0 });
       });
       return;
     }

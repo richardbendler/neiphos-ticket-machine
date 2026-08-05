@@ -44,17 +44,24 @@ export function installKioskHardening(): void {
     { passive: false },
   );
 
-  // Doppel-Tap-Zoom: verhindert schnelles Doppel-Antippen als Zoom-Geste.
-  let lastTouchEnd = 0;
-  document.addEventListener(
-    "touchend",
-    (e) => {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) e.preventDefault();
-      lastTouchEnd = now;
-    },
-    { passive: false },
-  );
+  // Doppel-Tap-Zoom war hier frueher zusaetzlich per JS unterbunden (300ms-
+  // Timer, der bei jedem touchend per preventDefault() das nachfolgende
+  // synthetische "click"-Event unterdrueckte, wenn der vorherige Tap
+  // weniger als 300ms her war -- UNABHAENGIG davon, WO auf dem Bildschirm
+  // getippt wurde). Das ist echter Ballast: "touch-action: none" auf
+  // html/body (siehe style.css) unterbindet Doppel-Tap-/Pinch-Zoom bereits
+  // zuverlaessig auf Plattform-Ebene, jeder <button> hat zusaetzlich
+  // "touch-action: manipulation" (verhindert die Zoom-Geste UND die
+  // klassische Tap-Verzoegerung gezielt fuer genau dieses Element). Der
+  // JS-Timer oben war also fuer die Zoom-Verhinderung ueberfluessig,
+  // sorgte aber dafuer, dass schnelles, wiederholtes Antippen VERSCHIEDENER
+  // Ziele (z. B. beim Zug-/Huepftierspotter oder beim zuegigen Eintippen
+  // auf der Bildschirmtastatur) jeden zweiten Tap kommentarlos verschluckte,
+  // sobald er innerhalb von 300ms nach dem vorherigen kam -- das deckt sich
+  // exakt mit echtem Tester-Feedback ("jeder Klick blockiert den naechsten,
+  // ich komme nie unter ~2,9s"), das zunaechst faelschlich als
+  // Missverstaendnis der Fehltipp-Zeitstrafe eingeordnet wurde (siehe
+  // train-spotter/index.ts, WRONG_TAP_PENALTY). Ersatzlos entfernt.
 
   // Gaengige Browser-Shortcuts best-effort unterdruecken (Tab-/Fenster-Wechsel,
   // Drucken, Speichern, Devtools). Chromium im echten --kiosk-Modus blendet die

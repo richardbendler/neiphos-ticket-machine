@@ -1,6 +1,7 @@
 import { openModal } from "./modal";
 import { OnScreenKeyboard } from "./OnScreenKeyboard";
 import { icons } from "./icons";
+import { playHighscoreChime } from "./sound";
 
 /**
  * Zeigt einen Modal-Dialog mit Bildschirmtastatur zur Namenseingabe an,
@@ -15,6 +16,14 @@ export function promptHighscoreName(opts: {
   onDone: (name: string | null) => void;
 }): () => void {
   return openModal((panel, close) => {
+    // Direkt beim Aufploppen dieses Dialogs, nicht erst beim Speichern/
+    // Schliessen -- der Dialog erscheint ohnehin nur, wenn wirklich ein
+    // neuer/eingestellter Highscore erzielt wurde (siehe Aufrufer, die alle
+    // vorher getHighscoreOutcome() != "none" pruefen), das Ereignis selbst
+    // ist also schon beim Erscheinen feststehend (gemeldeter Wunsch: Sound
+    // soll den Moment "Highscore erzielt" markieren, nicht "Name gespeichert").
+    playHighscoreChime();
+
     const iconWrap = document.createElement("div");
     iconWrap.style.width = "40px";
     iconWrap.style.height = "40px";

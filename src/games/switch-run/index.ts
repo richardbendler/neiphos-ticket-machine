@@ -4,7 +4,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
-import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
+import { startTrainChug, stopTrainChug, preloadTrainChug, playSwitchSuccessSound, playSwitchCrashSound } from "../../core/sound";
 import { registerGame } from "../registry";
 
 const GAME_ID = "switch-run";
@@ -461,6 +461,8 @@ function createSwitchRunGame(): MinigameModule {
           crashed = chosenLane === null || chosenLane === deadEndLane;
           phase = "outcome";
           outcomeTimer = 0;
+          if (crashed) playSwitchCrashSound();
+          else playSwitchSuccessSound();
         }
       } else if (phase === "outcome") {
         outcomeTimer += dt;

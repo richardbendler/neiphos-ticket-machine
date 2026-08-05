@@ -106,6 +106,43 @@ export function stopTrainChug(): void {
   source?.stop(ctx.currentTime + 0.15);
 }
 
+// ---------------------------------------------------- Weichenspiel-Ausgang
+//
+// Eigenes, kurzes akustisches Feedback direkt beim Rundenausgang
+// (Weichenspiel) -- unabhaengig vom Highscore-Chime, der nur beim
+// tatsaechlichen Highscore-Ereignis greift (also seltener als jede Runde).
+
+export function playSwitchSuccessSound(): void {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  const notes = [659.25, 880]; // E5 -> A5, kurz und freundlich
+  notes.forEach((freq, i) => {
+    const start = now + i * 0.07;
+    const dur = 0.16;
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    const gain = envGain(ctx, start, 0.005, dur, 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + dur + 0.03);
+  });
+}
+
+/** Fuer beide "Runde vorbei, aber nicht geschafft"-Faelle (Sackgasse ODER keine Wahl getroffen) -- der Unterschied ist rein textlich (siehe games/switch-run), akustisch reicht ein gemeinsamer "das war's"-Ton. */
+export function playSwitchCrashSound(): void {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(220, now);
+  osc.frequency.exponentialRampToValueAtTime(60, now + 0.28);
+  const gain = envGain(ctx, now, 0.005, 0.3, 0.22);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.35);
+}
+
 // --------------------------------------------------------- Highscore-Chime
 //
 // Kurzer aufsteigender Dreiklang beim Erzielen eines neuen/eingestellten

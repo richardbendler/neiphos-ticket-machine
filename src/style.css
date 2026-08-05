@@ -1171,18 +1171,16 @@ button {
   box-shadow: none;
 }
 
-/* Bewusst NICHT die echte Linienfarbe (--chip-color, siehe ui.ts) fuer die
-   Auswahl-Buttons der Verbindungssuche -- sonst liesse sich die Aufgabe rein
-   durch Farbabgleich mit der Streckenkarte oben loesen, ohne die Karte
-   wirklich zu "lesen" (Tester-Feedback). Die Karte selbst bleibt bewusst bunt
-   (siehe core/berlinMap.ts), nur diese Buttons werden neutral -- muss NACH
-   .chip stehen, um dessen background-Regel zu ueberschreiben (beide Klassen
-   haben gleiche Spezifitaet). */
-.chip--picker {
-  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
-  color: var(--text);
-  border: 1px solid var(--btn-border);
-}
+/* War hier zwischenzeitlich komplett neutral/farblos (Tester-Feedback: die
+   echte Linienfarbe liess die Aufgabe rein per Farbabgleich mit der
+   Streckenkarte loesen, ganz ohne sie wirklich zu "lesen"). Jetzt wieder
+   eingefaerbt, aber ueber --chip-color auf ausdruecklichen Wunsch nur noch
+   EINHEITLICH nach Verkehrsmittel-Typ (S-Bahn/U-Bahn/Tram, siehe
+   MODE_COLOR in ui.ts) statt nach echter Einzellinienfarbe -- das
+   urspruengliche Problem (1:1-Farbabgleich mit der bunten Karte) bleibt
+   damit weiterhin ausgeschlossen, da z. B. alle S-Bahn-Linien jetzt
+   dasselbe Gruen zeigen. Die Karte selbst bleibt unveraendert bunt (siehe
+   core/berlinMap.ts). */
 
 .chip--outline {
   background: transparent;
@@ -1711,6 +1709,33 @@ button {
   width: 100%;
   height: min(60vh, 480px);
   margin-top: 8px;
+}
+
+/* Nur innerhalb des Streckenkarte-Modals (siehe core/berlinMap.ts) -- macht
+   aus dem Panel eine Flex-Spalte, in der die Karte den jeweils VERBLEIBENDEN
+   Platz bekommt (flex + min-height:0 statt fester vh-Hoehe), waehrend Titel
+   und Buttons darunter garantiert nie aus dem sichtbaren Bereich gedrueckt
+   werden (vorher musste man dafuer manchmal erst im Modal scrollen,
+   gemeldet). */
+.berlin-map-modal-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.berlin-map-modal-panel > h2 {
+  flex-shrink: 0;
+}
+
+.berlin-map-modal-panel .berlin-map--expanded {
+  flex: 1 1 auto;
+  min-height: 140px;
+  height: auto;
+}
+
+.berlin-map-modal-panel .berlin-map__zoom-row,
+.berlin-map-modal-panel > .btn {
+  flex-shrink: 0;
 }
 
 .berlin-map__svg {

@@ -1,15 +1,6 @@
 import type { GameEnv, MinigameModule, PointerPoint } from "../../core/Game";
 import { theme } from "../../core/theme";
-import {
-  cityName,
-  neighborsOf,
-  randomStartCity,
-  bearingBetween,
-  FESTIVAL_CITY_ID,
-  RAIL_CITIES,
-  RAIL_EDGES,
-  type RailEdge,
-} from "../../data/germanRailNetwork";
+import { cityName, neighborsOf, randomStartCity, FESTIVAL_CITY_ID, RAIL_CITIES, RAIL_EDGES, type RailEdge } from "../../data/germanRailNetwork";
 import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
@@ -23,7 +14,16 @@ const GAME_ID = "train-sim";
 // wieder aufgetaucht.
 const BOARD = "breddin";
 const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
-const SPEED_KM_S = 45;
+// War eine variable Dauer ueber eine feste km/s-Geschwindigkeit
+// (SPEED_KM_S) -- dadurch dauerten kurze und lange Strecken unterschiedlich
+// lang, was fuer eine flotte Kiosk-Minigame-Fahrt nicht noetig ist. Jetzt
+// auf ausdruecklichen Wunsch eine feste Fahrtdauer fuer jede Strecke.
+const TRAVEL_DURATION_S = 5;
+// Zusaetzlicher Zoom-Faktor waehrend der Fahrt oben auf das, was fitCamera()
+// fuer Start-/Zielstation ohnehin schon liefert (die 2-Punkte-Ansicht ist
+// bereits enger als die Nachbarstationen-Auswahl) -- auf ausdruecklichen
+// Wunsch "soll ein bisschen rangezoomt werden fuer die Fahrt".
+const TRAVEL_ZOOM_BOOST = 1.35;
 
 type Phase = "choosing" | "traveling" | "finished";
 
@@ -142,7 +142,11 @@ function createTrainSimGame(): MinigameModule {
   let previousCityId: string | null = null;
   let targetCityId: string | null = null;
   let currentEdgeKm = 0;
-  let progressKm = 0;
+  // Fortschritt der Fahrt als Zeitanteil (0..1 ueber TRAVEL_DURATION_S),
+  // nicht mehr in gefahrenen km -- siehe TRAVEL_DURATION_S. currentEdgeKm
+  // bleibt fuer die "X / Y km"-Anzeige erhalten, die waehrend der (jetzt
+  // fest 5s langen) Fahrt von 0 auf den echten Streckenwert hochzaehlt.
+  let travelT = 0;
   let legsCompleted = 0;
   let reachedFestival = false;
 
@@ -260,9 +264,14 @@ function createTrainSimGame(): MinigameModule {
   function startLeg(edge: RailEdge): void {
     targetCityId = edge.to;
     currentEdgeKm = edge.km;
-    progressKm = 0;
+    travelT = 0;
     phase = "traveling";
     updateSheetVisibility();
+    // Kamera waehrend der Fahrt auf genau Start- und Zielstation einrahmen
+    // (statt wie bisher die aktuelle Station + ALLE waehlbaren Nachbarn) --
+    // das zoomt automatisch enger heran, siehe TRAVEL_ZOOM_BOOST fuer den
+    // zusaetzlichen Kick obendrauf.
+    pendingCameraFit = [currentCityId, edge.to];
   }
 
   function arriveAtTarget(): void {
@@ -333,7 +342,7 @@ function createTrainSimGame(): MinigameModule {
     previousCityId = null;
     targetCityId = null;
     currentEdgeKm = 0;
-    progressKm = 0;
+    travelT = 0;
     legsCompleted = 0;
     reachedFestival = false;
     highscoreBanner.update(getHighscoreBoard(GAME_ID, BOARD));
@@ -384,17 +393,8 @@ function createTrainSimGame(): MinigameModule {
   /**
    * Draufsicht-Karte statt der 3D-Perspektivstrecke aus dem Weichenspiel --
    * bewusst eine andere Optik, damit sich die beiden Spiele nicht gleich
-   * anfuehlen. Ausserhalb der Fahrt (waehrend der Stationswahl) steht nur
-   * ein einzelner Punkt fuer die aktuelle Station.
+   * anfuehlen.
    *
-   * Waehrend der Fahrt bleibt der Zug fest in der Bildmitte -- stattdessen
-   * "wandert" die Welt (Start-/Zielpunkt, Gleis, Schwellen) daran vorbei,
-   * und zwar in der tatsaechlichen Kompass-Himmelsrichtung der echten
-   * Strecke (Norden ist immer oben im Bild, siehe Kompass-Hinweis unten
-   * rechts). So fuehlt es sich an, als bewege man sich wirklich in die
-   * richtige Richtung, statt immer nur stur von links nach rechts.
-   */
-  /**
    * Uebersichtskarte des GESAMTEN Streckennetzes waehrend der Stationswahl
    * (statt frueher nur ein einzelner Punkt) -- Kamera ist per fitCamera() auf
    * die aktuelle Station + ihre direkt erreichbaren Nachbarn ausgerichtet,
@@ -404,7 +404,17 @@ function createTrainSimGame(): MinigameModule {
    * gerade selbst eine Option ist) bleiben stumme Punkte, damit man sich
    * nicht die ganze Route im Voraus von der Karte ablesen kann.
    */
-  function drawNetworkMap(ctx: CanvasRenderingContext2D, env: GameEnv): void {
+  /**
+   * travelInfo !== null -> Fahrt-Modus: statt der waehlbaren Nachbarn wird
+   * genau EINE Strecke (aktuelle Station -> travelInfo.toId) hervorgehoben,
+   * mit einem Zug, der sich entlang dieser Strecke bewegt (travelInfo.t,
+   * 0..1). Lief vorher als komplett eigene, vereinfachte Szene mit nur den
+   * zwei beteiligten Stationen (siehe Git-Historie) -- fuehlte sich dadurch
+   * wie ein Wechsel auf einen anderen Screen an (gemeldet). Jetzt dieselbe
+   * Netzkarte wie bei der Stationswahl (gleiche Kamera/Projektion/
+   * Hintergrundstrecken), nur eben mit fahrendem statt stehendem Zug.
+   */
+  function drawNetworkMap(ctx: CanvasRenderingContext2D, env: GameEnv, travelInfo: { toId: string; t: number } | null): void {
     const rect = getMapRect(env);
     const optionIds = new Set(currentOptions.map((o) => o.to));
 
@@ -424,6 +434,7 @@ function createTrainSimGame(): MinigameModule {
 
     // Alle Strecken im Hintergrund, blass -- vermittelt "das ist nur ein
     // Ausschnitt aus einem groesseren Netz", ohne vom Wesentlichen abzulenken.
+    // Bleibt auch waehrend der Fahrt sichtbar, genau das war der Punkt.
     ctx.strokeStyle = theme.panelBorderLight;
     ctx.lineWidth = 2;
     for (const edge of RAIL_EDGES) {
@@ -437,79 +448,122 @@ function createTrainSimGame(): MinigameModule {
     }
 
     const cur = toScreen(currentCityId);
-
-    // Erreichbare Strecken ab der aktuellen Station farbig hervorgehoben --
-    // der eigentliche "Eyecatcher": sofort klar, wohin man von hier aus
-    // fahren kann.
-    if (cur) {
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = theme.accent;
-      for (const opt of currentOptions) {
-        const to = toScreen(opt.to);
-        if (!to) continue;
-        ctx.beginPath();
-        ctx.moveTo(cur.x, cur.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.stroke();
-      }
-    }
-
-    // Alle uebrigen Staedte nur als kleine, blasse, UNBESCHRIFTETE Punkte.
-    for (const city of RAIL_CITIES) {
-      if (city.id === currentCityId || optionIds.has(city.id)) continue;
-      const p = toScreen(city.id);
-      if (!p) continue;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = theme.panelBorderLight;
-      ctx.fill();
-    }
-
     const pulse = 1 + Math.sin(mapPulseTimer * 3.2) * 0.18;
 
-    // Erreichbare Nachbarstationen: gross, farbig, sanft pulsierend -- auch
-    // per Antippen direkt auswaehlbar (siehe onPointerUp), als schnellere
-    // Alternative zu den Buttons in der Leiste unten. Bewusst ebenfalls ohne
-    // Namensbeschriftung.
-    for (const opt of currentOptions) {
-      const p = toScreen(opt.to);
-      if (!p) continue;
-      const isFestivalStop = opt.to === FESTIVAL_CITY_ID;
-      const dotColor = isFestivalStop ? theme.accent : theme.primary;
-      const r = (isFestivalStop ? 13 : 11) * pulse;
+    if (travelInfo) {
+      const dest = toScreen(travelInfo.toId);
+      const shownIds = new Set([currentCityId, travelInfo.toId]);
 
-      ctx.globalAlpha = 0.22;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r + 9, 0, Math.PI * 2);
-      ctx.fillStyle = dotColor;
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      // Alle uebrigen Staedte weiterhin als kleine, blasse Punkte im Hintergrund.
+      for (const city of RAIL_CITIES) {
+        if (shownIds.has(city.id)) continue;
+        const p = toScreen(city.id);
+        if (!p) continue;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = theme.panelBorderLight;
+        ctx.fill();
+      }
 
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = dotColor;
-      ctx.fill();
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "#ffffff";
-      ctx.stroke();
-    }
+      if (cur && dest) {
+        // Befahrene Strecke: komplett in Akzentfarbe (schon "gebucht"),
+        // der bereits zurueckgelegte Teil zusaetzlich dicker/kraeftiger.
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = hexToRgba(theme.accent, 0.4);
+        ctx.beginPath();
+        ctx.moveTo(cur.x, cur.y);
+        ctx.lineTo(dest.x, dest.y);
+        ctx.stroke();
 
-    // Aktuelle Station: Glow + Punkt + einzige beschriftete Stelle der Karte.
-    if (cur) {
-      const glowR = 26 * pulse;
-      const grad = ctx.createRadialGradient(cur.x, cur.y, 0, cur.x, cur.y, glowR);
-      grad.addColorStop(0, hexToRgba(theme.accentDark, 0.35));
-      grad.addColorStop(1, hexToRgba(theme.accentDark, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(cur.x, cur.y, glowR, 0, Math.PI * 2);
-      ctx.fill();
+        const trainX = lerp(cur.x, dest.x, travelInfo.t);
+        const trainY = lerp(cur.y, dest.y, travelInfo.t);
 
-      drawStationDot(ctx, cur.x, cur.y, cityName(currentCityId), theme.accent);
-      ctx.textAlign = "center";
-      ctx.font = `600 12px ${theme.font}`;
-      ctx.fillStyle = theme.textMuted;
-      ctx.fillText("Du bist hier", cur.x, cur.y + 24);
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = theme.accent;
+        ctx.beginPath();
+        ctx.moveTo(cur.x, cur.y);
+        ctx.lineTo(trainX, trainY);
+        ctx.stroke();
+
+        const targetColor = travelInfo.toId === FESTIVAL_CITY_ID ? theme.accent : theme.primary;
+        drawStationDot(ctx, cur.x, cur.y, cityName(currentCityId), theme.textMuted);
+        drawStationDot(ctx, dest.x, dest.y, cityName(travelInfo.toId), targetColor);
+
+        const angle = Math.atan2(dest.y - cur.y, dest.x - cur.x);
+        drawTrainTop(ctx, trainX, trainY, angle);
+      }
+    } else {
+      // Erreichbare Strecken ab der aktuellen Station farbig hervorgehoben --
+      // der eigentliche "Eyecatcher": sofort klar, wohin man von hier aus
+      // fahren kann.
+      if (cur) {
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = theme.accent;
+        for (const opt of currentOptions) {
+          const to = toScreen(opt.to);
+          if (!to) continue;
+          ctx.beginPath();
+          ctx.moveTo(cur.x, cur.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        }
+      }
+
+      // Alle uebrigen Staedte nur als kleine, blasse, UNBESCHRIFTETE Punkte.
+      for (const city of RAIL_CITIES) {
+        if (city.id === currentCityId || optionIds.has(city.id)) continue;
+        const p = toScreen(city.id);
+        if (!p) continue;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = theme.panelBorderLight;
+        ctx.fill();
+      }
+
+      // Erreichbare Nachbarstationen: gross, farbig, sanft pulsierend -- auch
+      // per Antippen direkt auswaehlbar (siehe onPointerUp), als schnellere
+      // Alternative zu den Buttons in der Leiste unten. Bewusst ebenfalls ohne
+      // Namensbeschriftung.
+      for (const opt of currentOptions) {
+        const p = toScreen(opt.to);
+        if (!p) continue;
+        const isFestivalStop = opt.to === FESTIVAL_CITY_ID;
+        const dotColor = isFestivalStop ? theme.accent : theme.primary;
+        const r = (isFestivalStop ? 13 : 11) * pulse;
+
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 9, 0, Math.PI * 2);
+        ctx.fillStyle = dotColor;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = dotColor;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+
+      // Aktuelle Station: Glow + Punkt + einzige beschriftete Stelle der Karte.
+      if (cur) {
+        const glowR = 26 * pulse;
+        const grad = ctx.createRadialGradient(cur.x, cur.y, 0, cur.x, cur.y, glowR);
+        grad.addColorStop(0, hexToRgba(theme.accentDark, 0.35));
+        grad.addColorStop(1, hexToRgba(theme.accentDark, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cur.x, cur.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawStationDot(ctx, cur.x, cur.y, cityName(currentCityId), theme.accent);
+        ctx.textAlign = "center";
+        ctx.font = `600 12px ${theme.font}`;
+        ctx.fillStyle = theme.textMuted;
+        ctx.fillText("Du bist hier", cur.x, cur.y + 24);
+      }
     }
 
     ctx.restore();
@@ -517,102 +571,16 @@ function createTrainSimGame(): MinigameModule {
 
   function drawMap(ctx: CanvasRenderingContext2D, env: GameEnv): void {
     const { size } = env;
-    const midY = size.height * 0.4;
 
     if (phase === "traveling" && targetCityId) {
-      const centerX = size.width / 2;
-      const centerY = midY;
-      const pct = currentEdgeKm > 0 ? Math.min(1, progressKm / currentEdgeKm) : 0;
-
-      const bearingDeg = bearingBetween(currentCityId, targetCityId);
-      const rad = (bearingDeg * Math.PI) / 180;
-      // Bildschirm-Richtungsvektor der Fahrt: Norden (0 Grad) = nach oben
-      // (negatives Y), Osten (90 Grad) = nach rechts (positives X).
-      const dirX = Math.sin(rad);
-      const dirY = -Math.cos(rad);
-      const perpX = -dirY;
-      const perpY = dirX;
-
-      // "D" ist eine rein visuelle Streckenlaenge in Pixeln (unabhaengig
-      // von den echten km) -- legt fest, wie weit Start-/Zielpunkt bei
-      // Fahrtbeginn/-ende von der Bildmitte entfernt erscheinen.
-      const routeHalf = Math.min(size.width, size.height) * 0.42;
-      const D = routeHalf * 2;
-
-      // Weltposition s=0 ist der Startbahnhof, s=D der Zielbahnhof; bei
-      // Fortschritt "pct" steht der (fest zentrierte) Zug bei s=pct*D. Ein
-      // Punkt bei Weltposition s liegt also auf dem Bildschirm bei
-      // center + dir*(s - pct*D).
-      const worldToScreen = (s: number): { x: number; y: number } => ({
-        x: centerX + dirX * (s - pct * D),
-        y: centerY + dirY * (s - pct * D),
-      });
-
-      const from = worldToScreen(0);
-      const to = worldToScreen(D);
-      const railFar1 = worldToScreen(-0.3 * D);
-      const railFar2 = worldToScreen(1.3 * D);
-
-      ctx.strokeStyle = theme.panelBorderLight;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(railFar1.x, railFar1.y);
-      ctx.lineTo(railFar2.x, railFar2.y);
-      ctx.stroke();
-
-      // Schwellen in festen Weltabstaenden -- da ihre Bildschirmposition
-      // (wie alles hier) von "pct" abhaengt, scheinen sie am Zug vorbei zu
-      // ziehen, was den Bewegungseindruck deutlich verstaerkt.
-      const tieSpacing = 26;
-      ctx.strokeStyle = "rgba(180,150,40,0.35)";
-      ctx.lineWidth = 2;
-      for (let s = -0.3 * D; s <= 1.3 * D; s += tieSpacing) {
-        const p = worldToScreen(s);
-        ctx.beginPath();
-        ctx.moveTo(p.x - perpX * 6, p.y - perpY * 6);
-        ctx.lineTo(p.x + perpX * 6, p.y + perpY * 6);
-        ctx.stroke();
-      }
-
-      // Bereits zurueckgelegte Strecke (Start bis Zugmitte) farbig hervorgehoben.
-      ctx.strokeStyle = theme.accent;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(centerX, centerY);
-      ctx.stroke();
-
-      drawStationDot(ctx, from.x, from.y, cityName(currentCityId), theme.textMuted);
-      const targetColor = targetCityId === FESTIVAL_CITY_ID ? theme.accent : theme.primary;
-      drawStationDot(ctx, to.x, to.y, cityName(targetCityId), targetColor);
-      drawTrainTop(ctx, centerX, centerY, Math.atan2(dirY, dirX));
-
-      // Kompass-Hinweis: Norden ist immer "oben" im Bild, damit die
-      // Himmelsrichtung der Fahrt ueberhaupt einzuordnen ist.
-      ctx.save();
-      ctx.textAlign = "center";
-      ctx.font = `700 11px ${theme.font}`;
-      ctx.fillStyle = theme.textFaint;
-      const compassX = size.width - 24;
-      const compassY = 26;
-      ctx.fillText("N", compassX, compassY - 8);
-      ctx.strokeStyle = theme.textFaint;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(compassX, compassY + 8);
-      ctx.lineTo(compassX, compassY - 4);
-      ctx.moveTo(compassX - 4, compassY);
-      ctx.lineTo(compassX, compassY - 4);
-      ctx.lineTo(compassX + 4, compassY);
-      ctx.stroke();
-      ctx.restore();
+      drawNetworkMap(ctx, env, { toId: targetCityId, t: travelT });
 
       ctx.textAlign = "center";
       ctx.font = `600 12px ${theme.font}`;
       ctx.fillStyle = theme.textMuted;
-      ctx.fillText(`${Math.round(progressKm)} / ${Math.round(currentEdgeKm)} km`, size.width / 2, size.height - 22);
+      ctx.fillText(`${Math.round(travelT * currentEdgeKm)} / ${Math.round(currentEdgeKm)} km`, size.width / 2, size.height - 22);
     } else {
-      drawNetworkMap(ctx, env);
+      drawNetworkMap(ctx, env, null);
     }
   }
 
@@ -717,6 +685,10 @@ function createTrainSimGame(): MinigameModule {
       if (pendingCameraFit) {
         const rect = getMapRect(env);
         const target = fitCamera(pendingCameraFit, rect);
+        // Waehrend der Fahrt zusaetzlich enger heranzoomen (siehe
+        // TRAVEL_ZOOM_BOOST/startLeg) -- an den bereits per fitCamera
+        // ermittelten Kartenausschnitt gekoppelt, nie ueber MAX_ZOOM hinaus.
+        if (phase === "traveling") target.zoom = clamp(target.zoom * TRAVEL_ZOOM_BOOST, minZoomFor(rect), MAX_ZOOM);
         pendingCameraFit = null;
         if (!hasCameraInitialized) {
           // Erster Fit ueberhaupt: direkt uebernehmen statt von der
@@ -743,8 +715,8 @@ function createTrainSimGame(): MinigameModule {
       mapPulseTimer += dt;
 
       if (phase !== "traveling") return;
-      progressKm += SPEED_KM_S * dt;
-      if (progressKm >= currentEdgeKm) {
+      travelT = Math.min(1, travelT + dt / TRAVEL_DURATION_S);
+      if (travelT >= 1) {
         arriveAtTarget();
       }
     },

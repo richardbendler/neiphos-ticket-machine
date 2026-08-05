@@ -170,6 +170,47 @@ export function playSwitchCrashSound(): void {
   osc.stop(now + 0.35);
 }
 
+// -------------------------------------------------- Party-Shuttle (Finale)
+//
+// Kurzer, selbst komponierter "Party"-Jingle -- laeuft, waehrend am Ende
+// des Zugsimulators das kleine Shuttle zum Neiphos Festival ins Bild
+// faehrt (siehe games/train-sim/index.ts). Wie Highscore-Chime/
+// Weichenspiel-Sounds komplett synthetisiert, kein Sample -- aus demselben
+// Grund wie die urspruenglich gewuenschte, dann verworfene Champions-
+// League-Fanfare (siehe Highscore-Chime-Kommentar weiter unten): echte
+// Musik waere urheberrechtlich riskant.
+
+export function playPartyShuttleJingle(): void {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  // Treibende Basslinie im Viertel-Puls.
+  const bassNotes = [65.41, 65.41, 98.0, 87.31]; // C2-C2-G2-F2
+  bassNotes.forEach((freq, i) => {
+    const start = now + i * 0.3;
+    const osc = ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = freq;
+    const gain = envGain(ctx, start, 0.005, 0.22, 0.22);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.28);
+  });
+  // Froehliches Arpeggio obendrauf, zweimal durchlaufen.
+  const arp = [523.25, 659.25, 783.99, 1046.5, 783.99, 659.25]; // C-E-G-C-G-E
+  for (let rep = 0; rep < 2; rep++) {
+    arp.forEach((freq, i) => {
+      const start = now + rep * 1.2 + i * 0.1;
+      const osc = ctx.createOscillator();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      const gain = envGain(ctx, start, 0.005, 0.14, 0.11);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.18);
+    });
+  }
+}
+
 // --------------------------------------------------------- Highscore-Chime
 //
 // Kurzer aufsteigender Dreiklang beim Erzielen eines neuen/eingestellten

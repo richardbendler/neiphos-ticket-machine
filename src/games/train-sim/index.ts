@@ -5,7 +5,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
-import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
+import { startTrainChug, stopTrainChug, preloadTrainChug, playPartyShuttleJingle } from "../../core/sound";
 import { registerGame } from "../registry";
 
 const GAME_ID = "train-sim";
@@ -25,8 +25,12 @@ const TRAVEL_DURATION_S = 5;
 // bereits enger als die Nachbarstationen-Auswahl) -- auf ausdruecklichen
 // Wunsch "soll ein bisschen rangezoomt werden fuer die Fahrt".
 const TRAVEL_ZOOM_BOOST = 1.35;
+// Kurze Zwischenszene nach Ankunft in Breddin, bevor der eigentliche
+// "Willkommen"-Abschluss kommt -- auf ausdruecklichen Wunsch simuliert
+// ("ein kleines Partyshuttle mit Musik am Ende").
+const SHUTTLE_DURATION_S = 2.6;
 
-type Phase = "choosing" | "traveling" | "finished";
+type Phase = "choosing" | "traveling" | "shuttle" | "finished";
 
 function formatLegCount(value: number): string {
   return value === 1 ? "1 Zug" : `${value} Züge`;
@@ -148,6 +152,8 @@ function createTrainSimGame(): MinigameModule {
   // bleibt fuer die "X / Y km"-Anzeige erhalten, die waehrend der (jetzt
   // fest 5s langen) Fahrt von 0 auf den echten Streckenwert hochzaehlt.
   let travelT = 0;
+  // Fortschritt der Partyshuttle-Zwischenszene (0..1 ueber SHUTTLE_DURATION_S).
+  let shuttleT = 0;
   let legsCompleted = 0;
   let reachedFestival = false;
 
@@ -212,7 +218,7 @@ function createTrainSimGame(): MinigameModule {
    * dass das die aktuelle Station ist, von der aus die Wahl unten gilt.
    */
   function updateLabels(): void {
-    goalLine.textContent = `Ziel: Breddin · ${formatLegCount(legsCompleted)} bisher`;
+    goalLine.textContent = `Ziel: Neiphos Festival · ${formatLegCount(legsCompleted)} bisher`;
     currentCityLabel.textContent = `Du bist in: ${cityName(currentCityId)}`;
   }
 
@@ -283,7 +289,10 @@ function createTrainSimGame(): MinigameModule {
     targetCityId = null;
     legsCompleted += 1;
     if (currentCityId === FESTIVAL_CITY_ID) {
-      finish(true);
+      phase = "shuttle";
+      shuttleT = 0;
+      updateSheetVisibility();
+      playPartyShuttleJingle();
     } else {
       beginChoice();
     }
@@ -301,7 +310,7 @@ function createTrainSimGame(): MinigameModule {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatLegCount(legsCompleted)} bis nach Breddin — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          message: `${formatLegCount(legsCompleted)} bis zum Neiphos Festival — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
@@ -320,7 +329,10 @@ function createTrainSimGame(): MinigameModule {
     title.style.fontWeight = "800";
     title.style.fontSize = "1.2rem";
     title.style.color = theme.accent;
-    title.textContent = reachedFestival ? "Willkommen in Breddin! 🎪" : "Sackgasse!";
+    // Der Shuttle ist zu diesem Zeitpunkt bereits losgefahren (siehe
+    // drawShuttleScene) -- Text entsprechend in der Vergangenheit/als
+    // laufende Fahrt formuliert, nicht mehr "wartet noch".
+    title.textContent = reachedFestival ? "Auf zum Neiphos Festival! 🎪" : "Sackgasse!";
     finishHost.appendChild(title);
 
     const detail = document.createElement("div");
@@ -328,7 +340,7 @@ function createTrainSimGame(): MinigameModule {
     detail.style.fontSize = "0.88rem";
     detail.style.margin = "6px 0 12px";
     detail.textContent = reachedFestival
-      ? `Das Auto-Shuttle zum Neiphos Festival wartet — in ${formatLegCount(legsCompleted)} geschafft.`
+      ? `In Breddin ins Shuttle gestiegen, ab jetzt geht's zum Neiphos Festival — in ${formatLegCount(legsCompleted)} geschafft.`
       : "Von hier führt keine Strecke weiter. Versuch eine andere Route.";
     finishHost.appendChild(detail);
 
@@ -346,6 +358,7 @@ function createTrainSimGame(): MinigameModule {
     targetCityId = null;
     currentEdgeKm = 0;
     travelT = 0;
+    shuttleT = 0;
     legsCompleted = 0;
     reachedFestival = false;
     highscoreBanner.update(getHighscoreBoard(GAME_ID, BOARD));
@@ -376,6 +389,70 @@ function createTrainSimGame(): MinigameModule {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
+  }
+
+  /**
+   * Kleine Zwischenszene nach Ankunft in Breddin: ein Partyshuttle faehrt
+   * quer durchs Bild los (Richtung Neiphos Festival), umringt von ein paar
+   * schwebenden Konfetti-Punkten -- auf ausdruecklichen Wunsch simuliert
+   * ("ein kleines Partyshuttle mit Musik am Ende", siehe playPartyShuttleJingle
+   * in core/sound.ts fuer die begleitende Musik).
+   */
+  function drawShuttleScene(ctx: CanvasRenderingContext2D, env: GameEnv, t: number): void {
+    const { size } = env;
+    const midY = size.height * 0.45;
+
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(0, 0, size.width, size.height);
+
+    // Strasse als einfache horizontale Linie, auf der das Shuttle faehrt.
+    ctx.strokeStyle = theme.panelBorderLight;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, midY + 22);
+    ctx.lineTo(size.width, midY + 22);
+    ctx.stroke();
+
+    // Konfetti: feste Positionen (deterministisch aus dem Index abgeleitet,
+    // kein Random pro Frame noetig), sanft nach oben schwebend.
+    const confettiColors = [theme.accent, theme.primary, "#e2007a", "#35c47b"];
+    for (let i = 0; i < 18; i++) {
+      const seedX = (i * 97) % size.width;
+      const seedYBase = (i * 53) % size.height;
+      const y = ((seedYBase - t * 90) % size.height + size.height) % size.height;
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = confettiColors[i % confettiColors.length];
+      ctx.beginPath();
+      ctx.arc(seedX, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Shuttle faehrt von links nach rechts durchs Bild und beschleunigt
+    // dabei sichtbar weg (easing) -- wirkt wie ein zuegiger Abschied.
+    const ease = t * t;
+    const busX = -80 + ease * (size.width + 160);
+    ctx.save();
+    ctx.translate(busX, midY);
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.roundRect(-32, -18, 64, 32, 8);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath();
+    ctx.roundRect(-22, -12, 40, 12, 3);
+    ctx.fill();
+    ctx.fillStyle = "#2b2004";
+    ctx.beginPath();
+    ctx.arc(-18, 16, 7, 0, Math.PI * 2);
+    ctx.arc(18, 16, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.textAlign = "center";
+    ctx.font = `800 22px ${theme.fontDisplay}`;
+    ctx.fillStyle = theme.accent;
+    ctx.fillText("Ab zum Neiphos Festival! 🎉", size.width / 2, midY - 50);
   }
 
   function drawStationDot(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, color: string): void {
@@ -575,7 +652,9 @@ function createTrainSimGame(): MinigameModule {
   function drawMap(ctx: CanvasRenderingContext2D, env: GameEnv): void {
     const { size } = env;
 
-    if (phase === "traveling" && targetCityId) {
+    if (phase === "shuttle") {
+      drawShuttleScene(ctx, env, shuttleT);
+    } else if (phase === "traveling" && targetCityId) {
       drawNetworkMap(ctx, env, { toId: targetCityId, t: travelT });
 
       ctx.textAlign = "center";
@@ -672,9 +751,9 @@ function createTrainSimGame(): MinigameModule {
         title: "Zugsimulator",
         description: [
           "Start an einem zufälligen deutschen Bahnhof",
-          "Ziel: Breddin — dort wartet das Shuttle zum Neiphos Festival",
+          "Ziel: das Neiphos Festival — mit dem Zug geht's bis Breddin, von dort holt dich das Shuttle ab",
           "An jeder Station wählst du die nächste Strecke",
-          "Highscore: möglichst wenige Züge bis Breddin",
+          "Highscore: möglichst wenige Züge bis zum Shuttle in Breddin",
         ],
         onStart: () => {
           closeIntro = null;
@@ -718,6 +797,11 @@ function createTrainSimGame(): MinigameModule {
       }
       mapPulseTimer += dt;
 
+      if (phase === "shuttle") {
+        shuttleT = Math.min(1, shuttleT + dt / SHUTTLE_DURATION_S);
+        if (shuttleT >= 1) finish(true);
+        return;
+      }
       if (phase !== "traveling") return;
       travelT = Math.min(1, travelT + dt / TRAVEL_DURATION_S);
       if (travelT >= 1) {
@@ -843,7 +927,7 @@ function createTrainSimGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Zugsimulator",
-  subtitle: "Finde den Weg nach Breddin",
+  subtitle: "Finde den Weg zum Neiphos Festival",
   icon: "locomotive",
   badge: "ZG",
   accent: "#1f6f43",

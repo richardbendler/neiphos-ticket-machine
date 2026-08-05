@@ -1000,15 +1000,61 @@ oben.)
 
 Danach den Pi einmal neu starten, damit sowohl der Server (neues `dist/`)
 als auch Chromium (zeigt sonst weiter die alte, bereits geladene Seite) den
-neuen Stand übernehmen:
+neuen Stand übernehmen. Wichtig: **`-t`** nicht vergessen – ohne dieses Flag
+alloziert `ssh` kein Pseudo-Terminal für den entfernt ausgeführten Befehl,
+`sudo` kann dann nicht sicher nach dem Passwort fragen und bricht mit
+„sudo: Zum Lesen des Passworts ist ein Terminal erforderlich" ab:
 
 ```bash
-ssh flipper@neiphos-ticket-machine.local "sudo reboot"
+ssh -t flipper@neiphos-ticket-machine.local "sudo reboot"
 ```
+
+(Danach ganz normal wie bei einem lokalen `sudo`-Aufruf das Passwort
+eintippen, wenn danach gefragt wird.)
 
 Das war's – kein erneutes `npm install`, keine Änderungen an
 systemd-Service oder Autostart-Eintrag nötig, solange sich nur der
 Anwendungscode (nicht z. B. der Server-Port oder Dateipfade) geändert hat.
+
+### 8. Update per USB-Stick (ohne WLAN/Netzwerk)
+
+**Alternative zu Schritt 7**, falls kein gemeinsames WLAN zwischen
+Entwicklungsrechner und Pi verfügbar ist (z. B. unterwegs, Festival-WLAN
+gesperrt/nicht vorhanden). Ein direktes USB-**Kabel** zwischen Laptop und
+Pi allein reicht dafür beim Pi 3 nicht aus – seine USB-Anschlüsse
+unterstützen (anders als z. B. beim Pi Zero) nur den "Host"-Modus, können
+sich also nicht selbst als Netzwerkgerät am Laptop anmelden. Der
+praktikable Ersatz dafür ist ein gewöhnlicher **USB-Stick** als
+Zwischenträger:
+
+1. Auf dem Entwicklungsrechner bauen und auf einen (FAT32- oder
+   exFAT-formatierten, das liest sowohl Windows als auch Linux direkt ohne
+   Zusatztreiber) USB-Stick kopieren:
+
+   ```bash
+   npm run build
+   ```
+
+   Dann `dist/` und `server/` einfach im Explorer auf den USB-Stick
+   kopieren (z. B. in einen Ordner `neiphos-update` auf dem Stick).
+
+2. USB-Stick am Pi einstecken. Direkt am Gerät (Monitor/Tastatur, siehe
+   auch den Notausgang-Hinweis weiter unten) ein Terminal öffnen. Der Stick
+   wird unter Raspberry Pi OS meist automatisch eingehängt, üblicherweise
+   unter `/media/flipper/<Name-des-Sticks>/` (`lsblk` zeigt bei Bedarf den
+   genauen Pfad).
+
+3. Von dort in den Projektordner kopieren (Pfad zum Stick ggf. anpassen):
+
+   ```bash
+   cp -r /media/flipper/*/neiphos-update/dist /home/flipper/neiphos-ticket-machine/
+   cp -r /media/flipper/*/neiphos-update/server /home/flipper/neiphos-ticket-machine/
+   sudo reboot
+   ```
+
+   (Hier läuft `sudo reboot` direkt lokal am Gerät, nicht per SSH – das
+   Terminal-Problem von Schritt 7 betrifft nur den Fernzugriff und tritt
+   hier nicht auf.)
 
 ## Kiosk-Modus unter Windows (zum Testen oder als Alternativ-Gerät)
 

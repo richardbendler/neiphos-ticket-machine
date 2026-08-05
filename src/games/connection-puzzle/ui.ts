@@ -8,6 +8,22 @@ const MODE_LABEL: Record<TransitLine["mode"], string> = {
   tram: "Tram",
 };
 
+/**
+ * Fuer die Auswahl-Buttons (renderLinePicker): bewusst NICHT die echte,
+ * individuelle Linienfarbe jeder Linie (die bleibt der Streckenkarte
+ * vorbehalten, siehe core/berlinMap.ts) -- stattdessen einheitlich nach
+ * Verkehrsmittel-Typ eingefaerbt (S-Bahn gruen, U-Bahn blau, Tram rot), auf
+ * ausdruecklichen Wunsch. Innerhalb einer Zeile (schon nach Typ gruppiert,
+ * siehe renderLinePicker) sah es vorher inkonsistent aus, wenn z. B. eine
+ * einzelne U-Bahn-Linie zufaellig genauso rot eingefaerbt war wie eine
+ * Tram-Linie, nur weil das zufaellig ihre echte Linienfarbe war.
+ */
+const MODE_COLOR: Record<TransitLine["mode"], string> = {
+  "s-bahn": "#1f8a4c",
+  "u-bahn": "#1565c0",
+  tram: "#c62828",
+};
+
 function lineById(id: string): TransitLine {
   return transitLines.find((l) => l.id === id)!;
 }
@@ -241,7 +257,7 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "chip chip--picker";
-      btn.style.setProperty("--chip-color", line.color);
+      btn.style.setProperty("--chip-color", MODE_COLOR[mode]);
       btn.textContent = line.label.split(" ")[0];
       btn.addEventListener("click", () => actions.onSelectLine(line.id));
       row.appendChild(btn);

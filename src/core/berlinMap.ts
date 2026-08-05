@@ -104,10 +104,15 @@ function buildMapSvg(startName: string, targetName: string, aspect: number): SVG
     poly.setAttribute("points", line.points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "));
     poly.setAttribute("fill", "none");
     poly.setAttribute("stroke", line.color);
-    poly.setAttribute("stroke-width", "3.5");
+    // War 3.5 -- bei den vielen sich ueberkreuzenden Linien im dichten
+    // Berliner Netz wirkte das zu wuchtig/unuebersichtlich (gemeldet).
+    // Etwas duenner, dafuer etwas kraeftiger eingefaerbt (Opazitaet leicht
+    // erhoeht), damit die einzelnen Linien trotz geringerer Breite weiter
+    // gut unterscheidbar bleiben.
+    poly.setAttribute("stroke-width", "2");
     poly.setAttribute("stroke-linecap", "round");
     poly.setAttribute("stroke-linejoin", "round");
-    poly.setAttribute("opacity", "0.55");
+    poly.setAttribute("opacity", "0.65");
     linesLayer.appendChild(poly);
   }
   svg.appendChild(linesLayer);
@@ -208,6 +213,16 @@ export function createBerlinMap(): BerlinMapHandle {
 
     closeExpanded = openModal(
       (panel, close) => {
+        // Eigene Layout-Klasse NUR fuer dieses Modal (siehe CSS) -- die
+        // Karte bekam vorher unabhaengig von der tatsaechlich verfuegbaren
+        // Hoehe immer bis zu min(60vh, 480px) zugewiesen, wodurch auf einem
+        // Kiosk-Hochformat-Bildschirm oft kein Platz mehr fuer die +/−-
+        // Zoom-Buttons und den Schliessen-Button blieb, ohne im Modal selbst
+        // erst runterzuscrollen (gemeldet). Als Flex-Spalte schrumpft die
+        // Karte jetzt automatisch auf den Rest-Platz, waehrend Titel und
+        // Buttons IMMER in voller Groesse sichtbar bleiben.
+        panel.classList.add("berlin-map-modal-panel");
+
         const h2 = document.createElement("h2");
         h2.textContent = "Streckenkarte";
         panel.appendChild(h2);

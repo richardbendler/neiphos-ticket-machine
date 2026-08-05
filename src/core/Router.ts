@@ -7,7 +7,7 @@ import { closeAllModals } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { isGameEnabled } from "./storage";
 import { syncPublicDataFromServer } from "./sync";
-import { startHighscoreFanfare, stopHighscoreFanfare } from "./sound";
+import { playHighscoreOpenSound } from "./sound";
 import { renderMainMenu } from "../menu/MainMenu";
 import { renderHighscoreBoard } from "../menu/HighscoreBoard";
 import { openAdminPanel } from "../admin/AdminPanel";
@@ -232,11 +232,7 @@ export class Router {
     const element = renderHighscoreBoard();
     this.root.appendChild(element);
     this.screenEl = element;
-    // Laeuft, solange diese Ansicht offen ist -- clearScreen() (naechster
-    // Menue-/Spielwechsel) ruft screenCleanup automatisch auf und stoppt sie
-    // damit garantiert wieder, egal auf welchem Weg man die Ansicht verlaesst.
-    startHighscoreFanfare();
-    this.screenCleanup = () => stopHighscoreFanfare();
+    playHighscoreOpenSound();
   }
 
   private startGame(id: string): void {

@@ -16,6 +16,7 @@
  * Vereinshymne ungleich eher wiedererkennbar und durchsetzungsstark.
  */
 import trainChugUrl from "../assets/sounds/zugsgeraeusch.mp3";
+import dbAnkuendigungUrl from "../assets/sounds/db-ankuendigung.mp3";
 
 let audioCtx: AudioContext | null = null;
 
@@ -31,6 +32,32 @@ function envGain(ctx: AudioContext, time: number, attack: number, decay: number,
   gain.gain.linearRampToValueAtTime(peak, time + attack);
   gain.gain.exponentialRampToValueAtTime(0.001, time + attack + decay);
   return gain;
+}
+
+const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
+
+function loadSampleBuffer(ctx: AudioContext, url: string): Promise<AudioBuffer> {
+  let cached = sampleBufferCache.get(url);
+  if (!cached) {
+    cached = fetch(url)
+      .then((res) => res.arrayBuffer())
+      .then((data) => ctx.decodeAudioData(data));
+    sampleBufferCache.set(url, cached);
+  }
+  return cached;
+}
+
+/** Spielt einen Sample-Clip einmal komplett ab (kein Loop) -- fuer kurze, einmalige Hinweistoene. */
+function playSampleOnce(url: string, volume = 1): void {
+  const ctx = getAudioContext();
+  void loadSampleBuffer(ctx, url).then((buffer) => {
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain).connect(ctx.destination);
+    source.start();
+  });
 }
 
 // ------------------------------------------------------------- Zug-Tuckern
@@ -165,42 +192,13 @@ export function playHighscoreChime(): void {
   });
 }
 
-// ------------------------------------------------------- Highscore-Fanfare
+// --------------------------------------------- Highscore-Board: Oeffnen-Sound
 //
-// Laeuft in einer Schleife, solange die Highscore-Uebersicht (siehe
-// core/Router.ts#showHighscores) geoeffnet ist -- eigene, kurze Fanfaren-
-// Phrase statt einer real existierenden Melodie.
-
-let fanfareTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleFanfarePhrase(): void {
-  const ctx = getAudioContext();
-  const now = ctx.currentTime;
-  const phrase: Array<{ freq: number; at: number; dur: number }> = [
-    { freq: 523.25, at: 0, dur: 0.22 }, // C5
-    { freq: 523.25, at: 0.28, dur: 0.22 }, // C5
-    { freq: 659.25, at: 0.56, dur: 0.22 }, // E5
-    { freq: 783.99, at: 0.84, dur: 0.65 }, // G5 (lang ausklingend)
-  ];
-  for (const note of phrase) {
-    const start = now + note.at;
-    const osc = ctx.createOscillator();
-    osc.type = "square";
-    osc.frequency.value = note.freq;
-    const gain = envGain(ctx, start, 0.01, note.dur, 0.12);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + note.dur + 0.05);
-  }
-  fanfareTimer = setTimeout(scheduleFanfarePhrase, 2100);
-}
-
-export function startHighscoreFanfare(): void {
-  if (fanfareTimer) return; // laeuft schon
-  scheduleFanfarePhrase();
-}
-
-export function stopHighscoreFanfare(): void {
-  if (fanfareTimer) clearTimeout(fanfareTimer);
-  fanfareTimer = null;
+// War zunaechst eine in Schleife laufende, selbst komponierte Fanfare
+// (siehe Git-Historie) -- auf ausdruecklichen Wunsch wieder entfernt ("die
+// mag ich gar nicht"). Stattdessen einmalig beim Oeffnen der Ansicht die
+// bereits vorhandene DB-Ansage abspielen (siehe games/dj-mixer/sounds.ts
+// fuer Quellenangabe/Lizenzhinweis zu diesem Sample).
+export function playHighscoreOpenSound(): void {
+  playSampleOnce(dbAnkuendigungUrl, 0.8);
 }

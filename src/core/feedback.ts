@@ -100,25 +100,36 @@ export function countUnread(entries: FeedbackEntry[]): number {
   return entries.filter((e) => !e.read).length;
 }
 
-/** Loescht einen einzelnen Feedback-Eintrag -- lokal-gespeicherte (Fallback) Eintraege direkt aus localStorage, server-gespeicherte per DELETE-Request. */
-export async function deleteFeedback(entry: FeedbackEntry): Promise<void> {
+/**
+ * Loescht einen einzelnen Feedback-Eintrag -- lokal-gespeicherte (Fallback)
+ * Eintraege direkt aus localStorage, server-gespeicherte per DELETE-Request.
+ * Gibt bewusst zurueck, ob es wirklich geklappt hat (vorher wurde jeder
+ * Fehler -- auch z. B. 403 bei einer nicht mehr gueltigen Admin-Sitzung --
+ * still verschluckt: die Liste wurde trotzdem neu geladen, der Eintrag
+ * stand danach einfach kommentarlos weiter da, ohne erkennbaren Grund;
+ * gemeldeter Bug). Aufrufer (admin/AdminPanel.ts) zeigt bei false eine
+ * Fehlermeldung an.
+ */
+export async function deleteFeedback(entry: FeedbackEntry): Promise<boolean> {
   if (isLocalId(entry.id)) {
     saveLocalFallback(loadLocalFallback().filter((e) => e.id !== entry.id));
-    return;
+    return true;
   }
   try {
-    await fetch(`./api/feedback/${encodeURIComponent(entry.id)}`, { method: "DELETE", headers: adminHeaders() });
+    const res = await fetch(`./api/feedback/${encodeURIComponent(entry.id)}`, { method: "DELETE", headers: adminHeaders() });
+    return res.ok;
   } catch {
-    // Server gerade nicht erreichbar -- Eintrag bleibt dort bestehen, kein Absturz.
+    return false;
   }
 }
 
-/** Loescht ALLES Feedback -- sowohl den lokalen Fallback-Speicher als auch (falls erreichbar) alle serverseitig abgelegten Eintraege. */
-export async function deleteAllFeedback(): Promise<void> {
+/** Loescht ALLES Feedback -- sowohl den lokalen Fallback-Speicher als auch (falls erreichbar) alle serverseitig abgelegten Eintraege. Gibt zurueck, ob der Server-Teil geklappt hat (siehe deleteFeedback). */
+export async function deleteAllFeedback(): Promise<boolean> {
   saveLocalFallback([]);
   try {
-    await fetch("./api/feedback/reset", { method: "POST", headers: adminHeaders() });
+    const res = await fetch("./api/feedback/reset", { method: "POST", headers: adminHeaders() });
+    return res.ok;
   } catch {
-    // Server gerade nicht erreichbar -- lokaler Fallback ist trotzdem geleert.
+    return false;
   }
 }

@@ -368,6 +368,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // Bewusst OHNE requireAdmin -- nur die reine ANZAHL ungelesener
+    // Eintraege (kein Inhalt), fuer den kleinen Hinweis in der oeffentlich
+    // sichtbaren Fussleiste (siehe core/Router.ts), damit man auch ohne
+    // Admin-Login auf einen Blick sieht, ob neues Feedback wartet.
+    if (url.pathname === "/api/feedback/unread-count" && req.method === "GET") {
+      const count = readFeedbackEntries().filter((e) => !e.read).length;
+      sendJson(res, 200, { count });
+      return;
+    }
+
     if (url.pathname === "/api/feedback" && req.method === "POST") {
       if (isRateLimited(`feedback:${clientIp(req)}`, 20, 60_000)) {
         sendJson(res, 429, { error: "rate_limited" });
@@ -616,6 +626,169 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         sendJson(res, 200, { ok: true, killed: exitCode === 0 });
+      });
+      return;
+    }
+
+    // ------------------------------------------------- System: Lautstaerke
+    //
+    // Steuert die ECHTE Betriebssystem-Lautstaerke (PipeWire, ueber wpctl),
+    // nicht irgendeine App-interne Lautstaerke -- auf ausdruecklichen
+    // Wunsch, damit man dafuer nicht extra den Kiosk-Modus verlassen muss.
+    // XDG_RUNTIME_DIR ist noetig, weil dieser Server als systemd-Service
+    // laeuft (kein normaler Desktop-Login-Prozess) und wpctl sonst den
+    // laufenden PipeWire-Dienst der Desktop-Sitzung nicht findet ("Could
+    // not connect to PipeWire") -- 1000 ist die UID des in der README
+    // vorausgesetzten einzigen Kiosk-Nutzers "flipper".
+    const PIPEWIRE_ENV = { ...process.env, XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || "/run/user/1000" };
+
+    if (url.pathname === "/api/system/volume" && req.method === "GET") {
+      if (!requireAdmin(req, res)) return;
+      execFile("wpctl", ["get-volume", "@DEFAULT_AUDIO_SINK@"], { env: PIPEWIRE_ENV }, (error, stdout) => {
+        if (error) {
+          sendJson(res, 500, { error: "wpctl_failed", detail: String(error.message || error) });
+          return;
+        }
+        const match = stdout.match(/Volume:\s*([\d.]+)/);
+        if (!match) {
+          sendJson(res, 500, { error: "unparseable_output" });
+          return;
+        }
+        sendJson(res, 200, { volume: Math.round(parseFloat(match[1]) * 100) / 100, muted: /\[MUTED\]/.test(stdout) });
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/system/volume" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      const raw = await readBody(req);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        sendJson(res, 400, { error: "invalid_json" });
+        return;
+      }
+      const volume = Number(parsed.volume);
+      if (!Number.isFinite(volume) || volume < 0 || volume > 1) {
+        sendJson(res, 400, { error: "invalid_volume" });
+        return;
+      }
+      execFile("wpctl", ["set-volume", "@DEFAULT_AUDIO_SINK@", volume.toFixed(2)], { env: PIPEWIRE_ENV }, (error) => {
+        if (error) {
+          sendJson(res, 500, { ok: false, error: String(error.message || error) });
+          return;
+        }
+        sendJson(res, 200, { ok: true });
+      });
+      return;
+    }
+
+    // ------------------------------------------------------- System: WLAN
+    //
+    // Ueber nmcli (NetworkManager, auf aktuellen Raspberry Pi OS-Versionen
+    // bereits vorinstalliert) -- kein zusaetzliches GUI-Tool (nm-applet o.
+    // ae.) auf diesem Geraet vorhanden, daher eine eigene, schlanke API
+    // statt eines eingebetteten Fremd-Fensters. "wlan0" ist der auf diesem
+    // Geraet tatsaechliche WLAN-Geraetename (siehe "nmcli device status"),
+    // bei einem anderen Pi-Modell/Setup ggf. anpassen.
+    if (url.pathname === "/api/system/wifi/status" && req.method === "GET") {
+      if (!requireAdmin(req, res)) return;
+      execFile("nmcli", ["-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"], (error, stdout) => {
+        if (error) {
+          sendJson(res, 500, { error: "nmcli_failed" });
+          return;
+        }
+        const wifiLine = stdout.split("\n").find((l) => l.split(":")[1] === "wifi");
+        if (!wifiLine) {
+          sendJson(res, 200, { available: false, connected: false, ssid: null });
+          return;
+        }
+        const [, , state, connection] = wifiLine.split(":");
+        const connected = state === "connected";
+        sendJson(res, 200, { available: true, connected, ssid: connected ? connection : null });
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/system/wifi/scan" && req.method === "GET") {
+      if (!requireAdmin(req, res)) return;
+      execFile(
+        "nmcli",
+        ["-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "device", "wifi", "list", "--rescan", "yes"],
+        { timeout: 15_000 },
+        (error, stdout) => {
+          if (error) {
+            sendJson(res, 500, { error: "nmcli_scan_failed" });
+            return;
+          }
+          const seen = new Set();
+          const networks = stdout
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => {
+              // nmcli-terse-Felder sind ":"-getrennt; die SSID selbst steht
+              // vorne und koennte theoretisch selbst ein ":" enthalten,
+              // daher von HINTEN (feste Feldanzahl der drei letzten Spalten)
+              // statt von vorne zerlegen.
+              const parts = line.split(":");
+              const inUse = parts.pop();
+              const security = parts.pop();
+              const signal = parts.pop();
+              const ssid = parts.join(":");
+              return {
+                ssid,
+                signal: Number(signal) || 0,
+                secured: security !== "" && security !== "--",
+                inUse: inUse === "*",
+              };
+            })
+            // Dieselbe SSID kann mehrfach auftauchen (mehrere Access Points
+            // desselben Netzwerks) -- nur den ersten (staerksten, da nmcli
+            // absteigend sortiert liefert) Treffer behalten.
+            .filter((n) => n.ssid && !seen.has(n.ssid) && seen.add(n.ssid));
+          sendJson(res, 200, { networks });
+        },
+      );
+      return;
+    }
+
+    if (url.pathname === "/api/system/wifi/connect" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      const raw = await readBody(req);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        sendJson(res, 400, { error: "invalid_json" });
+        return;
+      }
+      const ssid = typeof parsed.ssid === "string" ? parsed.ssid.trim() : "";
+      const password = typeof parsed.password === "string" ? parsed.password : "";
+      if (!ssid) {
+        sendJson(res, 400, { error: "missing_ssid" });
+        return;
+      }
+      const args = ["device", "wifi", "connect", ssid];
+      if (password) args.push("password", password);
+      execFile("nmcli", args, { timeout: 25_000 }, (error, stdout, stderr) => {
+        if (error) {
+          sendJson(res, 500, { ok: false, error: String(stderr || error.message || error).trim() });
+          return;
+        }
+        sendJson(res, 200, { ok: true });
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/system/wifi/disconnect" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      execFile("nmcli", ["device", "disconnect", "wlan0"], (error, stdout, stderr) => {
+        if (error) {
+          sendJson(res, 500, { ok: false, error: String(stderr || error.message || error).trim() });
+          return;
+        }
+        sendJson(res, 200, { ok: true });
       });
       return;
     }

@@ -50,3 +50,18 @@ export function openModal(
 export function closeAllModals(): void {
   for (const close of [...openModals]) close();
 }
+
+/**
+ * Ob gerade mindestens ein Modal offen ist -- genutzt vom GameLoop (siehe
+ * Router.ts), um Canvas-update()/render() zu pausieren, waehrend z. B. die
+ * Highscore-Namenseingabe mit Bildschirmtastatur offen ist. Auf dem
+ * Raspberry Pi 3 zeigte eine Live-Messung (top waehrend des Tippens), dass
+ * Renderer- UND GPU-Prozess auf ueber 90% CPU sprangen, weil das darunter-
+ * liegende Spiel unveraendert mit 60fps weiterrenderte (der Scrim ist
+ * halbtransparent, das Spielfeld bleibt sichtbar) und so mit der Tastatur-
+ * Eingabeverarbeitung um denselben Hauptthread konkurrierte -- spuerbar als
+ * "schwerfaelliges" Tippen/Tippen mit Verzoegerung.
+ */
+export function hasOpenModal(): boolean {
+  return openModals.length > 0;
+}

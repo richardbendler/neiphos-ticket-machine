@@ -4,7 +4,7 @@ import { enterFullscreen, exitFullscreen, isFullscreenActive, exitKioskBrowser }
 import { summarizeSessions, filterSessionsForGame, getAllSessions, clearAllStats, type GameSummary, type PlaySession } from "../core/stats";
 import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, deleteFeedback, deleteAllFeedback, countUnread, type FeedbackEntry } from "../core/feedback";
-import { setAdminSession, clearAdminSession } from "../core/adminSession";
+import { setAdminSession, clearAdminSession, getAdminSession } from "../core/adminSession";
 import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer, checkServerSyncStatus } from "../core/sync";
 import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
@@ -464,6 +464,293 @@ export function openAdminPanel(onClose?: () => void): void {
   });
 }
 
+function systemAdminHeaders(): HeadersInit {
+  const password = getAdminSession();
+  return password ? { "X-Admin-Password": password } : {};
+}
+
+/**
+ * Buendelt Lautstaerke- und WLAN-Steuerung (server/serve.js, wpctl/nmcli)
+ * -- beide sind reine Pi-Funktionen, die auf einem normalen Entwicklungs-
+ * rechner (npm run dev, kein wpctl/nmcli installiert) ins Leere laufen;
+ * beide Unterabschnitte behandeln einen fehlgeschlagenen ersten Ladeversuch
+ * deshalb bewusst als "hier nicht verfuegbar" statt als Fehler.
+ */
+function renderSystemSection(): HTMLDivElement {
+  const section = document.createElement("div");
+  section.style.margin = "16px 0";
+  section.append(renderVolumeControl(), renderWifiControl());
+  return section;
+}
+
+function renderVolumeControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "18px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Betriebssystem-Lautstärke:";
+  wrap.appendChild(title);
+
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.gap = "12px";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = "100";
+  slider.step = "1";
+  slider.style.flex = "1";
+  slider.disabled = true;
+
+  const valueLabel = document.createElement("span");
+  valueLabel.style.fontFamily = "var(--font-display)";
+  valueLabel.style.fontWeight = "700";
+  valueLabel.style.minWidth = "3.2em";
+  valueLabel.style.textAlign = "right";
+  valueLabel.textContent = "…";
+
+  row.append(slider, valueLabel);
+  wrap.appendChild(row);
+
+  const status = document.createElement("p");
+  status.style.fontSize = "0.76rem";
+  status.style.color = "var(--text-faint)";
+  status.style.margin = "4px 0 0";
+  wrap.appendChild(status);
+
+  fetch("./api/system/volume", { headers: systemAdminHeaders() })
+    .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+    .then((data: { volume: number; muted: boolean }) => {
+      slider.disabled = false;
+      slider.value = String(Math.round(data.volume * 100));
+      valueLabel.textContent = `${Math.round(data.volume * 100)}%${data.muted ? " 🔇" : ""}`;
+    })
+    .catch(() => {
+      status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
+      valueLabel.textContent = "–";
+    });
+
+  // Debounce: waehrend des Ziehens am Regler nicht bei JEDEM Pixel einen
+  // eigenen wpctl-Aufruf ausloesen, sondern erst kurz nach der letzten
+  // Bewegung.
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  slider.addEventListener("input", () => {
+    const pct = Number(slider.value);
+    valueLabel.textContent = `${pct}%`;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void fetch("./api/system/volume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...systemAdminHeaders() },
+        body: JSON.stringify({ volume: pct / 100 }),
+      }).then((res) => {
+        if (!res.ok) status.textContent = "Konnte Lautstärke nicht ändern.";
+      });
+    }, 200);
+  });
+
+  return wrap;
+}
+
+function renderWifiControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "WLAN:";
+  wrap.appendChild(title);
+
+  const status = document.createElement("p");
+  status.style.fontWeight = "600";
+  status.style.margin = "0 0 8px";
+  status.textContent = "Status wird geprüft …";
+  wrap.appendChild(status);
+
+  const btnRow = document.createElement("div");
+  btnRow.style.display = "flex";
+  btnRow.style.gap = "8px";
+  btnRow.style.flexWrap = "wrap";
+
+  const scanBtn = document.createElement("button");
+  scanBtn.type = "button";
+  scanBtn.className = "btn btn--ghost";
+  scanBtn.style.fontSize = "0.8rem";
+  scanBtn.textContent = "Netzwerke suchen";
+  btnRow.appendChild(scanBtn);
+
+  const disconnectBtn = document.createElement("button");
+  disconnectBtn.type = "button";
+  disconnectBtn.className = "btn btn--ghost";
+  disconnectBtn.style.fontSize = "0.8rem";
+  disconnectBtn.style.display = "none";
+  disconnectBtn.textContent = "Trennen";
+  btnRow.appendChild(disconnectBtn);
+
+  wrap.appendChild(btnRow);
+
+  const list = document.createElement("div");
+  list.style.marginTop = "8px";
+  list.style.display = "flex";
+  list.style.flexDirection = "column";
+  list.style.gap = "6px";
+  wrap.appendChild(list);
+
+  function refreshStatus(): void {
+    fetch("./api/system/wifi/status", { headers: systemAdminHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: { available: boolean; connected: boolean; ssid: string | null }) => {
+        if (!data.available) {
+          status.textContent = "Kein WLAN-Gerät gefunden.";
+          status.style.color = "var(--text-muted)";
+          scanBtn.style.display = "none";
+          return;
+        }
+        if (data.connected) {
+          status.textContent = `✅ Verbunden mit „${data.ssid}“`;
+          status.style.color = "var(--success)";
+          disconnectBtn.style.display = "inline-flex";
+        } else {
+          status.textContent = "Nicht verbunden.";
+          status.style.color = "var(--text-muted)";
+          disconnectBtn.style.display = "none";
+        }
+      })
+      .catch(() => {
+        status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
+        status.style.color = "var(--text-muted)";
+        scanBtn.style.display = "none";
+      });
+  }
+  refreshStatus();
+
+  scanBtn.addEventListener("click", () => {
+    scanBtn.disabled = true;
+    scanBtn.textContent = "Suche läuft …";
+    list.innerHTML = "";
+    fetch("./api/system/wifi/scan", { headers: systemAdminHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: { networks: Array<{ ssid: string; signal: number; secured: boolean; inUse: boolean }> }) => {
+        if (data.networks.length === 0) {
+          const empty = document.createElement("p");
+          empty.style.fontSize = "0.78rem";
+          empty.style.color = "var(--text-faint)";
+          empty.textContent = "Keine Netzwerke gefunden.";
+          list.appendChild(empty);
+          return;
+        }
+        for (const net of data.networks) {
+          const netBtn = document.createElement("button");
+          netBtn.type = "button";
+          netBtn.className = "btn btn--ghost";
+          netBtn.style.width = "100%";
+          netBtn.style.justifyContent = "space-between";
+          netBtn.style.fontSize = "0.82rem";
+          const lock = net.secured ? "🔒 " : "";
+          const marker = net.inUse ? " (aktuell)" : "";
+          netBtn.textContent = `${lock}${net.ssid}${marker} — ${net.signal}%`;
+          netBtn.addEventListener("click", () => {
+            if (net.inUse) return;
+            if (net.secured) {
+              promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, status, refreshStatus));
+            } else {
+              connectWifi(net.ssid, "", status, refreshStatus);
+            }
+          });
+          list.appendChild(netBtn);
+        }
+      })
+      .catch(() => {
+        const err = document.createElement("p");
+        err.style.fontSize = "0.78rem";
+        err.style.color = "var(--danger)";
+        err.textContent = "Suche fehlgeschlagen.";
+        list.appendChild(err);
+      })
+      .finally(() => {
+        scanBtn.disabled = false;
+        scanBtn.textContent = "Netzwerke suchen";
+      });
+  });
+
+  disconnectBtn.addEventListener("click", () => {
+    disconnectBtn.disabled = true;
+    fetch("./api/system/wifi/disconnect", { method: "POST", headers: systemAdminHeaders() })
+      .then((res) => {
+        if (!res.ok) showServerActionError(btnRow, "Trennen fehlgeschlagen.");
+        refreshStatus();
+      })
+      .finally(() => {
+        disconnectBtn.disabled = false;
+      });
+  });
+
+  return wrap;
+}
+
+function connectWifi(ssid: string, password: string, status: HTMLElement, onDone: () => void): void {
+  status.textContent = `Verbinde mit „${ssid}“ …`;
+  status.style.color = "var(--text-muted)";
+  fetch("./api/system/wifi/connect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...systemAdminHeaders() },
+    body: JSON.stringify({ ssid, password }),
+  })
+    .then((res) => res.json().catch(() => ({})))
+    .then((data: { ok?: boolean; error?: string }) => {
+      if (!data.ok) {
+        status.textContent = `❌ Verbindung zu „${ssid}“ fehlgeschlagen${data.error ? ` (${data.error})` : ""}.`;
+        status.style.color = "var(--danger)";
+        return;
+      }
+      onDone();
+    })
+    .catch(() => {
+      status.textContent = "Verbindung fehlgeschlagen.";
+      status.style.color = "var(--danger)";
+    });
+}
+
+/** Kleiner eigener Passwort-Dialog fuer eine gesicherte WLAN-Verbindung -- dieselbe Bildschirmtastatur wie ueberall sonst, aber ohne Admin-Bezug (das ist ja bereits das WLAN-Passwort, nicht das App-Admin-Passwort). */
+function promptWifiPassword(ssid: string, onSubmit: (password: string) => void): void {
+  openModal(
+    (panel, close) => {
+      const h2 = document.createElement("h2");
+      h2.textContent = `WLAN-Passwort für „${ssid}“`;
+      panel.appendChild(h2);
+
+      const kb = new OnScreenKeyboard({
+        layout: "alphanumeric",
+        maxLength: 63,
+        placeholder: "WLAN-Passwort",
+        submitLabel: "Verbinden",
+        mask: true,
+        extraKeys: true,
+        caseToggle: true,
+        onSubmit: (value) => {
+          close();
+          onSubmit(value);
+        },
+      });
+      kb.mount(panel);
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn btn--ghost";
+      cancelBtn.style.width = "100%";
+      cancelBtn.style.marginTop = "8px";
+      cancelBtn.textContent = "Abbrechen";
+      cancelBtn.addEventListener("click", close);
+      panel.appendChild(cancelBtn);
+    },
+    { keyboard: true },
+  );
+}
+
 function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   panel.innerHTML = "";
   panel.classList.add("modal-panel--wide");
@@ -514,6 +801,15 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
       syncStatus.style.color = "var(--success)";
     }
   });
+
+  // --- System: Lautstaerke + WLAN -------------------------------------
+  // Steuert die ECHTE Betriebssystem-Lautstaerke/WLAN-Verbindung des Pi
+  // (server/serve.js, wpctl/nmcli) -- auf ausdruecklichen Wunsch, damit man
+  // dafuer nicht extra den Kiosk-Modus verlassen muss. Ausserhalb des Pi
+  // (z. B. npm run dev auf einem normalen Entwicklungsrechner ohne
+  // wpctl/nmcli) blenden sich beide Abschnitte automatisch als "nicht
+  // verfuegbar" aus, statt kaputt auszusehen.
+  panel.appendChild(renderSystemSection());
 
   // --- Kiosk-Steuerung -----------------------------------------------
   const kioskSection = document.createElement("div");

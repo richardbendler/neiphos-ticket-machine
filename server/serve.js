@@ -684,6 +684,62 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ------------------------------------------------ System: Audioausgabe
+    //
+    // Auf diesem Geraet gibt es zwei PipeWire-Sinks (Klinke + HDMI) -- welcher
+    // gerade der Standard ist, laesst sich nur ueber "wpctl status" auslesen
+    // (kein --format json in dieser wpctl-Version). Geparst wird deshalb der
+    // Text zwischen "Sinks:" und der naechsten Abschnittsueberschrift; jede
+    // Zeile sieht z. B. so aus (das "*" markiert den aktuellen Standard):
+    //   " │  *   56. Internes Audio Stereo               [vol: 0.85]"
+    if (url.pathname === "/api/system/audio/outputs" && req.method === "GET") {
+      if (!requireAdmin(req, res)) return;
+      execFile("wpctl", ["status"], { env: PIPEWIRE_ENV }, (error, stdout) => {
+        if (error) {
+          sendJson(res, 500, { error: "wpctl_failed" });
+          return;
+        }
+        const sinksSection = stdout.split(/^\s*[│─┌└├]*\s*Sinks:\s*$/m)[1] || "";
+        const sinksBlock = sinksSection.split(/^\s*[│─┌└├]*\s*Sources:\s*$/m)[0] || "";
+        const outputs = sinksBlock
+          .split("\n")
+          .map((line) => line.replace(/^[\s│─┌└├]+/, ""))
+          .map((line) => {
+            const match = line.match(/^(\*)?\s*(\d+)\.\s+(.+?)\s+\[vol:\s*([\d.]+)/);
+            if (!match) return null;
+            return { id: Number(match[2]), name: match[3].trim(), active: match[1] === "*" };
+          })
+          .filter((entry) => entry !== null);
+        sendJson(res, 200, { outputs });
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/system/audio/output" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      const raw = await readBody(req);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        sendJson(res, 400, { error: "invalid_json" });
+        return;
+      }
+      const id = Number(parsed.id);
+      if (!Number.isInteger(id) || id < 0) {
+        sendJson(res, 400, { error: "invalid_id" });
+        return;
+      }
+      execFile("wpctl", ["set-default", String(id)], { env: PIPEWIRE_ENV }, (error) => {
+        if (error) {
+          sendJson(res, 500, { ok: false, error: String(error.message || error) });
+          return;
+        }
+        sendJson(res, 200, { ok: true });
+      });
+      return;
+    }
+
     // ------------------------------------------------------- System: WLAN
     //
     // Ueber nmcli (NetworkManager, auf aktuellen Raspberry Pi OS-Versionen

@@ -66,10 +66,19 @@ export class Router {
     const bar = document.createElement("div");
     bar.className = "chrome-bar";
 
-    // Permanent oben links, mit hoeherer Stapelreihenfolge als jedes Modal
-    // (siehe style.css) -- dadurch kommt man WIRKLICH von ueberall aus sofort
-    // zurueck ins Hauptmenue, auch waehrend z. B. gerade ein Spiel-Anleitungs-
-    // oder Highscore-Dialog offen ist.
+    // Permanent oben rechts (siehe bar.append() unten -- war urspruenglich
+    // oben links, auf einem konkreten Kiosk-Geraet aber in eine unzuver-
+    // laessige Ecke eines optischen/Infrarot-Touchscreens geraten: dort
+    // registrierte ein einzelner Fingertipp teils zwei leicht versetzte
+    // "Geister"-Touchpunkte gleichzeitig, ein bekanntes Symptom dieser
+    // Technik nahe der Ecken-Sensoren, siehe Git-Historie. Rechts oben war
+    // beim selben Test unauffaellig, daher dorthin verschoben; das Logo
+    // (nicht interaktiv, daher unkritisch, falls doch mal eine Ecke
+    // schwaechelt) ist dafuer nach links gewandert), mit hoeherer
+    // Stapelreihenfolge als jedes Modal (siehe style.css) -- dadurch kommt
+    // man WIRKLICH von ueberall aus sofort zurueck ins Hauptmenue, auch
+    // waehrend z. B. gerade ein Spiel-Anleitungs- oder Highscore-Dialog
+    // offen ist.
     const menuBtn = document.createElement("button");
     menuBtn.type = "button";
     menuBtn.className = "chrome-menu-btn";
@@ -104,12 +113,16 @@ export class Router {
     logo.alt = "Neiphos";
     brand.appendChild(logo);
 
-    // highscoreBtn und menuBtn teilen sich denselben Platz oben links (siehe
+    // highscoreBtn und menuBtn teilen sich denselben Platz oben rechts (siehe
     // setNavMode): auf dem Hauptmenue-Bildschirm braucht man keinen
     // "zurueck ins Menü"-Button, dafuer den Highscores-Zugang; ueberall
     // sonst (Spiel, Highscores-Ansicht) ist es umgekehrt. Nur jeweils einer
-    // der beiden ist per display:none/flex tatsaechlich im Fluss.
-    bar.append(highscoreBtn, menuBtn, title, brand);
+    // der beiden ist per display:none/flex tatsaechlich im Fluss. Reihen-
+    // folge hier bestimmt die visuelle Position (chrome-bar ist ein simples
+    // justify-content:space-between-Flex, keine eigenen links/rechts-Klassen)
+    // -- brand/title zuerst, die beiden Buttons zuletzt, damit sie rechts
+    // landen (siehe Kommentar bei menuBtn oben fuer den Grund des Tauschs).
+    bar.append(brand, title, highscoreBtn, menuBtn);
     return bar;
   }
 
@@ -184,7 +197,7 @@ export class Router {
   }
 
   /**
-   * highscoreBtn und menuBtn stehen an derselben Stelle oben links und
+   * highscoreBtn und menuBtn stehen an derselben Stelle oben rechts und
    * schliessen sich gegenseitig aus: auf dem Hauptmenue gibt es nichts,
    * wohin man "zurueck" muesste, dafuer den Highscores-Einstieg; ueberall
    * sonst ist ein Weg zurueck ins Menue wichtiger als der Highscores-Zugang.

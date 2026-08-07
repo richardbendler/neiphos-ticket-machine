@@ -7,6 +7,7 @@ import { fetchFeedback, markFeedbackRead, deleteFeedback, deleteAllFeedback, cou
 import { setAdminSession, clearAdminSession } from "../core/adminSession";
 import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer, checkServerSyncStatus } from "../core/sync";
 import { gameRegistry } from "../games/registry";
+import { openTouchTest } from "./TouchTest";
 
 // Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
 // vite.config.ts) statt hier im Quellcode zu stehen -- der Build bricht
@@ -466,6 +467,18 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   const h2 = document.createElement("h2");
   h2.textContent = "Admin-Bereich";
   panel.appendChild(h2);
+
+  // --- Touchscreen-Test ------------------------------------------------
+  // Ganz oben, noch vor dem Sync-Status -- gedacht fuer den allerersten
+  // Anschluss eines neuen Touch-Displays (Anlass: Verdacht auf eine tote
+  // Zone oben links), soll also moeglichst schnell erreichbar sein.
+  const touchTestBtn = document.createElement("button");
+  touchTestBtn.type = "button";
+  touchTestBtn.className = "btn btn--ghost";
+  touchTestBtn.style.marginBottom = "12px";
+  touchTestBtn.textContent = "Touchscreen-Test";
+  touchTestBtn.addEventListener("click", () => openTouchTest());
+  panel.appendChild(touchTestBtn);
 
   // --- Sync-Status ---------------------------------------------------
   // Nur eine Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen

@@ -1808,3 +1808,68 @@ button {
   stroke: #ffffff;
   stroke-width: 5px;
 }
+
+/* ---------- Admin: Touchscreen-Test (core/admin/TouchTest.ts) ---------- */
+
+/* Deckt bewusst den GESAMTEN Bildschirm ab, auch den Bereich der sonst
+   festen Kopf-/Fussleiste (z-index 1100) und jedes offene Modal (1000) --
+   ein neu angeschlossener Touchscreen soll sich ueberall pruefen lassen,
+   nicht nur im normalen Spielbereich. */
+.touch-test-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: var(--bezel);
+  touch-action: manipulation;
+}
+
+.touch-test-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.touch-test-cell {
+  appearance: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: var(--panel-border-light);
+  cursor: pointer;
+}
+
+.touch-test-cell--tested {
+  background: var(--success);
+}
+
+@keyframes touch-test-tap {
+  0% {
+    filter: brightness(1);
+  }
+  30% {
+    filter: brightness(1.5);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+/* Feuert bei JEDEM Tap, auch auf einem bereits gruenen (getesteten) Feld
+   -- so laesst sich innerhalb eines grossen Testfelds noch gezielt nach
+   kleineren toten Zonen suchen, ohne dass ein wiederholter Tap wirkungslos
+   wirkt (ausdruecklicher Wunsch: sichtbare Reaktion, aber keine erneute
+   Farbaenderung). */
+.touch-test-cell--tap {
+  animation: touch-test-tap 260ms ease-out;
+}
+
+.touch-test-done {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 12px 28px;
+  font-size: 1rem;
+}

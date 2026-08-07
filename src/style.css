@@ -1934,3 +1934,98 @@ button {
   padding: 12px 28px;
   font-size: 1rem;
 }
+
+/* ------------------------------------------------------- Bildschirmschoner
+   Hoeher als selbst der Touchscreen-Test (5000) -- soll wirklich von ueberall
+   aus (auch waehrend eines laufenden Spiels) erreichbar/sichtbar sein, siehe
+   core/screensaver.ts. Reine CSS-Animation (translateX) statt Canvas/rAF --
+   auf schwacher Kiosk-Hardware (Pi 3) guenstiger und laeuft GPU-komposittiert
+   ganz ohne eigenen JS-Render-Loop. */
+.screensaver-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  background: #14181a;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.screensaver-track {
+  position: absolute;
+  top: 36%;
+  left: 0;
+  width: 100%;
+  height: clamp(110px, 20vh, 200px);
+  overflow: hidden;
+}
+
+.screensaver-train {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 3vw, 28px);
+  height: 68%;
+  padding: 0 clamp(20px, 4vw, 40px);
+  background: var(--primary);
+  border-radius: clamp(16px, 3vh, 28px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  /* Start komplett rechts ausserhalb, Ende komplett links ausserhalb -- "-100%"
+     bezieht sich bei transform auf die EIGENE Breite des Elements, dadurch
+     ist die Animation unabhaengig von der tatsaechlichen (variablen, vom
+     Textinhalt abhaengigen) Zugbreite immer sauber. "Gemuetlich" = grosszuegige
+     22s pro Durchlauf, damit der Text in Ruhe lesbar ist. */
+  animation: screensaver-scroll 22s linear infinite;
+}
+
+@keyframes screensaver-scroll {
+  from {
+    transform: translate(100vw, -50%);
+  }
+  to {
+    transform: translate(-100%, -50%);
+  }
+}
+
+.screensaver-train__window {
+  flex-shrink: 0;
+  width: clamp(28px, 5vw, 52px);
+  height: 60%;
+  background: #ffffff;
+  border-radius: clamp(6px, 1vw, 10px);
+  border: 2px solid rgba(0, 0, 0, 0.15);
+}
+
+.screensaver-train__label {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.2rem, 4vw, 2.2rem);
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.screensaver-message {
+  position: relative;
+  z-index: 1;
+  margin: clamp(140px, 26vh, 260px) auto 0;
+  max-width: min(90vw, 640px);
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1rem, 2.6vw, 1.4rem);
+  color: #ffffff;
+  padding: 0 20px;
+}
+
+.screensaver-hint {
+  position: absolute;
+  bottom: clamp(24px, 6vh, 56px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  font-weight: 600;
+}

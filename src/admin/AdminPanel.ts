@@ -9,6 +9,12 @@ import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, r
 import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
+import {
+  isScreensaverEnabled,
+  setScreensaverEnabled,
+  getScreensaverTimeoutMinutes,
+  setScreensaverTimeoutMinutes,
+} from "../core/screensaver";
 
 // Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
 // vite.config.ts) statt hier im Quellcode zu stehen -- der Build bricht
@@ -480,8 +486,85 @@ function systemAdminHeaders(): HeadersInit {
 function renderSystemSection(): HTMLDivElement {
   const section = document.createElement("div");
   section.style.margin = "16px 0";
-  section.append(renderVolumeControl(), renderAudioOutputControl(), renderWifiControl());
+  section.append(renderScreensaverControl(), renderVolumeControl(), renderAudioOutputControl(), renderWifiControl());
   return section;
+}
+
+/**
+ * Ein einfacher, gemuetlich durchfahrender Zug mit Aufschrift, der nach X
+ * Minuten ganz ohne Eingabe erscheint -- reine Geraete-Einstellung
+ * (localStorage), kein Server-Sync noetig (siehe core/screensaver.ts).
+ */
+function renderScreensaverControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "18px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Bildschirmschoner:";
+  wrap.appendChild(title);
+
+  const enabledRow = document.createElement("label");
+  enabledRow.style.display = "flex";
+  enabledRow.style.alignItems = "center";
+  enabledRow.style.gap = "8px";
+  enabledRow.style.marginBottom = "8px";
+  enabledRow.style.cursor = "pointer";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = isScreensaverEnabled();
+  checkbox.style.width = "20px";
+  checkbox.style.height = "20px";
+
+  const enabledLabel = document.createElement("span");
+  enabledLabel.textContent = "Aktiviert";
+
+  enabledRow.append(checkbox, enabledLabel);
+  wrap.appendChild(enabledRow);
+
+  const timeoutRow = document.createElement("div");
+  timeoutRow.style.display = "flex";
+  timeoutRow.style.alignItems = "center";
+  timeoutRow.style.gap = "8px";
+
+  const timeoutLabel = document.createElement("span");
+  timeoutLabel.textContent = "Erscheint nach";
+  timeoutLabel.style.fontSize = "0.85rem";
+
+  const timeoutInput = document.createElement("input");
+  timeoutInput.type = "number";
+  timeoutInput.min = "1";
+  timeoutInput.max = "120";
+  timeoutInput.step = "1";
+  timeoutInput.value = String(getScreensaverTimeoutMinutes());
+  timeoutInput.style.width = "4.5em";
+  timeoutInput.disabled = !checkbox.checked;
+
+  const timeoutUnit = document.createElement("span");
+  timeoutUnit.textContent = "Min. Inaktivität";
+  timeoutUnit.style.fontSize = "0.85rem";
+
+  timeoutRow.append(timeoutLabel, timeoutInput, timeoutUnit);
+  wrap.appendChild(timeoutRow);
+
+  checkbox.addEventListener("change", () => {
+    setScreensaverEnabled(checkbox.checked);
+    timeoutInput.disabled = !checkbox.checked;
+  });
+
+  timeoutInput.addEventListener("change", () => {
+    const minutes = Number(timeoutInput.value);
+    if (!Number.isFinite(minutes) || minutes < 1) {
+      timeoutInput.value = String(getScreensaverTimeoutMinutes());
+      return;
+    }
+    setScreensaverTimeoutMinutes(minutes);
+    timeoutInput.value = String(getScreensaverTimeoutMinutes());
+  });
+
+  return wrap;
 }
 
 function renderVolumeControl(): HTMLDivElement {

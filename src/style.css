@@ -146,22 +146,28 @@ button {
   pointer-events: none;
 }
 
+/* Deutlich groesser als die uebrigen Kopfleisten-Elemente (war
+   clamp(26px, 8vw, 32px) Hoehe) -- seit dem Umzug von oben links nach oben
+   rechts (siehe Router.ts#buildChromeBar) steht der Button an einer
+   Stelle, an der man einen "Zurueck"-Button nicht sofort intuitiv erwartet,
+   soll also durch mehr Groesse/Auffaelligkeit wieder leichter ins Auge
+   fallen. */
 .chrome-menu-btn {
   pointer-events: auto;
   flex-shrink: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: clamp(26px, 8vw, 32px);
-  padding: 0 clamp(6px, 2.4vw, 12px) 0 clamp(4px, 1.6vw, 8px);
+  gap: 7px;
+  height: clamp(34px, 10.5vw, 44px);
+  padding: 0 clamp(10px, 3.4vw, 18px) 0 clamp(7px, 2.4vw, 12px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--btn-border);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.62rem, 2.6vw, 0.82rem);
+  font-size: clamp(0.78rem, 3.4vw, 1.02rem);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -173,29 +179,31 @@ button {
 
 .chrome-menu-btn svg {
   flex-shrink: 0;
-  width: clamp(13px, 4vw, 16px);
-  height: clamp(13px, 4vw, 16px);
+  width: clamp(17px, 5.2vw, 22px);
+  height: clamp(17px, 5.2vw, 22px);
 }
 
 /* Golden/pokalfarben statt im silbernen Look der uebrigen Kopfleisten-
    Buttons -- soll als eigene Kategorie ("hier siehst du dir was an" statt
-   "hier navigierst du") sofort auffallen. */
+   "hier navigierst du") sofort auffallen. Gleiche Groesse wie
+   .chrome-menu-btn (siehe dortiger Kommentar), da beide denselben Platz
+   teilen (setNavMode). */
 .chrome-highscore-btn {
   pointer-events: auto;
   flex-shrink: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: clamp(26px, 8vw, 32px);
-  padding: 0 clamp(6px, 2.4vw, 12px) 0 clamp(4px, 1.6vw, 8px);
+  gap: 7px;
+  height: clamp(34px, 10.5vw, 44px);
+  padding: 0 clamp(10px, 3.4vw, 18px) 0 clamp(7px, 2.4vw, 12px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent-dark);
   background: linear-gradient(180deg, #ffe08a, var(--accent));
   color: #2b2004;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.62rem, 2.6vw, 0.82rem);
+  font-size: clamp(0.78rem, 3.4vw, 1.02rem);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -207,8 +215,8 @@ button {
 
 .chrome-highscore-btn svg {
   flex-shrink: 0;
-  width: clamp(13px, 4vw, 16px);
-  height: clamp(13px, 4vw, 16px);
+  width: clamp(17px, 5.2vw, 22px);
+  height: clamp(17px, 5.2vw, 22px);
 }
 
 .chrome-bar__title {

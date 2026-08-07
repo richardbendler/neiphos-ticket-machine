@@ -15,13 +15,17 @@ const openModals: Array<() => void> = [];
 
 export function openModal(
   build: (panel: HTMLDivElement, close: () => void) => void,
-  opts: { wide?: boolean; onClose?: () => void } = {},
+  opts: { wide?: boolean; keyboard?: boolean; onClose?: () => void } = {},
 ): () => void {
   const scrim = document.createElement("div");
   scrim.className = "modal-scrim";
 
   const panel = document.createElement("div");
-  panel.className = "modal-panel" + (opts.wide ? " modal-panel--wide" : "");
+  // keyboard: eigene, responsive (vw-basierte statt fest 720px) Breite fuer
+  // Modals mit Bildschirmtastatur (Highscore-Namenseingabe, Admin-Login,
+  // Feedback) -- siehe .modal-panel--keyboard in style.css. Schliesst sich
+  // mit wide gegenseitig aus, keyboard gewinnt, falls beide gesetzt waeren.
+  panel.className = "modal-panel" + (opts.keyboard ? " modal-panel--keyboard" : opts.wide ? " modal-panel--wide" : "");
   scrim.appendChild(panel);
 
   document.body.appendChild(scrim);

@@ -29,8 +29,12 @@ export function openFeedbackDialog(): void {
         // Mehrzeiliges, umbrechendes Eingabefeld statt der sonst einzeiligen
         // Anzeige -- Feedback-Texte sind oft laenger als ein Highscore-Name
         // und liefen vorher ohne Umbruch seitlich aus dem Feld heraus.
+        // War 5 Zeilen -- seit die Tastatur selbst deutlich groesser ist
+        // (siehe .osk__key), liess das die untere Tastenreihe (Leerzeichen/
+        // Senden) aus dem sichtbaren Bereich rutschen, ohne dass auf den
+        // ersten Blick klar war, dass man dafuer erst scrollen muesste.
         multiline: true,
-        rows: 5,
+        rows: 3,
         onSubmit: (value) => {
           if (sending) return;
           if (!value.trim()) {
@@ -59,9 +63,11 @@ export function openFeedbackDialog(): void {
       cancelBtn.addEventListener("click", close);
       panel.appendChild(cancelBtn);
     },
-    // wide: breiteres Modal-Panel (siehe modal.ts) -- die Tastatur soll fuer
-    // laengere Freitext-Eingaben mehr Breite nutzen duerfen als z. B. bei
-    // der kurzen Highscore-Namenseingabe.
-    { wide: true },
+    // keyboard: responsives, breiteres Modal-Panel (siehe modal.ts/
+    // .modal-panel--keyboard) -- dieselbe Breite wie Highscore-/Admin-Login-
+    // Tastatur, auf ausdruecklichen Wunsch. Fuer laengere Freitext-Eingaben
+    // ohnehin sinnvoll, mehr Breite zu nutzen als bei der kurzen Highscore-
+    // Namenseingabe.
+    { keyboard: true },
   );
 }

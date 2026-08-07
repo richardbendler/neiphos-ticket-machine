@@ -200,11 +200,20 @@ function createSwitchRunGame(): MinigameModule {
 
   // ---------------------------------------------------------------- Zeichnen
 
+  // horizonY/baseY haengen nur von der (praktisch nie wechselnden) Canvas-
+  // Groesse ab -- ohne Cache legt render() diesen Gradienten trotzdem jeden
+  // einzelnen Frame neu an, auf schwacher Hardware (Pi 3) messbar teuer.
+  let backgroundGradientCache: { key: string; gradient: CanvasGradient } | null = null;
+
   function drawBackground(ctx: CanvasRenderingContext2D, size: { width: number; height: number }, horizonY: number, baseY: number): void {
-    const grad = ctx.createLinearGradient(0, horizonY, 0, baseY);
-    grad.addColorStop(0, "#173b40");
-    grad.addColorStop(1, theme.bg);
-    ctx.fillStyle = grad;
+    const key = `${horizonY}:${baseY}`;
+    if (backgroundGradientCache?.key !== key) {
+      const grad = ctx.createLinearGradient(0, horizonY, 0, baseY);
+      grad.addColorStop(0, "#173b40");
+      grad.addColorStop(1, theme.bg);
+      backgroundGradientCache = { key, gradient: grad };
+    }
+    ctx.fillStyle = backgroundGradientCache.gradient;
     ctx.fillRect(0, horizonY, size.width, baseY - horizonY);
   }
 

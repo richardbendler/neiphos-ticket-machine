@@ -272,6 +272,14 @@ function createTrainPhotoGame(): MinigameModule {
     }
   }
 
+  // Das fertige Polaroid aendert sich waehrend der gesamten "result"-Phase
+  // nicht mehr (Zugposition/Treffer stehen fest) -- trotzdem lief render()
+  // weiter mit 60fps und hat dabei jeden Frame den teuren Schlagschatten
+  // (shadowBlur) und die Gradienten neu berechnet. Auf schwacher Hardware
+  // (Pi 3) spuerbar, deshalb einmalig in ein Offscreen-Canvas vorgerendert
+  // und danach nur noch billig hineinkopiert (drawImage).
+  let polaroidCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+
   /**
    * Zeigt das gerade "entwickelte" Foto als Polaroid: weisser Rahmen (unten
    * dicker, wie beim echten Vorbild), Motiv exakt auf den Rahmen zugeschnitten
@@ -279,48 +287,65 @@ function createTrainPhotoGame(): MinigameModule {
    * abgeschnitten, statt weiterhin ueber den ganzen Bildschirm zu laufen.
    */
   function drawPolaroid(ctx: CanvasRenderingContext2D, size: { width: number; height: number }): void {
-    const cardW = PHOTO_WIDTH + POLAROID_BORDER * 2;
-    const cardH = PHOTO_HEIGHT + POLAROID_BORDER + POLAROID_BOTTOM_BORDER;
-    const cardX = (size.width - cardW) / 2;
-    const cardY = (size.height - cardH) / 2;
-    const photoX = cardX + POLAROID_BORDER;
-    const photoY = cardY + POLAROID_BORDER;
+    const key = `${size.width}x${size.height}@${capturedOffsetX}:${missed}`;
+    if (polaroidCache?.key !== key) {
+      const cardW = PHOTO_WIDTH + POLAROID_BORDER * 2;
+      const cardH = PHOTO_HEIGHT + POLAROID_BORDER + POLAROID_BOTTOM_BORDER;
+      const cardX = (size.width - cardW) / 2;
+      const cardY = (size.height - cardH) / 2;
+      const photoX = cardX + POLAROID_BORDER;
+      const photoY = cardY + POLAROID_BORDER;
 
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.4)";
-    ctx.shadowBlur = 22;
-    ctx.shadowOffsetY = 8;
-    ctx.fillStyle = "#fdfdfa";
-    ctx.fillRect(cardX, cardY, cardW, cardH);
-    ctx.restore();
+      const off = document.createElement("canvas");
+      off.width = size.width;
+      off.height = size.height;
+      const offCtx = off.getContext("2d", { alpha: true })!;
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(photoX, photoY, PHOTO_WIDTH, PHOTO_HEIGHT);
-    ctx.clip();
+      offCtx.save();
+      offCtx.shadowColor = "rgba(0,0,0,0.4)";
+      offCtx.shadowBlur = 22;
+      offCtx.shadowOffsetY = 8;
+      offCtx.fillStyle = "#fdfdfa";
+      offCtx.fillRect(cardX, cardY, cardW, cardH);
+      offCtx.restore();
 
-    const skyGrad = ctx.createLinearGradient(0, photoY, 0, photoY + PHOTO_HEIGHT);
-    skyGrad.addColorStop(0, "#bcd7e6");
-    skyGrad.addColorStop(0.62, "#dce6e0");
-    skyGrad.addColorStop(0.62, "#8b9a90");
-    skyGrad.addColorStop(1, "#5f6d64");
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(photoX, photoY, PHOTO_WIDTH, PHOTO_HEIGHT);
+      offCtx.save();
+      offCtx.beginPath();
+      offCtx.rect(photoX, photoY, PHOTO_WIDTH, PHOTO_HEIGHT);
+      offCtx.clip();
 
-    // Die Foto-Mitte liegt (weil beides mittig zum Bildschirm ausgerichtet
-    // ist) exakt auf der Bildschirmmitte -- der Zug wird darum einfach mit
-    // seiner tatsaechlichen Ausloese-Position gezeichnet, der Zuschnitt
-    // ergibt sich automatisch aus dem clip() oben.
-    const localTrackY = photoY + PHOTO_HEIGHT * 0.78;
-    if (!missed) {
-      drawTrain(ctx, capturedOffsetX, localTrackY);
+      const skyGrad = offCtx.createLinearGradient(0, photoY, 0, photoY + PHOTO_HEIGHT);
+      skyGrad.addColorStop(0, "#bcd7e6");
+      skyGrad.addColorStop(0.62, "#dce6e0");
+      skyGrad.addColorStop(0.62, "#8b9a90");
+      skyGrad.addColorStop(1, "#5f6d64");
+      offCtx.fillStyle = skyGrad;
+      offCtx.fillRect(photoX, photoY, PHOTO_WIDTH, PHOTO_HEIGHT);
+
+      // Die Foto-Mitte liegt (weil beides mittig zum Bildschirm ausgerichtet
+      // ist) exakt auf der Bildschirmmitte -- der Zug wird darum einfach mit
+      // seiner tatsaechlichen Ausloese-Position gezeichnet, der Zuschnitt
+      // ergibt sich automatisch aus dem clip() oben.
+      const localTrackY = photoY + PHOTO_HEIGHT * 0.78;
+      if (!missed) {
+        drawTrain(offCtx, capturedOffsetX, localTrackY);
+      }
+      offCtx.restore();
+
+      offCtx.strokeStyle = "rgba(0,0,0,0.12)";
+      offCtx.lineWidth = 1;
+      offCtx.strokeRect(photoX + 0.5, photoY + 0.5, PHOTO_WIDTH - 1, PHOTO_HEIGHT - 1);
+
+      polaroidCache = { key, canvas: off };
     }
-    ctx.restore();
-
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(photoX + 0.5, photoY + 0.5, PHOTO_WIDTH - 1, PHOTO_HEIGHT - 1);
+    ctx.drawImage(polaroidCache.canvas, 0, 0);
   }
+
+  // Cache fuer den Sucher-Vignetten-Gradienten (siehe drawCameraLens) --
+  // die Eingabewerte (Groesse, Fokuspunkt) aendern sich innerhalb einer
+  // laufenden Runde praktisch nie, ein CanvasGradient jeden einzelnen Frame
+  // (60x/s) neu anzulegen war auf schwacher Hardware (Pi 3) messbar teuer.
+  let lensGradientCache: { key: string; gradient: CanvasGradient } | null = null;
 
   /**
    * Dunkle Vignette an den Raendern plus Sucher-Ecken -- soll den Eindruck
@@ -332,10 +357,14 @@ function createTrainPhotoGame(): MinigameModule {
     const cx = size.width / 2;
     const innerR = Math.min(size.width, size.height) * 0.34;
     const outerR = Math.max(size.width, size.height) * 0.8;
-    const grad = ctx.createRadialGradient(cx, focusY, innerR, cx, focusY, outerR);
-    grad.addColorStop(0, "rgba(0,0,0,0)");
-    grad.addColorStop(1, "rgba(0,0,0,0.6)");
-    ctx.fillStyle = grad;
+    const key = `${size.width}x${size.height}@${focusY}`;
+    if (lensGradientCache?.key !== key) {
+      const grad = ctx.createRadialGradient(cx, focusY, innerR, cx, focusY, outerR);
+      grad.addColorStop(0, "rgba(0,0,0,0)");
+      grad.addColorStop(1, "rgba(0,0,0,0.6)");
+      lensGradientCache = { key, gradient: grad };
+    }
+    ctx.fillStyle = lensGradientCache.gradient;
     ctx.fillRect(0, 0, size.width, size.height);
 
     const inset = 18;

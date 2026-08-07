@@ -853,6 +853,37 @@ landet dann aber keine Datei im Dateisystem.
 Für den Autostart des Servers siehe [Autostart einrichten](#5-autostart-einrichten-linuxraspberry-pi-os)
 weiter unten.
 
+### 3b. WLAN-Verwaltung im Admin-Bereich freischalten (polkit)
+
+Der Admin-Bereich kann WLAN scannen/verbinden/trennen (siehe
+[Admin-Bereich](#admin-bereich)) – dafür ruft `server/serve.js` im
+Hintergrund `nmcli` auf. Läuft der Server als systemd-Dienst (siehe Schritt 5)
+statt in einer interaktiven Desktop-Sitzung, verweigert NetworkManager diese
+Aktionen standardmäßig mit `not authorized` – auch wenn der Nutzer `flipper`
+bereits Mitglied der `netdev`-Gruppe ist (polkit prüft dafür meist eine
+*aktive lokale Sitzung*, die ein Hintergrund-Dienst nicht hat). Ohne die
+folgende Regel scheitern WLAN-Scan/-Trennen im Admin-Bereich unsichtbar,
+genau wie admin-geschützte Aktionen ohne gesetzte `.env.local` (siehe
+[Admin-Passwort einrichten](#admin-passwort-einrichten)) – beides leicht zu
+übersehen, wenn ein neuer Pi aufgesetzt wird.
+
+Einmalig auf dem Pi einrichten:
+
+```bash
+sudo tee /etc/polkit-1/rules.d/50-flipper-networkmanager.rules > /dev/null <<'EOF'
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 &&
+        subject.user == "flipper") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+sudo systemctl restart polkit
+```
+
+(Läuft der Server unter einem anderen Linux-Benutzer als `flipper`, dessen
+Namen entsprechend anpassen.)
+
 ### 4. Chromium im Kiosk-Modus starten (manuell)
 
 Chromium mit dem `--kiosk`-Flag zeigt keine Adressleiste, keine Tabs, kein
@@ -1295,6 +1326,18 @@ niemand zwischen Groß-/Kleinschreibung unterscheiden könnte).
 
 Im Admin-Bereich:
 
+- **Touchscreen-Test** – Vollbild-Raster aus antippbaren Feldern (ungefähr
+  Button-große Kacheln), zum Aufspüren von Touch-Todzonen auf dem
+  Kiosk-Bildschirm. Getestete Felder werden grün, bleiben aber weiter
+  antippbar (kurze Puls-Animation statt erneutem Farbwechsel). "Test beenden"
+  führt zurück in den Admin-Bereich.
+- **Lautstärke** – steuert die echte Betriebssystem-Lautstärke (über
+  PipeWire/`wpctl`), nicht nur eine App-interne Lautstärke – dafür muss der
+  Kiosk-Modus nicht verlassen werden. Nur auf einem echten Pi mit laufendem
+  `server/serve.js` verfügbar.
+- **WLAN** – Verbindungsstatus, Netzwerksuche und Verbinden/Trennen direkt im
+  Admin-Bereich (siehe [WLAN-Verwaltung freischalten](#3b-wlan-verwaltung-im-admin-bereich-freischalten-polkit)
+  für die einmalige Voraussetzung auf dem Pi).
 - **Kiosk-Modus starten/beenden** – schaltet nur den Browser-Vollbildmodus
   (Fullscreen API) dieser Webseite um. Das ist *nicht* dasselbe wie Chromium
   komplett im `--kiosk`-Modus zu beenden – eine Webseite kann aus

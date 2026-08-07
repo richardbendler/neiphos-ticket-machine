@@ -24,7 +24,6 @@ const GAME_ID = "train-photo";
 const COUNTDOWN_START = 3;
 const MIN_WAIT_S = 3;
 const MAX_WAIT_S = 7;
-const SPEED_PX_S = 1900; // absurd schnell -- nochmal doppelt so schnell wie zuvor
 const TRAIN_WIDTH = 260;
 const TRAIN_HEIGHT = 84;
 // Ergebnis (Foto + Punktzahl) erscheint jetzt sofort zusammen -- nur der
@@ -49,7 +48,25 @@ const WINDOW_HOPPER_CHANCE = 0.7;
 // nicht alle verbraucht.
 const WINDOW_SLOT_COUNT = 8;
 
-type Phase = "countdown" | "waiting" | "running" | "result";
+interface SpeedLevel {
+  key: string;
+  label: string;
+  speedPxS: number;
+}
+
+// 10 Geschwindigkeitsstufen, analog zu "Passagiere zaehlen" (siehe dort) --
+// Stufe 6 entspricht bewusst der frueheren festen Geschwindigkeit dieses
+// Spiels (1900px/s, "absurd schnell"), alle anderen Stufen skalieren im
+// selben Verhaeltnis (~Faktor 1.27 pro Stufe) drumherum. Im Schnitt trotzdem
+// deutlich schneller als bei "Passagiere zaehlen" (dort geht es ums genaue
+// Zaehlen, hier nur um den richtigen Zeitpunkt zum Ausloesen).
+const SPEED_LEVELS: SpeedLevel[] = [600, 750, 950, 1200, 1500, 1900, 2400, 3050, 3900, 4950].map((speedPxS, i) => ({
+  key: String(i + 1),
+  label: `Stufe ${i + 1}`,
+  speedPxS,
+}));
+
+type Phase = "speed-select" | "countdown" | "waiting" | "running" | "result";
 
 function formatScore(value: number): string {
   return `${value.toFixed(2)} Punkte`;
@@ -70,7 +87,7 @@ function generateWindowHoppers(): (string | null)[] {
 }
 
 function createTrainPhotoGame(): MinigameModule {
-  let phase: Phase = "countdown";
+  let phase: Phase = "speed-select";
   let countdown = COUNTDOWN_START;
   let waitTimer = 0;
   let started = false;
@@ -81,8 +98,10 @@ function createTrainPhotoGame(): MinigameModule {
   let flashTimer = 0;
   let windowHoppers: (string | null)[] = generateWindowHoppers();
   let currentSize = { width: 480, height: 800 };
+  let selectedLevel: SpeedLevel | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let speedPanel: HTMLDivElement;
   let sheet: HTMLDivElement;
   let shutterHost: HTMLDivElement;
   let shutterBtn: HTMLButtonElement;
@@ -94,6 +113,49 @@ function createTrainPhotoGame(): MinigameModule {
     return size.height * 0.58;
   }
 
+  function renderSpeedPanel(): void {
+    speedPanel.innerHTML = "";
+    speedPanel.style.display = phase === "speed-select" ? "flex" : "none";
+    if (phase !== "speed-select") return;
+
+    const title = document.createElement("div");
+    title.className = "stage-sheet__title";
+    title.style.fontSize = "1rem";
+    title.style.color = "var(--text)";
+    title.textContent = "Wie schnell soll der Zug fahren?";
+    speedPanel.appendChild(title);
+
+    const desc = document.createElement("p");
+    desc.style.color = "var(--text-muted)";
+    desc.style.fontSize = "0.85rem";
+    desc.style.margin = "0 0 4px";
+    desc.textContent = "Je höher die Stufe, desto schwerer lässt sich der richtige Moment zum Auslösen treffen.";
+    speedPanel.appendChild(desc);
+
+    const grid = document.createElement("div");
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = "repeat(5, 1fr)";
+    grid.style.gap = "10px";
+    grid.style.width = "100%";
+    grid.style.maxWidth = "460px";
+    for (const level of SPEED_LEVELS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn--choice";
+      btn.style.padding = "clamp(10px, 2vh, 18px) 4px";
+      btn.textContent = level.label.replace("Stufe ", "");
+      btn.addEventListener("click", () => selectSpeed(level));
+      grid.appendChild(btn);
+    }
+    speedPanel.appendChild(grid);
+  }
+
+  function selectSpeed(level: SpeedLevel): void {
+    selectedLevel = level;
+    highscoreBanner.update(getHighscoreBoard(GAME_ID, level.key));
+    resetRound();
+  }
+
   function resetRound(): void {
     phase = "countdown";
     countdown = COUNTDOWN_START;
@@ -101,6 +163,7 @@ function createTrainPhotoGame(): MinigameModule {
     missed = false;
     score = 0;
     windowHoppers = generateWindowHoppers();
+    renderSpeedPanel();
     renderSheet();
     updateShutterVisibility();
   }
@@ -153,16 +216,18 @@ function createTrainPhotoGame(): MinigameModule {
     updateShutterVisibility();
     renderSheet();
 
-    const outcome = getHighscoreOutcome(GAME_ID, score, "higher-better");
+    if (!selectedLevel) return;
+    const level = selectedLevel;
+    const outcome = getHighscoreOutcome(GAME_ID, score, "higher-better", level.key);
     if (outcome !== "none" && score > 0) {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatScore(score)} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          message: `${formatScore(score)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
-            highscoreBanner.update(recordHighscore(GAME_ID, name, score, "higher-better"));
+            highscoreBanner.update(recordHighscore(GAME_ID, name, score, "higher-better", level.key));
           },
         });
       }, HIGHSCORE_POPUP_DELAY_MS);
@@ -196,12 +261,32 @@ function createTrainPhotoGame(): MinigameModule {
       : "Je mittiger der Zug im Foto steht, desto mehr Punkte gibt es.";
     sheet.appendChild(detail);
 
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.gap = "8px";
+
     const again = document.createElement("button");
     again.type = "button";
     again.className = "btn btn--accent";
     again.textContent = "Nochmal";
     again.addEventListener("click", resetRound);
-    sheet.appendChild(again);
+    actions.appendChild(again);
+
+    const changeSpeed = document.createElement("button");
+    changeSpeed.type = "button";
+    changeSpeed.className = "btn btn--ghost";
+    changeSpeed.textContent = "Andere Geschwindigkeit";
+    changeSpeed.addEventListener("click", () => {
+      phase = "speed-select";
+      selectedLevel = null;
+      highscoreBanner.update(null);
+      renderSpeedPanel();
+      renderSheet();
+      updateShutterVisibility();
+    });
+    actions.appendChild(changeSpeed);
+
+    sheet.appendChild(actions);
   }
 
   function drawTrain(ctx: CanvasRenderingContext2D, offsetX: number, y: number): void {
@@ -426,6 +511,13 @@ function createTrainPhotoGame(): MinigameModule {
       preloadTrainChug();
       for (const card of hopperAnimalCards) getImage(card.image);
 
+      speedPanel = document.createElement("div");
+      speedPanel.className = "stage-center-panel";
+      speedPanel.style.alignItems = "center";
+      speedPanel.style.textAlign = "center";
+      speedPanel.style.gap = "10px";
+      env.overlay.appendChild(speedPanel);
+
       sheet = document.createElement("div");
       sheet.className = "stage-sheet";
       sheet.style.alignItems = "center";
@@ -445,14 +537,16 @@ function createTrainPhotoGame(): MinigameModule {
       env.overlay.appendChild(shutterHost);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatScore);
-      highscoreBanner.update(getHighscoreBoard(GAME_ID));
 
-      resetRound();
+      renderSpeedPanel();
+      renderSheet();
+      updateShutterVisibility();
 
       closeIntro = showGameIntro({
         title: "Zugfoto",
         description: [
-          "Ein Zug fährt schnell vorbei",
+          "Wähle zuerst eine Geschwindigkeitsstufe",
+          "Ein Zug fährt vorbei",
           "Tippe im richtigen Moment auf den Auslöser",
           "Je mittiger der Zug im Foto, desto mehr Punkte",
         ],
@@ -480,8 +574,8 @@ function createTrainPhotoGame(): MinigameModule {
           startTrainChug();
         }
         updateShutterVisibility();
-      } else if (phase === "running") {
-        trainOffsetX += SPEED_PX_S * dt;
+      } else if (phase === "running" && selectedLevel) {
+        trainOffsetX += selectedLevel.speedPxS * dt;
         if (trainOffsetX > currentSize.width + TRAIN_WIDTH) {
           missed = true;
           score = 0;
@@ -507,7 +601,7 @@ function createTrainPhotoGame(): MinigameModule {
       ctx.lineTo(size.width, y);
       ctx.stroke();
 
-      if (!started) return;
+      if (!started || phase === "speed-select") return;
 
       if (phase === "countdown") {
         ctx.fillStyle = theme.text;
@@ -560,6 +654,7 @@ function createTrainPhotoGame(): MinigameModule {
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       highscoreBanner?.destroy();
+      speedPanel?.remove();
       sheet?.remove();
       shutterHost?.remove();
     },
@@ -574,5 +669,10 @@ registerGame({
   badge: "ZF",
   accent: "#c62828",
   create: createTrainPhotoGame,
-  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatScore }],
+  highscoreCategories: SPEED_LEVELS.map((level) => ({
+    board: level.key,
+    label: level.label,
+    direction: "higher-better",
+    formatValue: formatScore,
+  })),
 });

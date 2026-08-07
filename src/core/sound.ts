@@ -211,35 +211,17 @@ export function playPartyShuttleJingle(): void {
   }
 }
 
-// --------------------------------------------------------- Highscore-Chime
-//
-// Kurzer aufsteigender Dreiklang beim Erzielen eines neuen/eingestellten
-// Highscores -- eigene Komposition, kein Sample.
-
-export function playHighscoreChime(): void {
-  const ctx = getAudioContext();
-  const now = ctx.currentTime;
-  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5-E5-G5-C6
-  notes.forEach((freq, i) => {
-    const start = now + i * 0.09;
-    const dur = 0.35;
-    const osc = ctx.createOscillator();
-    osc.type = "triangle";
-    osc.frequency.value = freq;
-    const gain = envGain(ctx, start, 0.015, dur, 0.22);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + dur + 0.05);
-  });
-}
-
 // --------------------------------------------- Highscore-Board: Oeffnen-Sound
 //
 // War zunaechst eine in Schleife laufende, selbst komponierte Fanfare
 // (siehe Git-Historie) -- auf ausdruecklichen Wunsch wieder entfernt ("die
 // mag ich gar nicht"). Stattdessen einmalig beim Oeffnen der Ansicht die
 // bereits vorhandene DB-Ansage abspielen (siehe games/dj-mixer/sounds.ts
-// fuer Quellenangabe/Lizenzhinweis zu diesem Sample).
+// fuer Quellenangabe/Lizenzhinweis zu diesem Sample). Dieselbe Funktion
+// laeuft jetzt auch beim Erzielen eines neuen Highscores (siehe
+// core/highscorePrompt.ts) -- der dafuer urspruenglich eigens komponierte
+// Chime (aufsteigender Dreiklang) wurde als unpassend empfunden ("dieser
+// komische Sound").
 export function playHighscoreOpenSound(): void {
   playSampleOnce(dbAnkuendigungUrl, 0.8);
 }

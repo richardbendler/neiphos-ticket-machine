@@ -1,7 +1,7 @@
 import { openModal } from "./modal";
 import { OnScreenKeyboard } from "./OnScreenKeyboard";
 import { icons } from "./icons";
-import { playHighscoreChime } from "./sound";
+import { playHighscoreOpenSound } from "./sound";
 
 /**
  * Zeigt einen Modal-Dialog mit Bildschirmtastatur zur Namenseingabe an,
@@ -23,7 +23,10 @@ export function promptHighscoreName(opts: {
       // vorher getHighscoreOutcome() != "none" pruefen), das Ereignis selbst
       // ist also schon beim Erscheinen feststehend (gemeldeter Wunsch: Sound
       // soll den Moment "Highscore erzielt" markieren, nicht "Name gespeichert").
-      playHighscoreChime();
+      // Dieselbe DB-Ansage wie beim Oeffnen des Highscore-Boards (siehe
+      // Router.ts) -- der vorherige eigens komponierte Chime wurde als
+      // unpassend empfunden ("dieser komische Sound").
+      playHighscoreOpenSound();
 
       const iconWrap = document.createElement("div");
       iconWrap.style.width = "40px";

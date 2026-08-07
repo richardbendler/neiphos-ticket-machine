@@ -878,6 +878,18 @@ button {
   max-width: 720px;
 }
 
+/* Fuer Modals mit Bildschirmtastatur (Highscore-Namenseingabe, Admin-Login,
+   Feedback) -- auf ausdruecklichen Wunsch responsiv statt eines festen
+   Pixel-Maximums: die Tastatur soll ungefaehr 80% der Bildschirmbreite
+   ausfuellen, nicht nur bis zu einem festen Wert (720px waren auf einem
+   echten, breiten Kiosk-Monitor nur ein Bruchteil der Breite). Der
+   grosszuegige px-Deckel (1000px) verhindert nur, dass die Tastatur auf
+   sehr breiten/Desktop-Monitoren ins Absurde waechst. */
+.modal-panel--keyboard {
+  width: min(80vw, 1000px);
+  max-width: min(80vw, 1000px);
+}
+
 /* Zusaetzlicher Schliessen-Button oben rechts, ergaenzend zum Button unten
    im Inhalt -- bei langen, scrollbaren Panels (z. B. Admin-Bereich) muss
    man sonst erst ganz nach unten scrollen, um schliessen zu koennen. */
@@ -1014,7 +1026,7 @@ button {
 .osk {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   /* Der unmittelbare Elternknoten (z.B. ein schmuckloser Wrapper-Div in
      count-passengers) sitzt oft selbst in einem Flex-Container mit
@@ -1028,14 +1040,28 @@ button {
 
 .osk__row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: center;
 }
 
+/* War fest 44px/0.95rem, unabhaengig vom verfuegbaren Platz -- auf
+   ausdruecklichen Wunsch jetzt responsiv, damit die Tastatur den ihr per
+   .modal-panel--keyboard zugestandenen breiteren Rahmen auch wirklich
+   ausfuellt statt darin klein zu bleiben. Ziel: die ganze (4-zeilige)
+   Buchstabentastatur soll ca. 40-50% der Bildschirmhoehe einnehmen -- bei
+   4 Reihen macht das pro Taste grob 9-10vh.
+   WICHTIG: min(9.5vh, 6.5vw) statt reinem vh-Wert -- eine breite Reihe (10
+   Buchstaben + bei extraKeys zusaetzlich 3 Ziffern nebendran) braucht auch
+   in der BREITE genug Platz; auf einem schmalen Hochformat-Bildschirm
+   waere eine rein an der Fensterhoehe bemessene Taste breiter als die
+   Spalte, die ihr tatsaechlich zur Verfuegung steht, und wuerde zu einem
+   duennen, gequetschten Streifen zusammengedrueckt (gemeldet/beobachtet).
+   Der vw-Anteil greift dort als engerer Deckel, auf breiten (Kiosk-)
+   Bildschirmen bleibt weiterhin der vh-Anteil massgeblich. */
 .osk__key {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  height: clamp(44px, min(9.5vh, 6.5vw), 92px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1045,7 +1071,7 @@ button {
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: clamp(0.85rem, min(3.4vh, 2.3vw), 1.65rem);
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
 }
 
@@ -1097,17 +1123,28 @@ button {
   min-width: 0;
 }
 
+/* Breite skaliert mit demselben vw-Bezug wie das umgebende Modal
+   (.modal-panel--keyboard, min(80vw, 1000px)) -- war fest 132px, blieb
+   dadurch beim Vergroessern der uebrigen Tastatur winzig im Vergleich.
+   Unterer Rand deutlich niedriger als anfangs (war 132px) -- auf einem
+   schmalen Hochformat-Bildschirm liess ein zu hoher Mindestwert dem
+   10-spaltigen Hauptteil daneben (osk__main, flex:1 1 auto) kaum noch
+   Platz, die Buchstabentasten wurden dadurch zu duennen, kaum lesbaren
+   Streifen zusammengequetscht (gemeldet/beobachtet). */
 .osk__numpad {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
-  width: 132px;
+  width: clamp(84px, 22vw, 240px);
 }
 
+/* Gleiche min(vh,vw)-Logik wie beim Hauptteil (siehe .osk__key oben) --
+   aus demselben Grund: reine vh-Bemessung ignoriert, wie schmal die
+   Spalte auf einem Hochformat-Bildschirm tatsaechlich ist. */
 .osk__numpad .osk__key {
-  height: 40px;
-  font-size: 1.05rem;
+  height: clamp(40px, min(9.5vh, 6.5vw), 88px);
+  font-size: clamp(0.8rem, min(3.2vh, 2.1vw), 1.5rem);
 }
 
 .osk__row--center {
@@ -1115,8 +1152,12 @@ button {
 }
 
 .osk__row--center .osk__key {
+  /* Gleiche Breite wie eine einzelne Taste in den 3-spaltigen Reihen
+     darueber (war fest 40px, wirkte neben den jetzt groesseren Tasten
+     winzig) -- errechnet aus der Zeilenbreite abzueglich der zwei
+     Luecken, die eine echte 3er-Reihe haette. */
   flex: 0 0 auto;
-  width: 40px;
+  width: calc((100% - 16px) / 3);
 }
 
 /* ---------- Generische Bausteine fuer Spiel-UIs (Chips, Listen, Breadcrumb) ---------- */

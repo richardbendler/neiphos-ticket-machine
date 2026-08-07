@@ -323,7 +323,9 @@ function confirmWithPassword(warningText: string, onConfirmed: () => void): void
     // Ohne diese Klasse blieb das Panel (und damit die Bildschirmtastatur
     // darin) beim schmaleren Standard-Modal-Panel -- wirkte im Vergleich
     // zur (bewusst breiteren) Login-Tastatur gedraengt (gemeldeter Bug).
-    panel.classList.add("modal-panel--wide");
+    // War modal-panel--wide (720px), jetzt dieselbe responsive Breite wie
+    // Admin-Login (siehe dort), damit beide weiterhin exakt gleich aussehen.
+    panel.classList.add("modal-panel--keyboard");
     addCloseCorner(panel, close);
     const h2 = document.createElement("h2");
     h2.textContent = "Sicher?";
@@ -407,7 +409,10 @@ function confirmSimple(message: string, confirmLabel: string, onConfirmed: () =>
 export function openAdminPanel(onClose?: () => void): void {
   openModal((panel, close) => {
     panel.innerHTML = "";
-    panel.classList.add("modal-panel--wide");
+    // War modal-panel--wide (fester 720px-Deckel) -- auf ausdruecklichen
+    // Wunsch jetzt dieselbe responsive Breite wie Highscore-/Feedback-
+    // Tastatur, siehe .modal-panel--keyboard.
+    panel.classList.add("modal-panel--keyboard");
     addCloseCorner(panel, close);
     const h2 = document.createElement("h2");
     h2.textContent = "Admin-Bereich";

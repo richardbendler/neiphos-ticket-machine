@@ -357,6 +357,18 @@ button {
   color: var(--text-faint);
 }
 
+/* Sehr kleiner, oeffentlich sichtbarer Hinweis auf ungelesenes Feedback --
+   auf ausdruecklichen Wunsch in der "Standard-Gelb"-Farbe des Themes, aber
+   bewusst winzig gehalten (reine Randnotiz, kein eigenes UI-Element, das
+   mit dem Admin-Button konkurrieren soll). */
+.chrome-footer-unread-badge {
+  color: var(--accent-dark);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.56rem;
+  white-space: nowrap;
+}
+
 .chrome-footer-credit {
   /* Jetzt eine normale (mittlere) Grid-Spalte statt absoluter Positionierung
      -- links steht der Feedback-Button, rechts der (schmalere) Admin-Button,

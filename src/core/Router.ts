@@ -3,7 +3,7 @@ import { GameLoop } from "./GameLoop";
 import { toCanvasPoint } from "./input";
 import { icons } from "./icons";
 import { recordSession } from "./stats";
-import { closeAllModals } from "./modal";
+import { closeAllModals, hasOpenModal } from "./modal";
 import { gameRegistry } from "../games/registry";
 import { isGameEnabled } from "./storage";
 import { syncPublicDataFromServer } from "./sync";
@@ -351,6 +351,11 @@ export class Router {
     this.sessionStartedAt = performance.now();
 
     const loop = new GameLoop((dt) => {
+      // Waehrend z. B. die Highscore-Namenseingabe offen ist, bringt
+      // Weiterrendern nichts (der Scrim liegt eh drueber) und kostet auf
+      // schwacher Hardware (Pi 3) spuerbar Leistung, die dann bei der
+      // Tastatureingabe fehlt -- siehe hasOpenModal()-Kommentar in modal.ts.
+      if (hasOpenModal()) return;
       game.update(dt, env);
       game.render(env);
     });

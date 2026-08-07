@@ -479,7 +479,7 @@ function systemAdminHeaders(): HeadersInit {
 function renderSystemSection(): HTMLDivElement {
   const section = document.createElement("div");
   section.style.margin = "16px 0";
-  section.append(renderVolumeControl(), renderWifiControl());
+  section.append(renderVolumeControl(), renderAudioOutputControl(), renderWifiControl());
   return section;
 }
 
@@ -552,6 +552,80 @@ function renderVolumeControl(): HTMLDivElement {
       });
     }, 200);
   });
+
+  return wrap;
+}
+
+/**
+ * Umschalten zwischen den auf diesem Geraet vorhandenen PipeWire-Audio-
+ * Ausgaengen (z. B. Klinke vs. HDMI) -- gemeldeter Fall: Ton lief bisher nur
+ * ueber die Klinke, HDMI-Ton war ueber das Betriebssystem zwar moeglich,
+ * aber ohne diesen Schalter nur per Konsole erreichbar.
+ */
+function renderAudioOutputControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "18px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Audioausgabe:";
+  wrap.appendChild(title);
+
+  const list = document.createElement("div");
+  list.style.display = "flex";
+  list.style.flexDirection = "column";
+  list.style.gap = "6px";
+  wrap.appendChild(list);
+
+  const status = document.createElement("p");
+  status.style.fontSize = "0.76rem";
+  status.style.color = "var(--text-faint)";
+  status.style.margin = "4px 0 0";
+  wrap.appendChild(status);
+
+  function refresh(): void {
+    list.innerHTML = "";
+    fetch("./api/system/audio/outputs", { headers: systemAdminHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: { outputs: Array<{ id: number; name: string; active: boolean }> }) => {
+        status.textContent = "";
+        if (data.outputs.length === 0) {
+          status.textContent = "Keine Audiogeräte gefunden.";
+          return;
+        }
+        for (const output of data.outputs) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn btn--ghost";
+          btn.style.width = "100%";
+          btn.style.justifyContent = "flex-start";
+          btn.style.fontSize = "0.82rem";
+          btn.textContent = `${output.active ? "✅ " : ""}${output.name}`;
+          btn.addEventListener("click", () => {
+            if (output.active) return;
+            btn.disabled = true;
+            fetch("./api/system/audio/output", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...systemAdminHeaders() },
+              body: JSON.stringify({ id: output.id }),
+            })
+              .then((res) => {
+                if (!res.ok) status.textContent = "Konnte Audioausgabe nicht ändern.";
+                refresh();
+              })
+              .finally(() => {
+                btn.disabled = false;
+              });
+          });
+          list.appendChild(btn);
+        }
+      })
+      .catch(() => {
+        status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
+      });
+  }
+  refresh();
 
   return wrap;
 }

@@ -1335,6 +1335,10 @@ Im Admin-Bereich:
   PipeWire/`wpctl`), nicht nur eine App-interne Lautstärke – dafür muss der
   Kiosk-Modus nicht verlassen werden. Nur auf einem echten Pi mit laufendem
   `server/serve.js` verfügbar.
+- **Audioausgabe** – Liste der auf dem Gerät vorhandenen PipeWire-Sinks (z. B.
+  Klinke und HDMI), antippen wechselt den Standard-Ausgang (`wpctl
+  set-default`). Nützlich, wenn z. B. der Ton über HDMI statt über die Klinke
+  laufen soll.
 - **WLAN** – Verbindungsstatus, Netzwerksuche und Verbinden/Trennen direkt im
   Admin-Bereich (siehe [WLAN-Verwaltung freischalten](#3b-wlan-verwaltung-im-admin-bereich-freischalten-polkit)
   für die einmalige Voraussetzung auf dem Pi).

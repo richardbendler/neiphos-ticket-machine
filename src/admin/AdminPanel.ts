@@ -8,6 +8,7 @@ import { setAdminSession, clearAdminSession, getAdminSession } from "../core/adm
 import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer, checkServerSyncStatus } from "../core/sync";
 import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
+import { guardedClick } from "../core/guardedClick";
 
 // Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
 // vite.config.ts) statt hier im Quellcode zu stehen -- der Build bricht
@@ -602,7 +603,7 @@ function renderAudioOutputControl(): HTMLDivElement {
           btn.style.justifyContent = "flex-start";
           btn.style.fontSize = "0.82rem";
           btn.textContent = `${output.active ? "✅ " : ""}${output.name}`;
-          btn.addEventListener("click", () => {
+          guardedClick(btn, () => {
             if (output.active) return;
             btn.disabled = true;
             fetch("./api/system/audio/output", {
@@ -702,7 +703,12 @@ function renderWifiControl(): HTMLDivElement {
   }
   refreshStatus();
 
-  scanBtn.addEventListener("click", () => {
+  // guardedClick statt addEventListener("click", ...): ein WLAN-Scan stoesst
+  // serverseitig einen "nmcli ... --rescan yes"-Aufruf an (bis zu 15s
+  // Timeout) -- mehrere gleichzeitig laufende Scans durch Spam auf diesen
+  // Button ueberlasteten die schwache Pi-Hardware spuerbar (gemeldeter Bug,
+  // siehe core/guardedClick.ts).
+  guardedClick(scanBtn, () => {
     scanBtn.disabled = true;
     scanBtn.textContent = "Suche läuft …";
     list.innerHTML = "";
@@ -727,7 +733,7 @@ function renderWifiControl(): HTMLDivElement {
           const lock = net.secured ? "🔒 " : "";
           const marker = net.inUse ? " (aktuell)" : "";
           netBtn.textContent = `${lock}${net.ssid}${marker} — ${net.signal}%`;
-          netBtn.addEventListener("click", () => {
+          guardedClick(netBtn, () => {
             if (net.inUse) return;
             if (net.secured) {
               promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, status, refreshStatus));
@@ -751,7 +757,7 @@ function renderWifiControl(): HTMLDivElement {
       });
   });
 
-  disconnectBtn.addEventListener("click", () => {
+  guardedClick(disconnectBtn, () => {
     disconnectBtn.disabled = true;
     fetch("./api/system/wifi/disconnect", { method: "POST", headers: systemAdminHeaders() })
       .then((res) => {
@@ -843,7 +849,7 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   touchTestBtn.className = "btn btn--ghost";
   touchTestBtn.style.marginBottom = "12px";
   touchTestBtn.textContent = "Touchscreen-Test";
-  touchTestBtn.addEventListener("click", () => openTouchTest());
+  guardedClick(touchTestBtn, () => openTouchTest());
   panel.appendChild(touchTestBtn);
 
   // --- Sync-Status ---------------------------------------------------

@@ -4,6 +4,7 @@ import { toCanvasPoint } from "./input";
 import { icons } from "./icons";
 import { recordSession } from "./stats";
 import { closeAllModals, hasOpenModal } from "./modal";
+import { guardedClick } from "./guardedClick";
 import { gameRegistry } from "../games/registry";
 import { isGameEnabled } from "./storage";
 import { syncPublicDataFromServer } from "./sync";
@@ -85,7 +86,11 @@ export class Router {
     menuBtn.className = "chrome-menu-btn";
     menuBtn.setAttribute("aria-label", "Zurück zum Hauptmenü");
     menuBtn.innerHTML = `${icons.exit}<span>Menü</span>`;
-    menuBtn.addEventListener("click", () => {
+    // guardedClick statt addEventListener("click", ...): siehe dortigen
+    // Kommentar -- verhindert, dass Spam auf diesen Button (oder Admin/
+    // Feedback/Highscores, siehe unten) mehrere teure Vorgaenge gleichzeitig
+    // anstoesst und die schwache Pi-Hardware ueberlastet (gemeldeter Bug).
+    guardedClick(menuBtn, () => {
       closeAllModals();
       this.showMenu();
     });
@@ -98,7 +103,7 @@ export class Router {
     highscoreBtn.className = "chrome-highscore-btn";
     highscoreBtn.setAttribute("aria-label", "Highscores");
     highscoreBtn.innerHTML = `${icons.trophy}<span>Highscores</span>`;
-    highscoreBtn.addEventListener("click", () => {
+    guardedClick(highscoreBtn, () => {
       closeAllModals();
       this.showHighscores();
     });
@@ -140,7 +145,7 @@ export class Router {
     feedbackBtn.type = "button";
     feedbackBtn.className = "chrome-footer-btn";
     feedbackBtn.innerHTML = `<span class="chrome-footer-btn__icon">${icons.feedback}</span><span>Feedback geben</span>`;
-    feedbackBtn.addEventListener("click", () => openFeedbackDialog());
+    guardedClick(feedbackBtn, () => openFeedbackDialog());
 
     const credit = document.createElement("div");
     credit.className = "chrome-footer-credit";
@@ -162,7 +167,7 @@ export class Router {
     // gerade sichtbar ist -- damit im Admin ein-/ausgeblendete Spiele sofort
     // greifen, ohne dass man erst ein Spiel starten und zurueckkehren muss.
     // Waehrend eines laufenden Spiels bleibt man dagegen einfach im Spiel.
-    adminBtn.addEventListener("click", () =>
+    guardedClick(adminBtn, () =>
       openAdminPanel(() => {
         if (this.screenEl?.classList.contains("menu-screen")) this.showMenu();
       }),

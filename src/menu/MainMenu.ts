@@ -1,4 +1,5 @@
 import { icons } from "../core/icons";
+import { guardedClick } from "../core/guardedClick";
 import type { GameMeta } from "../games/registry";
 
 const GRID_GAP = 12;
@@ -98,7 +99,10 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
       </span>
       <span class="menu-tile__icon">${icons[game.icon]}</span>
     `;
-    tile.addEventListener("click", () => onSelect(game.id));
+    // guardedClick statt addEventListener("click", ...): verhindert mehrfach
+    // gestartete Spiel-Setups bei Ghost-Touches/Spam auf dieselbe Kachel
+    // (siehe core/guardedClick.ts).
+    guardedClick(tile, () => onSelect(game.id));
     grid.appendChild(tile);
   }
 

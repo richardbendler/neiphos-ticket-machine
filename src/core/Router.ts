@@ -12,6 +12,7 @@ import { renderMainMenu } from "../menu/MainMenu";
 import { renderHighscoreBoard } from "../menu/HighscoreBoard";
 import { openAdminPanel } from "../admin/AdminPanel";
 import { openFeedbackDialog } from "./feedbackPrompt";
+import { fetchUnreadFeedbackCount } from "./feedback";
 import brandLogo from "../assets/brand/neiphos-logo.png";
 import type { GameEnv, MinigameModule } from "./Game";
 
@@ -167,7 +168,38 @@ export class Router {
       }),
     );
 
-    bar.append(feedbackBtn, credit, adminBtn);
+    // Kleiner, oeffentlich sichtbarer Hinweis auf ungelesenes Feedback --
+    // extra schmaler, eigener Endpunkt OHNE Admin-Login (nur die Anzahl,
+    // kein Inhalt, siehe core/feedback.ts#fetchUnreadFeedbackCount), damit
+    // das auch ohne Admin-Anmeldung auf einen Blick sichtbar ist. Eigene
+    // Spalte unter dem Admin-Button statt danebengesetzt, wie gewuenscht.
+    const adminWrap = document.createElement("div");
+    adminWrap.style.display = "flex";
+    adminWrap.style.flexDirection = "column";
+    adminWrap.style.alignItems = "center";
+    adminWrap.style.gap = "1px";
+    const unreadBadge = document.createElement("span");
+    unreadBadge.className = "chrome-footer-unread-badge";
+    unreadBadge.style.display = "none";
+    adminWrap.append(adminBtn, unreadBadge);
+
+    const refreshUnreadBadge = () => {
+      void fetchUnreadFeedbackCount().then((count) => {
+        if (count <= 0) {
+          unreadBadge.style.display = "none";
+          return;
+        }
+        unreadBadge.textContent = count === 1 ? "1 neues Feedback" : `${count} neue Feedbacks`;
+        unreadBadge.style.display = "block";
+      });
+    };
+    refreshUnreadBadge();
+    // Feedback kommt waehrend eines Festivals unregelmaessig rein -- ein
+    // gelegentliches Nachfragen reicht, keine aufwendigere Live-Loesung
+    // (z. B. Websocket) noetig fuer eine reine Kiosk-Randnotiz.
+    window.setInterval(refreshUnreadBadge, 60_000);
+
+    bar.append(feedbackBtn, credit, adminWrap);
     return bar;
   }
 

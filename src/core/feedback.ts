@@ -99,6 +99,25 @@ export async function flushLocalFeedback(): Promise<void> {
   if (stillPending.length !== pending.length) saveLocalFallback(stillPending);
 }
 
+/**
+ * Nur die Anzahl ungelesener Eintraege, ohne Admin-Login abrufbar (siehe
+ * server/serve.js, /api/feedback/unread-count) -- fuer den kleinen Hinweis
+ * in der oeffentlich sichtbaren Fussleiste (core/Router.ts). Gibt bei
+ * fehlendem/nicht erreichbarem Server bewusst 0 zurueck (kein Hinweis)
+ * statt eines Fehlers -- Offline-Kiosk-Betrieb ist der Normalfall, kein
+ * Sonderfall, der extra behandelt werden muesste.
+ */
+export async function fetchUnreadFeedbackCount(): Promise<number> {
+  try {
+    const res = await fetch("./api/feedback/unread-count");
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { count?: unknown };
+    return typeof data.count === "number" ? data.count : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function fetchFeedback(): Promise<{ entries: FeedbackEntry[]; serverReachable: boolean }> {
   const localEntries = loadLocalFallback();
 

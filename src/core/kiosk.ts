@@ -28,21 +28,21 @@ export function installKioskHardening(): void {
     { passive: false },
   );
 
-  // Mehrfach-Touch (Pinch) und Overscroll/Bounce global unterbinden.
-  document.addEventListener(
-    "touchmove",
-    (e) => {
-      if (e.touches.length > 1) e.preventDefault();
-    },
-    { passive: false },
-  );
-  document.addEventListener(
-    "touchstart",
-    (e) => {
-      if (e.touches.length > 1) e.preventDefault();
-    },
-    { passive: false },
-  );
+  // Pinch-Zoom und Overscroll/Bounce per Mehrfach-Touch waren hier frueher
+  // zusaetzlich per JS unterbunden (touchmove/touchstart: preventDefault(),
+  // sobald e.touches.length > 1 -- also bei JEDEM Moment mit zwei
+  // gleichzeitig aktiven Fingern IRGENDWO auf dem Bildschirm, nicht nur bei
+  // einer echten Pinch-Geste). Genau wie beim Doppel-Tap-Fall weiter unten
+  // ist das ueberfluessiger Ballast: "touch-action: none" UND
+  // "overscroll-behavior: none" auf html/body (siehe style.css) decken
+  // Pinch-Zoom und Overscroll/Bounce schon zuverlaessig auf Plattform-Ebene
+  // ab. Der JS-Handler sorgte stattdessen dafuer, dass zwei GLEICHZEITIGE
+  // Finger an zwei verschiedenen Stellen (z. B. beidhaendiges Spielen beim
+  // Zug-/Huepftierspotter) sich gegenseitig blockierten: preventDefault()
+  // auf dem touchstart des zweiten Fingers unterdrueckt den synthetischen
+  // "click" fuer BEIDE Finger, nicht nur fuer eine Zoom-Geste (gemeldet:
+  // Touch wirkt "schwerfaellig", kein Zwei-Finger-Spielen moeglich,
+  // obwohl der Bildschirm 2-Punkt-Touch kann). Ersatzlos entfernt.
 
   // Doppel-Tap-Zoom war hier frueher zusaetzlich per JS unterbunden (300ms-
   // Timer, der bei jedem touchend per preventDefault() das nachfolgende

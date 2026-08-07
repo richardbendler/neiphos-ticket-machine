@@ -952,8 +952,22 @@ Kleines Startskript `/home/flipper/neiphos-ticket-machine/start-kiosk.sh` anlege
 
 ```bash
 #!/bin/bash
-# Kurz warten, bis der Server-Service sicher steht (nach einem Reboot).
-sleep 3
+# Aktiv warten, bis der Server-Service wirklich Anfragen beantwortet,
+# statt einer festen Wartezeit -- ein fester "sleep 3" reichte nicht
+# zuverlaessig: auf einem realen Pi hat der Server-Start nach einem Reboot
+# einmal ueber 7 Sekunden gedauert (offenbar durch andere Boot-Vorgaenge,
+# die kurz nach dem Start noch um SD-Karten-I/O konkurrieren). Chromium
+# bekam dann eine fehlgeschlagene allererste Ladeanfrage (localhost:8080
+# war noch nicht erreichbar) und zeigt seitdem dauerhaft einen leeren
+# weissen Bildschirm -- im --kiosk-Modus laedt Chromium eine einmal
+# fehlgeschlagene Seite nie von selbst neu (gemeldeter Bug). 30 Versuche im
+# Sekundentakt sind grosszuegig genug fuer jeden realistischen Boot-Fall;
+# antwortet der Server auch danach noch nicht, startet Chromium trotzdem
+# (besser ein Ladefehler als endlos zu warten).
+for i in $(seq 1 30); do
+  curl -sf -o /dev/null http://localhost:8080 && break
+  sleep 1
+done
 chromium \
   --kiosk \
   --user-data-dir=/home/flipper/.config/ticketmachine-chromium \

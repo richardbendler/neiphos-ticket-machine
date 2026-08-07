@@ -1108,6 +1108,60 @@ Zwischenträger:
    Terminal-Problem von Schritt 7 betrifft nur den Fernzugriff und tritt
    hier nicht auf.)
 
+### 9. USB-Debugging (SSH/Konsole ohne WLAN)
+
+**Wichtig vorweg:** Ein einfaches USB-Kabel zwischen Laptop und einem der
+regulären USB-A-Anschlüsse des Pi kann dafür **nicht** genutzt werden. Der
+Raspberry Pi 3 hat (anders als ein Pi Zero/Zero 2 W oder ein Pi 4/5 mit
+USB-C) **keinen USB-OTG/Gadget-Modus** – seine USB-Ports können sich einem
+angeschlossenen Rechner gegenüber nicht als Netzwerk- oder serielles Gerät
+ausgeben, sie funktionieren ausschließlich als USB-**Host** (wie sie hier
+ja auch schon für Touchscreen-Controller/Tastatur genutzt werden). Es gibt
+technisch keinen Weg, darüber eine SSH-Verbindung o. Ä. aufzubauen – das
+ist eine feste Hardware-Grenze dieses Pi-Modells, keine Software-
+Einschränkung.
+
+**Die tatsächliche Alternative für einen Konsolenzugang ganz ohne
+Netzwerk** ist ein **USB-zu-TTL-Serial-Adapter** (günstiges Zubehörteil,
+z. B. mit CP2102- oder CH340-Chip, wenige Euro) an den GPIO-Pins des Pi:
+
+1. **Seriellen Login auf dem Pi aktivieren** (einmalig, am besten direkt
+   bei der Ersteinrichtung in Schritt 1 miterledigen):
+
+   ```bash
+   sudo raspi-config
+   ```
+
+   → „Interface Options" → „Serial Port" → Frage nach einer Login-Shell
+   über Serial mit **Ja** beantworten, Frage nach aktivierter Serial-
+   Hardware ebenfalls mit **Ja**. Danach `sudo reboot`.
+
+2. **Adapter verkabeln** – nur drei Kabel, an die Pi-GPIO-Leiste (Zählung
+   wie auf der Platine aufgedruckt, nicht die GPIO-Nummer):
+
+   | Adapter | Pi-Pin | Bedeutung |
+   |---|---|---|
+   | GND | Pin 6 | Masse |
+   | RXD | Pin 8 (GPIO14, TXD) | Adapter empfängt, was der Pi sendet |
+   | TXD | Pin 10 (GPIO15, RXD) | Adapter sendet, was der Pi empfängt |
+
+   (Bewusst **über Kreuz** – TXD auf RXD und umgekehrt, wie bei einer
+   seriellen Verbindung üblich. **Nicht** die 5V-/3.3V-Versorgungspins des
+   Adapters anschließen, wenn der Pi ohnehin schon über sein eigenes
+   Netzteil läuft – sonst speisen sich zwei Spannungsquellen gegenseitig.)
+
+3. **Adapter am Laptop einstecken** – erscheint unter Windows als neuer
+   COM-Port (Geräte-Manager → „Anschlüsse (COM & LPT)" zeigt die genaue
+   Nummer, ggf. erst den passenden Treiber für den jeweiligen Chip
+   installieren). Mit dem bereits für SSH genutzten PuTTY verbinden, aber
+   mit Verbindungsart **„Serial"** statt „SSH": COM-Port eintragen,
+   Baudrate **115200**. Nach Enter erscheint ein ganz normaler Login-Prompt
+   des Pi, unabhängig von WLAN/Netzwerk.
+
+**Für reinen Datei-Transfer** (kein Live-Debugging, sondern z. B. ein neues
+`dist/` auf den Pi bringen) reicht dagegen weiterhin der deutlich
+einfachere Weg über einen normalen **USB-Stick**, siehe Schritt 8 oben.
+
 ## Kiosk-Modus unter Windows (zum Testen oder als Alternativ-Gerät)
 
 Der eigentliche Zielort ist der Raspberry Pi, aber Server und Kiosk-Modus

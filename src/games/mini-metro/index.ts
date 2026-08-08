@@ -630,19 +630,29 @@ function createMiniMetroGame(): MinigameModule {
     gameOverPanel.style.display = "flex";
     gameOverPanel.innerHTML = "";
 
+    // Eigene, bewusst schmal begrenzte Karte statt der Inhalte direkt im
+    // (vollbreiten, nur zentrierenden) .stage-center-panel -- ohne das
+    // wurden "Nochmal spielen"/"Menü" via width:100% bildschirmbreit.
+    const card = document.createElement("div");
+    card.className = "ticket-card";
+    card.style.textAlign = "center";
+    card.style.width = "100%";
+    card.style.maxWidth = "340px";
+    gameOverPanel.appendChild(card);
+
     const title = document.createElement("div");
     title.style.fontFamily = "var(--font-display)";
     title.style.fontWeight = "800";
     title.style.fontSize = "1.3rem";
     title.style.color = theme.danger;
     title.textContent = "Haltestelle dauerhaft überlastet!";
-    gameOverPanel.appendChild(title);
+    card.appendChild(title);
 
     const detail = document.createElement("div");
-    detail.style.color = "var(--text-muted)";
+    detail.style.color = "var(--paper-muted)";
     detail.style.margin = "6px 0 14px";
     detail.textContent = `${formatDelivered(delivered)} befördert, bevor eine Haltestelle zu lange überfüllt war.`;
-    gameOverPanel.appendChild(detail);
+    card.appendChild(detail);
 
     const again = document.createElement("button");
     again.type = "button";
@@ -650,13 +660,13 @@ function createMiniMetroGame(): MinigameModule {
     again.style.width = "100%";
     again.textContent = "Nochmal spielen";
     again.addEventListener("click", () => resetGame());
-    gameOverPanel.appendChild(again);
+    card.appendChild(again);
 
     const menuBtn = buildMenuButton(exitGame);
     menuBtn.style.width = "100%";
     menuBtn.style.marginTop = "8px";
     menuBtn.style.justifyContent = "center";
-    gameOverPanel.appendChild(menuBtn);
+    card.appendChild(menuBtn);
 
     const outcome = getHighscoreOutcome(GAME_ID, delivered, "higher-better");
     if (outcome !== "none" && delivered > 0) {

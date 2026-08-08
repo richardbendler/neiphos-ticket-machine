@@ -1209,6 +1209,121 @@ z. B. mit CP2102- oder CH340-Chip, wenige Euro) an den GPIO-Pins des Pi:
 `dist/` auf den Pi bringen) reicht dagegen weiterhin der deutlich
 einfachere Weg über einen normalen **USB-Stick**, siehe Schritt 8 oben.
 
+### 10. Performance-Tuning für den Pi 3 (spürbares Ruckeln, verzögerte Eingaben)
+
+**Symptom:** Der Zug im Zugfoto-Spiel ruckelt sichtbar, Tastatureingaben auf
+der Bildschirmtastatur erscheinen erst mit spürbarer Verzögerung, Buttons
+reagieren mit kleinem Delay. Die App selbst ist bereits auf schwache
+Hardware hin optimiert (30fps-Deckelung in `core/GameLoop.ts`,
+Canvas-Auflösungsabschlag `RENDER_SCALE` in `core/Canvas.ts`,
+Offscreen-Canvas-Caching in `games/train-photo`) – die vier Punkte hier
+setzen stattdessen auf **System-Ebene** an einem frischen Pi 3 an, wo der
+eigentliche Engpass lag (per SSH auf einem realen Gerät nachgemessen: RAM
+lag bei 1 GB bereits unter Druck, 114 MB im zram-Swap, CPU taktete im
+Leerlauf herunter). Alle vier Änderungen liegen **außerhalb** dieses Repos
+direkt auf dem Pi und müssen bei jeder Neueinrichtung eines Pi 3 (Schritte
+1–9 oben) erneut vorgenommen werden.
+
+**a) CPU-Governor von `ondemand` auf `performance`.** Der Pi 3 taktet im
+Leerlauf standardmäßig auf 600 MHz herunter und braucht bei jeder neuen
+Touch-/Tastatur-Interaktion erst einen Moment, um wieder auf 1,2 GHz
+hochzutakten – genau in diesem Hochtakt-Fenster liegt ein guter Teil der
+gefühlten Eingabeverzögerung. Der Pi 3 läuft dabei thermisch weit im
+grünen Bereich (typisch ~40 °C bei Zimmertemperatur), Dauerbetrieb auf
+vollem Takt ist unproblematisch:
+
+```bash
+sudo tee /usr/local/sbin/set-cpu-performance.sh > /dev/null <<'EOF'
+#!/bin/sh
+for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+  echo performance > "$f"
+done
+EOF
+sudo chmod +x /usr/local/sbin/set-cpu-performance.sh
+
+sudo tee /etc/systemd/system/cpu-performance.service > /dev/null <<'EOF'
+[Unit]
+Description=CPU-Governor auf performance setzen (Neiphos Ticket Machine, Pi 3)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/set-cpu-performance.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now cpu-performance.service
+```
+
+**b) `--force-renderer-accessibility` aus der Chromium-Konfiguration
+entfernen.** Raspberry Pi OS setzt dieses Flag standardmäßig über
+`/etc/chromium.d/00-rpi-vars` (nicht über `start-kiosk.sh` oben – das Flag
+taucht dort nie auf, es wird von Chromium selbst beim Start aus allen
+Dateien in `/etc/chromium.d/` eingelesen). Es zwingt den Renderer, bei
+**jeder** DOM-Änderung den kompletten Accessibility-Baum neu zu berechnen –
+und genau das passiert bei jedem Tastendruck auf der Bildschirmtastatur
+(`core/OnScreenKeyboard.ts` schreibt bei jedem Tastendruck ins DOM). Ohne
+Screenreader/assistive Technologie im Einsatz bringt das Flag nichts,
+kostet auf dem Pi 3 aber spürbar Leistung:
+
+```bash
+sudo sed -i 's/ --force-renderer-accessibility//' /etc/chromium.d/00-rpi-vars
+```
+
+> ⚠️ **Falle beim manuellen Bearbeiten:** Chromiums Start-Wrapper liest
+> **alle** Dateien in `/etc/chromium.d/` außer `README` ein (auch `.bak`-
+> o. Ä. Kopien!). Ein Backup der Original-Datei gehört deshalb NICHT in
+> dasselbe Verzeichnis, sonst wird das entfernte Flag darüber wieder
+> hereingezogen – Backup z. B. nach `/root/` legen, falls gewünscht.
+> Dieses Flag kann außerdem bei einem Chromium-Paket-Update erneut
+> auftauchen (falls `apt upgrade` die Datei überschreibt) – im Zweifel
+> nach einem Update `cat /etc/chromium.d/00-rpi-vars` prüfen.
+
+**c) Taskleiste und Desktopsymbole aus dem Autostart entfernen.** Unterhalb
+des Kiosk-Chromiums läuft auf einem frischen Pi 3 standardmäßig die
+komplette Desktop-Oberfläche mit (`wf-panel-pi` = Taskleiste, `pcmanfm-pi`
+= Desktopsymbole) – für einen Kiosk, der nie eine Taskleiste oder
+Desktopsymbole zeigt, reine RAM-/CPU-Verschwendung auf einem 1-GB-Gerät.
+Die Zeilen stehen in der System-Autostart-Datei
+`/etc/xdg/labwc/autostart`:
+
+```bash
+sudo sed -i '/pcmanfm-pi\|wf-panel-pi/d' /etc/xdg/labwc/autostart
+```
+
+> ⚠️ **Nicht** stattdessen eine eigene `~/.config/labwc/autostart` anlegen,
+> um die System-Datei zu "überschreiben" – der Session-Wrapper
+> `/usr/bin/labwc-pi` startet labwc mit dem Flag `-m`
+> („merge-config"), wodurch System- **und** Benutzer-Autostart-Datei
+> **zusammengeführt** (nicht: Benutzerdatei ersetzt System-Datei) werden.
+> Eine zusätzliche Datei unter `~/.config/labwc/` würde `pcmanfm-pi`/
+> `wf-panel-pi` also weiterhin aus der System-Datei starten. Die Zeile
+> `/usr/bin/lxsession-xdg-autostart` in derselben Datei **muss** erhalten
+> bleiben – darüber wird u. a. der eigene
+> `~/.config/autostart/ticketmachine-kiosk.desktop`-Eintrag (siehe Schritt
+> 5) überhaupt erst gestartet.
+
+**d) Optional: nicht benötigte Systemdienste deaktivieren** (Drucken,
+Bluetooth – auf einem reinen Touch-Kiosk ohne angeschlossenen Drucker/
+Bluetooth-Zubehör ungenutzt, sparen etwas RAM):
+
+```bash
+sudo systemctl disable --now cups.service cups.path cups.socket bluetooth.service
+```
+
+**Danach neu starten**, damit Autostart- und Chromium-Änderungen greifen:
+
+```bash
+sudo reboot
+```
+
+Zur Kontrolle nach dem Neustart (`ps aux | grep -E 'wf-panel-pi|pcmanfm'`
+sollte leer sein, `cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor`
+sollte `performance` zeigen, `free -h` sollte spürbar mehr „verfügbar" und
+0 B Swap-Nutzung zeigen als vor den Änderungen).
+
 ## Kiosk-Modus unter Windows (zum Testen oder als Alternativ-Gerät)
 
 Der eigentliche Zielort ist der Raspberry Pi, aber Server und Kiosk-Modus

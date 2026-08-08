@@ -13,6 +13,12 @@ import { registerGame } from "../registry";
 const GAME_ID = "memory";
 const MISMATCH_DELAY = 0.8;
 const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
+// Feste Breite der beiden Spieler-Panels im Duo-Modus (siehe
+// updateDuoLayout) -- das Kartenraster ruemt entsprechend ein, damit links
+// und rechts sichtbar Platz fuer "Spieler 1"/"Spieler 2" bleibt.
+const DUO_PANEL_WIDTH = 148;
+const DUO_PANEL_GAP = 14;
+const TURN_TOAST_MS = 1900;
 
 function formatMoves(value: number): string {
   return `${value} Züge`;
@@ -129,6 +135,10 @@ function createMemoryGame(): MinigameModule {
   let gridWrap: HTMLDivElement;
   let gridHost: HTMLDivElement;
   let stopGridFit: (() => void) | null = null;
+  let playerPanelLeft: HTMLDivElement;
+  let playerPanelRight: HTMLDivElement;
+  let turnToastEl: HTMLDivElement;
+  let turnToastTimer: ReturnType<typeof setTimeout> | null = null;
   // Y-Position (CSS-Pixel, Canvas-Koordinaten) fuer die "Groesse · Zuege"-
   // Textzeile -- wird in selectSize() ECHT gemessen (siehe measurePlayAreaTop
   // in core/highscoreBanner.ts), nicht mehr fest verdrahtet. Fallback-Wert
@@ -341,6 +351,49 @@ function createMemoryGame(): MinigameModule {
     }
   }
 
+  /**
+   * Blendet die beiden Spieler-Panels links/rechts vom Kartenraster ein
+   * (Duo-Modus) bzw. wieder aus (Solo-Modus) und rueckt gridWrap
+   * entsprechend ein/aus -- auf ausdruecklichen Wunsch: eigene Punktetafel
+   * je Spieler statt einer kleinen Textzeile oben, damit auf Anhieb klar
+   * ist, wer dran ist (siehe updatePlayerPanels).
+   */
+  function updateDuoLayout(): void {
+    const isDuo = mode === "duo";
+    playerPanelLeft.style.display = isDuo ? "flex" : "none";
+    playerPanelRight.style.display = isDuo ? "flex" : "none";
+    const inset = isDuo ? `${12 + DUO_PANEL_WIDTH + DUO_PANEL_GAP}px` : "12px";
+    gridWrap.style.left = inset;
+    gridWrap.style.right = inset;
+  }
+
+  /** Blendet die Spieler-Panels aus, wenn das Spiel die Spielflaeche verlaesst (Ergebnis-Screen, "Andere Größe"). */
+  function hideDuoPanels(): void {
+    playerPanelLeft.style.display = "none";
+    playerPanelRight.style.display = "none";
+  }
+
+  function updatePlayerPanels(): void {
+    if (mode !== "duo") return;
+    const leftScore = playerPanelLeft.querySelector(".memory-player-panel__score")!;
+    const rightScore = playerPanelRight.querySelector(".memory-player-panel__score")!;
+    leftScore.textContent = String(playerScores[0]);
+    rightScore.textContent = String(playerScores[1]);
+    playerPanelLeft.classList.toggle("memory-player-panel--active", currentPlayer === 1);
+    playerPanelRight.classList.toggle("memory-player-panel--active", currentPlayer === 2);
+  }
+
+  /** Kurzer, selbst verschwindender Hinweis oben, z. B. nach einem Fehlversuch ("Jetzt ist Spieler 2 dran!"). */
+  function showTurnToast(text: string): void {
+    turnToastEl.textContent = text;
+    turnToastEl.classList.add("memory-turn-toast--visible");
+    if (turnToastTimer) clearTimeout(turnToastTimer);
+    turnToastTimer = setTimeout(() => {
+      turnToastTimer = null;
+      turnToastEl.classList.remove("memory-turn-toast--visible");
+    }, TURN_TOAST_MS);
+  }
+
   function selectTheme(next: ContentTheme): void {
     contentTheme = next;
     phase = "mode-select";
@@ -373,23 +426,24 @@ function createMemoryGame(): MinigameModule {
     currentPlayer = 1;
     playerScores = [0, 0];
     phase = "playing";
+    // Muss VOR fitAspectToContainer() unten passieren -- setzt u.a. die
+    // links/rechts-Einrueckung von gridWrap (Platz fuer die Spieler-Panels
+    // im Duo-Modus), von der die Groessenberechnung dort ausgeht.
+    updateDuoLayout();
+    updatePlayerPanels();
     renderGrid();
     stopGridFit?.();
     // Echt gemessen (siehe measurePlayAreaTop) statt fest verdrahtet -- ein
     // geschaetzter Pixel-Wert liess das Spielfeld auf manchen Aufloesungen
     // den Highscore-Banner ueberlappen (gemeldeter Bug). moveTextY sitzt
-    // knapp darunter, fuer die "Groesse · Zuege"-Zeile in render().
+    // knapp darunter, fuer die "Groesse · Zuege"-Zeile in render() (nur noch
+    // im Solo-Modus genutzt -- der Duo-Modus zeigt Punkte/Spielerwechsel
+    // jetzt ueber die seitlichen Spieler-Panels, siehe updatePlayerPanels).
     const playAreaTop = measurePlayAreaTop();
     moveTextY = playAreaTop + 26;
-    // Im Duo-Modus steht unter der Punktezeile zusaetzlich noch der grosse
-    // "Spieler X ist dran"-Badge (siehe render(), badgeY = moveTextY + 18,
-    // badgeH = 36 -- endet also bei moveTextY + 54 = playAreaTop + 80). Der
-    // feste 44px-Abstand (passt fuer den Solo-Modus mit nur einer Zeile)
-    // liess das DOM-Kartenraster im Duo-Modus ueber diesem Badge beginnen
-    // und es fast komplett verdecken -- nur im Gap zwischen zwei Karten
-    // schimmerte ein duenner Streifen davon durch (gemeldeter Bug, sah aus
-    // wie ein zufaelliger gelber Strich ueber dem Raster).
-    gridWrap.style.top = `${playAreaTop + (mode === "duo" ? 90 : 44)}px`;
+    gridWrap.style.top = `${playAreaTop + 44}px`;
+    playerPanelLeft.style.top = gridWrap.style.top;
+    playerPanelRight.style.top = gridWrap.style.top;
     // Kein kleiner Fest-Deckel mehr (vorher 460px) -- das liess das Raster
     // auf breiteren Bildschirmen winzig in der Mitte haengen, mit riesigen
     // ungenutzten Raendern. 2000px ist grosszuegig genug, um auf jedem
@@ -453,7 +507,10 @@ function createMemoryGame(): MinigameModule {
         cards[a].matched = true;
         cards[b].matched = true;
         flipped = [];
-        if (mode === "duo") playerScores[currentPlayer - 1] += 1;
+        if (mode === "duo") {
+          playerScores[currentPlayer - 1] += 1;
+          updatePlayerPanels();
+        }
         syncGridVisuals();
         if (cards.every((c) => c.matched)) finish();
         // Bei einem Treffer im 1-vs-1-Modus bleibt derselbe Spieler dran --
@@ -468,6 +525,7 @@ function createMemoryGame(): MinigameModule {
   function finish(): void {
     if (!boardSize) return;
     phase = "done";
+    hideDuoPanels();
     renderPanel();
     if (mode !== "solo") return;
     const outcome = getHighscoreOutcome(GAME_ID, moves, "lower-better", boardSize.key);
@@ -522,7 +580,31 @@ function createMemoryGame(): MinigameModule {
       gridHost.style.visibility = "hidden";
       gridWrap.appendChild(gridHost);
 
+      // Spieler-Panels links/rechts vom Kartenraster (nur Duo-Modus, siehe
+      // updateDuoLayout/updatePlayerPanels) -- dieselbe vertikale Spanne wie
+      // gridWrap (Kopf-/Fusszeile-bewusst), aber feste Breite statt "flex: 1".
+      function buildPlayerPanel(playerLabel: string, side: "left" | "right"): HTMLDivElement {
+        const el = document.createElement("div");
+        el.className = "memory-player-panel";
+        el.style.position = "absolute";
+        el.style[side] = "12px";
+        el.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
+        el.style.bottom = "calc(var(--footer-h) + 16px + var(--safe-bottom))";
+        el.style.width = `${DUO_PANEL_WIDTH}px`;
+        el.style.display = "none";
+        el.innerHTML = `<span class="memory-player-panel__name">${playerLabel}</span><span class="memory-player-panel__score">0</span>`;
+        return el;
+      }
+      playerPanelLeft = buildPlayerPanel("Spieler 1", "left");
+      playerPanelRight = buildPlayerPanel("Spieler 2", "right");
+
+      turnToastEl = document.createElement("div");
+      turnToastEl.className = "memory-turn-toast";
+
       env.overlay.appendChild(gridWrap);
+      env.overlay.appendChild(playerPanelLeft);
+      env.overlay.appendChild(playerPanelRight);
+      env.overlay.appendChild(turnToastEl);
       env.overlay.appendChild(panel);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatMoves);
@@ -536,7 +618,11 @@ function createMemoryGame(): MinigameModule {
         if (resolveTimer >= MISMATCH_DELAY) {
           flipped = [];
           phase = "playing";
-          if (mode === "duo") currentPlayer = currentPlayer === 1 ? 2 : 1;
+          if (mode === "duo") {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updatePlayerPanels();
+            showTurnToast(`Kein Paar -- jetzt ist Spieler ${currentPlayer} dran!`);
+          }
           syncGridVisuals();
         }
       }
@@ -547,47 +633,30 @@ function createMemoryGame(): MinigameModule {
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
 
-      if ((phase === "playing" || phase === "resolving") && boardSize) {
+      // Duo-Modus zeigt Punkte/Spielerwechsel jetzt ueber die seitlichen
+      // DOM-Spieler-Panels (siehe updatePlayerPanels) statt hier auf dem
+      // Canvas -- nur die Solo-Zeile bleibt.
+      if ((phase === "playing" || phase === "resolving") && boardSize && mode === "solo") {
         ctx.textAlign = "center";
-        if (mode === "solo") {
-          ctx.fillStyle = theme.textMuted;
-          ctx.font = `600 14px ${theme.font}`;
-          ctx.fillText(`${sizeLabel(boardSize)} · ${moves} Züge`, size.width / 2, moveTextY);
-        } else {
-          ctx.fillStyle = theme.textMuted;
-          ctx.font = `600 14px ${theme.font}`;
-          ctx.fillText(`Spieler 1: ${playerScores[0]} · Spieler 2: ${playerScores[1]}`, size.width / 2, moveTextY);
-
-          // Deutlich groesser + eigener Farbklecks dahinter, damit auf
-          // Anhieb klar ist, wer gerade dran ist -- vorher war das kaum
-          // groesser als die Punktezeile und ging leicht unter.
-          const turnText = `Spieler ${currentPlayer} ist dran`;
-          ctx.font = `800 22px ${theme.fontDisplay}`;
-          const textWidth = ctx.measureText(turnText).width;
-          const badgeW = textWidth + 36;
-          const badgeH = 36;
-          const badgeX = size.width / 2 - badgeW / 2;
-          const badgeY = moveTextY + 18;
-          ctx.fillStyle = theme.accent;
-          ctx.beginPath();
-          ctx.roundRect(badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-          ctx.fill();
-          ctx.fillStyle = "#2b2004";
-          ctx.textBaseline = "middle";
-          ctx.fillText(turnText, size.width / 2, badgeY + badgeH / 2 + 1);
-          ctx.textBaseline = "alphabetic";
-        }
+        ctx.fillStyle = theme.textMuted;
+        ctx.font = `600 14px ${theme.font}`;
+        ctx.fillText(`${sizeLabel(boardSize)} · ${moves} Züge`, size.width / 2, moveTextY);
       }
     },
 
     cleanup() {
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;
+      if (turnToastTimer) clearTimeout(turnToastTimer);
+      turnToastTimer = null;
       closeHighscoreModal?.();
       closeHighscoreModal = null;
       highscoreBanner?.destroy();
       stopGridFit?.();
       gridWrap?.remove();
+      playerPanelLeft?.remove();
+      playerPanelRight?.remove();
+      turnToastEl?.remove();
       panel?.remove();
     },
   };

@@ -310,6 +310,20 @@ export class Router {
     overlay.className = "game-stage__overlay";
     canvasWrap.appendChild(overlay);
 
+    // Manche Spiele bauen in init() einiges an DOM/Zustand auf und laden
+    // dabei per getImage()/new Image() bewusst erst JETZT ihre Bild-Assets
+    // nach (nicht schon beim App-Start alle Spiele auf Vorrat -- wuerde auf
+    // dem 1-GB-Pi-3-Kiosk unnoetig Speicher binden). init() selbst laeuft
+    // synchron; ohne diesen Ladehinweis blieb der Bildschirm bis dahin
+    // einfach das (schon nicht mehr reagierende) alte Menue stehen, was wie
+    // ein Haenger wirkte (gemeldeter Bug: "dauert ein paar Sekunden, bis
+    // ein Spiel kommt"). Der Ladehinweis wird ÜBER dem noch leeren Canvas
+    // eingeblendet, BEVOR init() laeuft.
+    const loadingEl = document.createElement("div");
+    loadingEl.className = "game-stage__loading";
+    loadingEl.innerHTML = `<span class="game-stage__loading-spinner"></span><span>Lädt …</span>`;
+    stage.appendChild(loadingEl);
+
     this.root.appendChild(stage);
     this.screenEl = stage;
 
@@ -325,52 +339,73 @@ export class Router {
     };
     this.activeEnv = env;
 
-    const game = meta.create();
-    this.activeGame = game;
+    // Zwei rAF-Runden statt direktem Aufruf: die erste laesst den Browser
+    // den oben eingehaengten Ladehinweis WIRKLICH einmal zeichnen (ein
+    // einzelnes rAF liefe noch VOR dem Paint desselben Frames, in dem
+    // loadingEl eingehaengt wurde), erst die zweite startet das (potenziell
+    // laenger blockierende, synchrone) game.init().
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // zwischenzeitlich schon wieder verlassen (z. B. sofort auf Menue
+        // getippt, noch bevor game.init() ueberhaupt lief) -- ueber screenEl
+        // geprueft statt activeEnv/activeGame: teardownActiveGame() gibt bei
+        // noch fehlendem activeGame (genau dieser Fall hier) sofort auf und
+        // setzt activeEnv NIE zurueck, screenEl wird dagegen von jeder
+        // Navigation (showMenu/showHighscores/startGame) zuverlaessig neu
+        // gesetzt.
+        if (this.screenEl !== stage) return;
 
-    const onResize = () => {
-      env.size = resize();
-      game.onResize?.(env);
-    };
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
-    this.teardownFns.push(() => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    });
+        const game = meta.create();
+        this.activeGame = game;
 
-    const onDown = (e: PointerEvent) => game.onPointerDown?.(toCanvasPoint(canvas, e), env);
-    const onMove = (e: PointerEvent) => game.onPointerMove?.(toCanvasPoint(canvas, e), env);
-    const onUp = (e: PointerEvent) => game.onPointerUp?.(toCanvasPoint(canvas, e), env);
-    canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointermove", onMove);
-    canvas.addEventListener("pointerup", onUp);
-    canvas.addEventListener("pointercancel", onUp);
-    this.teardownFns.push(() => {
-      canvas.removeEventListener("pointerdown", onDown);
-      canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerup", onUp);
-      canvas.removeEventListener("pointercancel", onUp);
-    });
+        const onResize = () => {
+          env.size = resize();
+          game.onResize?.(env);
+        };
+        window.addEventListener("resize", onResize);
+        window.addEventListener("orientationchange", onResize);
+        this.teardownFns.push(() => {
+          window.removeEventListener("resize", onResize);
+          window.removeEventListener("orientationchange", onResize);
+        });
 
-    this.sessionStartedAt = performance.now();
+        const onDown = (e: PointerEvent) => game.onPointerDown?.(toCanvasPoint(canvas, e), env);
+        const onMove = (e: PointerEvent) => game.onPointerMove?.(toCanvasPoint(canvas, e), env);
+        const onUp = (e: PointerEvent) => game.onPointerUp?.(toCanvasPoint(canvas, e), env);
+        canvas.addEventListener("pointerdown", onDown);
+        canvas.addEventListener("pointermove", onMove);
+        canvas.addEventListener("pointerup", onUp);
+        canvas.addEventListener("pointercancel", onUp);
+        this.teardownFns.push(() => {
+          canvas.removeEventListener("pointerdown", onDown);
+          canvas.removeEventListener("pointermove", onMove);
+          canvas.removeEventListener("pointerup", onUp);
+          canvas.removeEventListener("pointercancel", onUp);
+        });
 
-    const loop = new GameLoop((dt) => {
-      // Waehrend z. B. die Highscore-Namenseingabe oder der Bildschirmschoner
-      // offen ist, bringt Weiterrendern nichts (beide liegen komplett drueber)
-      // und kostet auf schwacher Hardware (Pi 3) spuerbar Leistung -- siehe
-      // hasOpenModal()-Kommentar in modal.ts.
-      if (hasOpenModal() || isScreensaverActive()) return;
-      game.update(dt, env);
-      game.render(env);
-    });
-    this.activeLoop = loop;
+        this.sessionStartedAt = performance.now();
 
-    void Promise.resolve(game.init(env)).then(() => {
-      // Init kann async sein (z. B. Netz-/Datenaufbereitung) -- Loop erst
-      // danach starten, damit update()/render() nie auf halbfertigem
-      // Zustand laufen.
-      if (this.activeGame === game) loop.start();
+        const loop = new GameLoop((dt) => {
+          // Waehrend z. B. die Highscore-Namenseingabe oder der Bildschirmschoner
+          // offen ist, bringt Weiterrendern nichts (beide liegen komplett drueber)
+          // und kostet auf schwacher Hardware (Pi 3) spuerbar Leistung -- siehe
+          // hasOpenModal()-Kommentar in modal.ts.
+          if (hasOpenModal() || isScreensaverActive()) return;
+          game.update(dt, env);
+          game.render(env);
+        });
+        this.activeLoop = loop;
+
+        void Promise.resolve(game.init(env)).then(() => {
+          // Init kann async sein (z. B. Netz-/Datenaufbereitung) -- Loop erst
+          // danach starten, damit update()/render() nie auf halbfertigem
+          // Zustand laufen.
+          if (this.activeGame === game) {
+            loadingEl.remove();
+            loop.start();
+          }
+        });
+      });
     });
   }
 

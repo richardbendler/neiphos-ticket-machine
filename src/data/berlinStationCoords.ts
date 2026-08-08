@@ -219,7 +219,11 @@ export const STATION_COORDS: Record<string, { lat: number; lon: number }> = {
   "Potsdam Hauptbahnhof": { lat: 52.3916537, lon: 13.0672316 },
   "Potsdamer Platz": { lat: 52.5094035, lon: 13.3766399 },
   "Prenzlauer Allee": { lat: 52.5447901, lon: 13.4259805 },
-  "Priesterweg": { lat: 52.3964285, lon: 13.2090130 },
+  // War falsch (mehrere km suedwestlich versetzt) -- liess S2/S25/S26 (siehe
+  // berlinNetwork.ts, alle drei fuehren durch Priesterweg) auf der Karte
+  // knicken (gemeldet, gleicher Fehlertyp wie "Schulzendorf"/"Turmstraße").
+  // Korrekte Koordinaten laut Wikipedia (Bahnhof Berlin Priesterweg).
+  "Priesterweg": { lat: 52.4599200, lon: 13.3562500 },
   "Prinzenstraße": { lat: 52.4983972, lon: 13.4059100 },
   "Rahnsdorf": { lat: 52.4516372, lon: 13.6899776 },
   "Raoul-Wallenberg-Straße": { lat: 52.5507334, lon: 13.5475595 },
@@ -250,7 +254,14 @@ export const STATION_COORDS: Record<string, { lat: number; lon: number }> = {
   "Schlachtensee": { lat: 52.4400880, lon: 13.2154373 },
   "Schlesisches Tor": { lat: 52.5008341, lon: 13.4414625 },
   "Schloßstraße": { lat: 52.4614810, lon: 13.3250946 },
-  "Schulzendorf": { lat: 52.3283000, lon: 13.4064000 },
+  // War faelschlich das SUEDLICHE Schulzendorf bei Zeuthen (lat ~52.33) --
+  // im Streckenkontext der S25 (zwischen Tegel und Heiligensee, siehe
+  // berlinNetwork.ts) ist aber "Bahnhof Berlin-Schulzendorf" (b Tegel) im
+  // Ortsteil Heiligensee gemeint, ein anderer, gleichnamiger Ort. Die
+  // falsche Koordinate liess die S25 auf der Karte einen weiten Sprung nach
+  // Sueden und zurueck machen (gemeldet -- "wild von links nach rechts").
+  // Korrekte Koordinaten laut Wikipedia (Bahnhof Berlin-Schulzendorf).
+  "Schulzendorf": { lat: 52.6127778, lon: 13.2458333 },
   "Schwartzkopffstraße": { lat: 52.5351574, lon: 13.3773180 },
   "Schöneberg": { lat: 52.4793491, lon: 13.3519181 },
   "Schönefeld": { lat: 52.3909067, lon: 13.5130469 },
@@ -285,7 +296,12 @@ export const STATION_COORDS: Record<string, { lat: number; lon: number }> = {
   "Tiergarten": { lat: 52.5143746, lon: 13.3364504 },
   "Tierpark": { lat: 52.4977241, lon: 13.5229595 },
   "Treptower Park": { lat: 52.4938491, lon: 13.4618296 },
-  "Turmstraße": { lat: 52.4251850, lon: 13.1959389 },
+  // War faelschlich ~11km zu weit suedlich (lat 52.425 statt 52.526) --
+  // liess die U9 (siehe berlinNetwork.ts) zwischen Birkenstraße und
+  // Turmstraße einen deutlichen Sprung nach Sueden und zurueck machen
+  // (gemeldet, gleicher Fehlertyp wie bei "Schulzendorf"). Korrekte
+  // Koordinaten laut Wikipedia (Turmstraße, Berlin U-Bahn).
+  "Turmstraße": { lat: 52.5263060, lon: 13.3430280 },
   "Uhlandstraße": { lat: 52.5028118, lon: 13.3266968 },
   "Ullsteinstraße": { lat: 52.4537449, lon: 13.3844659 },
   "Unter den Linden": { lat: 52.5169884, lon: 13.3888200 },

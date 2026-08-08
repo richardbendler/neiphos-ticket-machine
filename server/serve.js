@@ -970,11 +970,12 @@ const server = http.createServer(async (req, res) => {
     // Text zwischen "Sinks:" und der naechsten Abschnittsueberschrift; jede
     // Zeile sieht z. B. so aus (das "*" markiert den aktuellen Standard):
     //   " │  *   56. Internes Audio Stereo               [vol: 0.85]"
-    if (url.pathname === "/api/system/audio/outputs" && req.method === "GET") {
-      if (!requireAdmin(req, res)) return;
+    // Hilfsfunktion fuer beide Endpunkte unten (GET /outputs, POST /rescan)
+    // -- parst "wpctl status" wie im Kommentar oben beschrieben.
+    function getAudioOutputs(callback) {
       execFile("wpctl", ["status"], { env: PIPEWIRE_ENV }, (error, stdout) => {
         if (error) {
-          sendJson(res, 500, { error: "wpctl_failed" });
+          callback(null);
           return;
         }
         const sinksSection = stdout.split(/^\s*[│─┌└├]*\s*Sinks:\s*$/m)[1] || "";
@@ -988,7 +989,51 @@ const server = http.createServer(async (req, res) => {
             return { id: Number(match[2]), name: match[3].trim(), active: match[1] === "*" };
           })
           .filter((entry) => entry !== null);
+        callback(outputs);
+      });
+    }
+
+    if (url.pathname === "/api/system/audio/outputs" && req.method === "GET") {
+      if (!requireAdmin(req, res)) return;
+      getAudioOutputs((outputs) => {
+        if (outputs === null) {
+          sendJson(res, 500, { error: "wpctl_failed" });
+          return;
+        }
         sendJson(res, 200, { outputs });
+      });
+      return;
+    }
+
+    // Behebt den gemeldeten Fall "HDMI-Bildschirm nachtraeglich angeschlossen,
+    // taucht trotz 'Aktualisieren' nicht in der Liste auf": WirePlumber
+    // scannt die vorhandenen ALSA-Karten nur EINMALIG beim eigenen Start --
+    // die vc4-hdmi-Karte ist zwar (anders als eine echte USB-Karte) auf
+    // Kernel-Ebene unabhaengig vom tatsaechlichen Monitor-Anschluss immer
+    // vorhanden, WirePlumber uebernimmt sie aber nur, wenn sie beim eigenen
+    // Start schon da war. Ein Neustart des WirePlumber-Nutzerdienstes zwingt
+    // ihn zu einem erneuten vollstaendigen Scan -- verifiziert am echten
+    // Geraet: HDMI-Sink erscheint danach zuverlaessig (und wird von
+    // WirePlumber automatisch als neuer Standard gesetzt).
+    if (url.pathname === "/api/system/audio/rescan" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      execFile("systemctl", ["--user", "restart", "wireplumber"], { env: PIPEWIRE_ENV }, (error) => {
+        if (error) {
+          sendJson(res, 500, { error: "wireplumber_restart_failed", detail: String(error.message || error) });
+          return;
+        }
+        // WirePlumber braucht nach dem Neustart einen Moment, bis es die
+        // ALSA-Karten fertig neu gescannt hat -- ein sofortiges "wpctl
+        // status" liefert sonst noch die alte (leere) Liste.
+        setTimeout(() => {
+          getAudioOutputs((outputs) => {
+            if (outputs === null) {
+              sendJson(res, 500, { error: "wpctl_failed" });
+              return;
+            }
+            sendJson(res, 200, { outputs });
+          });
+        }, 2000);
       });
       return;
     }

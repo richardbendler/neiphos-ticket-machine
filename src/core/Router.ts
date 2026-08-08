@@ -201,8 +201,12 @@ export class Router {
     refreshUnreadBadge();
     // Feedback kommt waehrend eines Festivals unregelmaessig rein -- ein
     // gelegentliches Nachfragen reicht, keine aufwendigere Live-Loesung
-    // (z. B. Websocket) noetig fuer eine reine Kiosk-Randnotiz.
-    window.setInterval(refreshUnreadBadge, 60_000);
+    // (z. B. Websocket) noetig fuer eine reine Kiosk-Randnotiz. War 60s --
+    // dieser Footer wird nur EINMAL beim App-Start gebaut (siehe Aufrufer
+    // oben), der Hinweis aktualisierte sich also bis zu eine ganze Minute
+    // lang gar nicht, was sich wie eine verschluckte Meldung anfuehlte
+    // (gemeldet). Der Endpunkt ist trivial billig, daher deutlich kuerzer.
+    window.setInterval(refreshUnreadBadge, 15_000);
 
     bar.append(feedbackBtn, credit, adminWrap);
     return bar;

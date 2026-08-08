@@ -705,54 +705,74 @@ function renderAudioOutputControl(): HTMLDivElement {
   status.style.margin = "4px 0 0";
   wrap.appendChild(status);
 
+  function renderOutputs(outputs: Array<{ id: number; name: string; active: boolean }>): void {
+    list.innerHTML = "";
+    status.textContent = "";
+    if (outputs.length === 0) {
+      status.textContent = "Keine Audiogeräte gefunden.";
+      return;
+    }
+    for (const output of outputs) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn--ghost";
+      btn.style.width = "100%";
+      btn.style.justifyContent = "flex-start";
+      btn.style.fontSize = "0.82rem";
+      btn.textContent = `${output.active ? "✅ " : ""}${output.name}`;
+      guardedClick(btn, () => {
+        if (output.active) return;
+        btn.disabled = true;
+        fetch("./api/system/audio/output", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...systemAdminHeaders() },
+          body: JSON.stringify({ id: output.id }),
+        })
+          .then((res) => {
+            if (!res.ok) status.textContent = "Konnte Audioausgabe nicht ändern.";
+            refresh();
+          })
+          .finally(() => {
+            btn.disabled = false;
+          });
+      });
+      list.appendChild(btn);
+    }
+  }
+
   function refresh(): Promise<void> {
     list.innerHTML = "";
     return fetch("./api/system/audio/outputs", { headers: systemAdminHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-      .then((data: { outputs: Array<{ id: number; name: string; active: boolean }> }) => {
-        status.textContent = "";
-        if (data.outputs.length === 0) {
-          status.textContent = "Keine Audiogeräte gefunden.";
-          return;
-        }
-        for (const output of data.outputs) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "btn btn--ghost";
-          btn.style.width = "100%";
-          btn.style.justifyContent = "flex-start";
-          btn.style.fontSize = "0.82rem";
-          btn.textContent = `${output.active ? "✅ " : ""}${output.name}`;
-          guardedClick(btn, () => {
-            if (output.active) return;
-            btn.disabled = true;
-            fetch("./api/system/audio/output", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...systemAdminHeaders() },
-              body: JSON.stringify({ id: output.id }),
-            })
-              .then((res) => {
-                if (!res.ok) status.textContent = "Konnte Audioausgabe nicht ändern.";
-                refresh();
-              })
-              .finally(() => {
-                btn.disabled = false;
-              });
-          });
-          list.appendChild(btn);
-        }
-      })
+      .then((data: { outputs: Array<{ id: number; name: string; active: boolean }> }) => renderOutputs(data.outputs))
       .catch(() => {
         status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
       });
   }
   refresh();
 
+  // Gemeldeter Fall: ein HDMI-Bildschirm (mit eigenem Audioausgang) wurde
+  // erst NACH dem Hochfahren angeschlossen und blieb dauerhaft unsichtbar,
+  // auch nach mehrfachem Klick auf "Aktualisieren" (das vorher nur erneut
+  // "wpctl status" abfragte). Ursache: WirePlumber scannt die ALSA-Karten
+  // nur einmalig beim eigenen Start -- der Button loest deshalb jetzt einen
+  // WirePlumber-Neustart aus (POST /api/system/audio/rescan, server/
+  // serve.js), erst DANACH liefert "wpctl status" auch die HDMI-Ausgabe.
   guardedClick(refreshBtn, () => {
     refreshBtn.disabled = true;
-    refresh().finally(() => {
-      refreshBtn.disabled = false;
-    });
+    refreshBtn.textContent = "Suche läuft …";
+    list.innerHTML = "";
+    status.textContent = "";
+    fetch("./api/system/audio/rescan", { method: "POST", headers: systemAdminHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: { outputs: Array<{ id: number; name: string; active: boolean }> }) => renderOutputs(data.outputs))
+      .catch(() => {
+        status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
+      })
+      .finally(() => {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = "Aktualisieren";
+      });
   });
 
   return wrap;
@@ -795,13 +815,6 @@ function renderWifiControl(): HTMLDivElement {
 
   wrap.appendChild(btnRow);
 
-  const list = document.createElement("div");
-  list.style.marginTop = "8px";
-  list.style.display = "flex";
-  list.style.flexDirection = "column";
-  list.style.gap = "6px";
-  wrap.appendChild(list);
-
   function refreshStatus(): void {
     fetch("./api/system/wifi/status", { headers: systemAdminHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
@@ -838,59 +851,13 @@ function renderWifiControl(): HTMLDivElement {
   guardedClick(scanBtn, () => {
     scanBtn.disabled = true;
     scanBtn.textContent = "Suche läuft …";
-    list.innerHTML = "";
     fetch("./api/system/wifi/scan", { headers: systemAdminHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data: { networks: Array<{ ssid: string; signal: number; secured: boolean; inUse: boolean; known: boolean }> }) => {
-        if (data.networks.length === 0) {
-          const empty = document.createElement("p");
-          empty.style.fontSize = "0.78rem";
-          empty.style.color = "var(--text-faint)";
-          empty.textContent = "Keine Netzwerke gefunden.";
-          list.appendChild(empty);
-          return;
-        }
-        for (const net of data.networks) {
-          const netBtn = document.createElement("button");
-          netBtn.type = "button";
-          netBtn.className = "btn btn--ghost";
-          netBtn.style.width = "100%";
-          netBtn.style.justifyContent = "space-between";
-          netBtn.style.fontSize = "0.82rem";
-          const lock = net.secured ? "🔒 " : "";
-          const marker = net.inUse ? " (aktuell)" : net.known ? " (bekannt)" : "";
-          netBtn.textContent = `${lock}${net.ssid}${marker} — ${net.signal}%`;
-          guardedClick(netBtn, () => {
-            if (net.inUse) return;
-            if (net.secured && !net.known) {
-              promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, status, refreshStatus));
-              return;
-            }
-            // Bekanntes Netzwerk: nmcli hat bereits ein gespeichertes Profil
-            // mit Zugangsdaten -- ohne Passwort verbinden aktiviert dieses
-            // automatisch (siehe server/serve.js#getKnownWifiSsids). Klappt
-            // das bei einem gesicherten Netzwerk ausnahmsweise nicht (z. B.
-            // Passwort beim Access Point zwischenzeitlich geaendert), als
-            // Fallback ganz normal danach fragen statt nur eine
-            // Fehlermeldung anzuzeigen. Bei offenen Netzwerken gibt es kein
-            // sinnvolles Fallback -- dort wie gehabt die Fehlermeldung zeigen.
-            connectWifi(
-              net.ssid,
-              "",
-              status,
-              refreshStatus,
-              net.secured ? () => promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, status, refreshStatus)) : undefined,
-            );
-          });
-          list.appendChild(netBtn);
-        }
+        openWifiNetworksModal(data.networks, refreshStatus);
       })
       .catch(() => {
-        const err = document.createElement("p");
-        err.style.fontSize = "0.78rem";
-        err.style.color = "var(--danger)";
-        err.textContent = "Suche fehlgeschlagen.";
-        list.appendChild(err);
+        showServerActionError(btnRow, "Suche fehlgeschlagen.");
       })
       .finally(() => {
         scanBtn.disabled = false;
@@ -944,6 +911,89 @@ function connectWifi(ssid: string, password: string, status: HTMLElement, onDone
     });
 }
 
+/**
+ * Eigenes Unterfenster fuer die Scan-Ergebnisse -- vorher wuchs die Liste
+ * direkt im Admin-Bereich nach unten mit, was den ohnehin schon vollen
+ * Bildschirm bei vielen gefundenen Netzwerken regelrecht sprengte
+ * (gemeldet). Mit explizitem Zurueck-Button (zusaetzlich zum X oben rechts,
+ * wie bei den anderen Admin-Unterfenstern auch, siehe addCloseCorner).
+ */
+function openWifiNetworksModal(
+  networks: Array<{ ssid: string; signal: number; secured: boolean; inUse: boolean; known: boolean }>,
+  onConnected: () => void,
+): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "WLAN-Netzwerke";
+    panel.appendChild(h2);
+
+    const modalStatus = document.createElement("p");
+    modalStatus.style.fontSize = "0.82rem";
+    modalStatus.style.minHeight = "1.2em";
+    panel.appendChild(modalStatus);
+
+    const list = document.createElement("div");
+    list.style.display = "flex";
+    list.style.flexDirection = "column";
+    list.style.gap = "6px";
+    list.style.maxHeight = "50vh";
+    list.style.overflowY = "auto";
+    panel.appendChild(list);
+
+    if (networks.length === 0) {
+      const empty = document.createElement("p");
+      empty.style.fontSize = "0.78rem";
+      empty.style.color = "var(--text-faint)";
+      empty.textContent = "Keine Netzwerke gefunden.";
+      list.appendChild(empty);
+    }
+    for (const net of networks) {
+      const netBtn = document.createElement("button");
+      netBtn.type = "button";
+      netBtn.className = "btn btn--ghost";
+      netBtn.style.width = "100%";
+      netBtn.style.justifyContent = "space-between";
+      netBtn.style.fontSize = "0.82rem";
+      const lock = net.secured ? "🔒 " : "";
+      const marker = net.inUse ? " (aktuell)" : net.known ? " (bekannt)" : "";
+      netBtn.textContent = `${lock}${net.ssid}${marker} — ${net.signal}%`;
+      guardedClick(netBtn, () => {
+        if (net.inUse) return;
+        if (net.secured && !net.known) {
+          promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, modalStatus, onConnected));
+          return;
+        }
+        // Bekanntes Netzwerk: nmcli hat bereits ein gespeichertes Profil
+        // mit Zugangsdaten -- ohne Passwort verbinden aktiviert dieses
+        // automatisch (siehe server/serve.js#getKnownWifiSsids). Klappt
+        // das bei einem gesicherten Netzwerk ausnahmsweise nicht (z. B.
+        // Passwort beim Access Point zwischenzeitlich geaendert), als
+        // Fallback ganz normal danach fragen statt nur eine
+        // Fehlermeldung anzuzeigen. Bei offenen Netzwerken gibt es kein
+        // sinnvolles Fallback -- dort wie gehabt die Fehlermeldung zeigen.
+        connectWifi(
+          net.ssid,
+          "",
+          modalStatus,
+          onConnected,
+          net.secured ? () => promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, modalStatus, onConnected)) : undefined,
+        );
+      });
+      list.appendChild(netBtn);
+    }
+
+    const backBtn = document.createElement("button");
+    backBtn.type = "button";
+    backBtn.className = "btn btn--accent";
+    backBtn.style.width = "100%";
+    backBtn.style.marginTop = "14px";
+    backBtn.textContent = "Zurück";
+    backBtn.addEventListener("click", close);
+    panel.appendChild(backBtn);
+  });
+}
+
 /** Kleiner eigener Passwort-Dialog fuer eine gesicherte WLAN-Verbindung -- dieselbe Bildschirmtastatur wie ueberall sonst, aber ohne Admin-Bezug (das ist ja bereits das WLAN-Passwort, nicht das App-Admin-Passwort). */
 function promptWifiPassword(ssid: string, onSubmit: (password: string) => void): void {
   openModal(
@@ -990,11 +1040,45 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   h2.textContent = "Admin-Bereich";
   panel.appendChild(h2);
 
+  // --- Sync-Status ---------------------------------------------------
+  // Direkt unter der Ueberschrift (war frueher ganz unten, auf
+  // ausdruecklichen Wunsch nach oben geholt -- man will als erstes sehen,
+  // ob der Server gerade ueberhaupt erreichbar ist, bevor man sich durch
+  // die einzelnen Abschnitte scrollt, die alle davon abhaengen). Nur eine
+  // Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen Abschnitte
+  // unten pruefen/pushen unabhaengig davon selbst (siehe core/sync.ts).
+  // Unterscheidet bewusst DREI Faelle (nicht nur an/aus), damit auf einen
+  // Blick klar ist, WARUM die Sync ggf. nicht laeuft -- "laeuft gerade nur
+  // lokal" (kein server/serve.js erreichbar, z. B. beim Entwickeln mit npm
+  // run dev) sieht ganz anders aus als "server/serve.js laeuft zwar, aber
+  // NTM_SYNC ist dort nicht gesetzt" (siehe
+  // core/sync.ts#checkServerSyncStatus).
+  const syncStatus = paragraph("Sync-Status: wird geprüft …");
+  syncStatus.style.fontSize = "0.78rem";
+  syncStatus.style.fontWeight = "600";
+  syncStatus.style.padding = "6px 10px";
+  syncStatus.style.margin = "10px 0 0";
+  syncStatus.style.borderRadius = "var(--radius-sm)";
+  syncStatus.style.border = "1px solid var(--panel-border)";
+  panel.appendChild(syncStatus);
+  void checkServerSyncStatus().then((status) => {
+    if (status === "no-server") {
+      syncStatus.textContent = "🖥️ Läuft gerade rein lokal (kein Server erreichbar) — alles bleibt nur auf diesem Gerät.";
+      syncStatus.style.color = "var(--text-muted)";
+    } else if (status === "server-sync-off") {
+      syncStatus.textContent = "🌐 Server erreichbar, geräteübergreifende Synchronisation aber nicht aktiviert (NTM_SYNC fehlt) — Highscores/Statistik/Einstellungen bleiben lokal.";
+      syncStatus.style.color = "var(--text)";
+    } else {
+      syncStatus.textContent =
+        "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen/Feedback werden geteilt. Löschen/Zurücksetzen wirkt zentral, auch auf anderen Geräten (spätestens bei deren nächstem Menübesuch).";
+      syncStatus.style.color = "var(--success)";
+    }
+  });
+
   // Reihenfolge der folgenden Abschnitte auf ausdruecklichen Wunsch so
   // festgelegt (haeufigste/wichtigste Admin-Aufgaben zuerst): Feedback,
   // Statistik, Highscores, Spiele-Sichtbarkeit, System (Bildschirmschoner/
-  // Lautstaerke/Audioausgabe/WLAN), Kiosk-Modus, Rest (Touchscreen-Test,
-  // Sync-Status).
+  // Lautstaerke/Audioausgabe/WLAN), Kiosk-Modus, Rest (Touchscreen-Test).
 
   // --- Feedback ----------------------------------------------------------
   const feedbackTitle = document.createElement("p");
@@ -1286,37 +1370,6 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   touchTestBtn.textContent = "Touchscreen-Test";
   guardedClick(touchTestBtn, () => openTouchTest());
   panel.appendChild(touchTestBtn);
-
-  // --- Sync-Status ---------------------------------------------------
-  // Nur eine Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen
-  // Abschnitte oben pruefen/pushen unabhaengig davon selbst (siehe
-  // core/sync.ts). Unterscheidet bewusst DREI Faelle (nicht nur an/aus),
-  // damit auf einen Blick klar ist, WARUM die Sync ggf. nicht laeuft --
-  // "laeuft gerade nur lokal" (kein server/serve.js erreichbar, z. B. beim
-  // Entwickeln mit npm run dev) sieht ganz anders aus als "server/serve.js
-  // laeuft zwar, aber NTM_SYNC ist dort nicht gesetzt" (siehe
-  // core/sync.ts#checkServerSyncStatus).
-  const syncStatus = paragraph("Sync-Status: wird geprüft …");
-  syncStatus.style.fontSize = "0.78rem";
-  syncStatus.style.fontWeight = "600";
-  syncStatus.style.padding = "6px 10px";
-  syncStatus.style.margin = "10px 0 0";
-  syncStatus.style.borderRadius = "var(--radius-sm)";
-  syncStatus.style.border = "1px solid var(--panel-border)";
-  panel.appendChild(syncStatus);
-  void checkServerSyncStatus().then((status) => {
-    if (status === "no-server") {
-      syncStatus.textContent = "🖥️ Läuft gerade rein lokal (kein Server erreichbar) — alles bleibt nur auf diesem Gerät.";
-      syncStatus.style.color = "var(--text-muted)";
-    } else if (status === "server-sync-off") {
-      syncStatus.textContent = "🌐 Server erreichbar, geräteübergreifende Synchronisation aber nicht aktiviert (NTM_SYNC fehlt) — Highscores/Statistik/Einstellungen bleiben lokal.";
-      syncStatus.style.color = "var(--text)";
-    } else {
-      syncStatus.textContent =
-        "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen/Feedback werden geteilt. Löschen/Zurücksetzen wirkt zentral, auch auf anderen Geräten (spätestens bei deren nächstem Menübesuch).";
-      syncStatus.style.color = "var(--success)";
-    }
-  });
 
   // --- Schliessen --------------------------------------------------------
   const actions = document.createElement("div");

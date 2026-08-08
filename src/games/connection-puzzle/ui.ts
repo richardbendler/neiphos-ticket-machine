@@ -1,6 +1,7 @@
 import type { TransitLine } from "../../data/berlinNetwork";
 import { transitLines } from "../../data/berlinNetwork";
 import type { LineRoute } from "./graph";
+import { buildMenuButton } from "../../core/menuButton";
 
 const MODE_LABEL: Record<TransitLine["mode"], string> = {
   "u-bahn": "U-Bahn",
@@ -63,10 +64,11 @@ export interface ScreenActions {
   onSubmit: () => void;
   onContinue: () => void;
   onPlayAgain: () => void;
+  onExit: () => void;
 }
 
 /**
- * Fuellt die eigene, feste Zone (25% von --game-area-h, siehe
+ * Fuellt die eigene, feste Zone (20% von --game-area-h, siehe
  * .connection-puzzle-start-target-zone in style.css) komplett aus, statt
  * wie vorher nur so gross wie unbedingt noetig zu sein -- auf groesseren
  * Bildschirmen blieb sonst viel Platz frei (gemeldet). Schriftgroessen sind
@@ -184,7 +186,11 @@ function renderChipsRow(container: HTMLElement, lines: string[], onRemove: (inde
       chip.type = "button";
       chip.className = "chip chip--removable";
       chip.style.setProperty("--chip-color", lineById(id).color);
-      chip.style.fontSize = "0.78rem";
+      // Kein fixer Klein-Wert mehr (war 0.78rem) -- die .chip-Klasse skaliert
+      // selbst schon responsiv mit (siehe style.css), die feste Ueberschreibung
+      // liess die AUSGEWAEHLTEN Linien-Chips bisher winzig gegenueber den viel
+      // groesseren Auswahl-Chips darunter wirken (gemeldet: sollen mehr
+      // "hervorstechen").
       chip.textContent = id;
       chip.setAttribute("aria-label", `${id} entfernen`);
       chip.addEventListener("click", () => onRemove(i));
@@ -208,6 +214,11 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
     const err = document.createElement("div");
     err.className = "field-error";
     err.style.textAlign = "center";
+    // Extra Abstand nach oben (zusaetzlich zum ohnehin vorhandenen Gap der
+    // Eltern-Zone) -- seit die Chips darueber deutlich groesser sind (siehe
+    // renderChipsRow), rueckten beide sonst zu dicht aneinander (gemeldet:
+    // wirkte wie eine Ueberlappung).
+    err.style.marginTop = "clamp(4px, 1vh, 10px)";
     err.textContent = state.error;
     container.appendChild(err);
   }
@@ -229,11 +240,14 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
   btnRow.style.justifyContent = "center";
   btnRow.style.margin = "6px 0 4px";
 
+  // Groesse auf ausdruecklichen Wunsch angehoben (war fix 0.82rem/8px 16px)
+  // -- passend zu den ebenfalls vergroesserten ausgewaehlten Linien-Chips
+  // darueber vh-basiert, damit beide zusammen mit der Zone mitwachsen.
   const resetBtn = document.createElement("button");
   resetBtn.type = "button";
   resetBtn.className = "btn btn--ghost";
-  resetBtn.style.fontSize = "0.82rem";
-  resetBtn.style.padding = "8px 16px";
+  resetBtn.style.fontSize = "clamp(0.9rem, 2.2vh, 1.25rem)";
+  resetBtn.style.padding = "clamp(10px, 1.8vh, 18px) clamp(16px, 3vw, 28px)";
   resetBtn.textContent = "Auswahl leeren";
   resetBtn.disabled = state.selectedLines.length === 0;
   resetBtn.addEventListener("click", actions.onReset);
@@ -242,8 +256,8 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
   const submitBtn = document.createElement("button");
   submitBtn.type = "button";
   submitBtn.className = "btn btn--accent";
-  submitBtn.style.fontSize = "0.82rem";
-  submitBtn.style.padding = "8px 16px";
+  submitBtn.style.fontSize = "clamp(0.9rem, 2.2vh, 1.25rem)";
+  submitBtn.style.padding = "clamp(10px, 1.8vh, 18px) clamp(16px, 3vw, 28px)";
   submitBtn.textContent = "Fertig, prüfen";
   submitBtn.disabled = state.selectedLines.length === 0;
   submitBtn.addEventListener("click", actions.onSubmit);
@@ -280,8 +294,8 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
 }
 
 /**
- * headerContainer = eigene Start/Ziel-Zone (25% von --game-area-h), body-
- * Container = Zone fuer Linienauswahl/Feedback/Zusammenfassung (50%) --
+ * headerContainer = eigene Start/Ziel-Zone (20% von --game-area-h), body-
+ * Container = Zone fuer Linienauswahl/Feedback/Zusammenfassung (55%) --
  * beide fest positioniert, siehe .connection-puzzle-*-zone in style.css.
  */
 export function renderScreen(headerContainer: HTMLElement, container: HTMLElement, state: ScreenState, actions: ScreenActions): void {
@@ -363,7 +377,16 @@ export function renderScreen(headerContainer: HTMLElement, container: HTMLElemen
     continueBtn.className = "btn btn--accent";
     continueBtn.style.width = "100%";
     continueBtn.style.marginTop = "14px";
-    continueBtn.textContent = "Weiter";
+    // "Weiter" nur, solange noch derselbe Versuch/dieselbe Runde laeuft (z. B.
+    // nach einem Fehlversuch mit noch uebrigen Versuchen). Ist die Runde
+    // hier zu Ende (gewonnen ODER alle Versuche verbraucht) und es folgt
+    // noch eine weitere, macht "Nächste Runde" expliziter klar, dass jetzt
+    // neu (Start/Ziel, Versuche) begonnen wird -- vorher stand hier
+    // unabhaengig davon immer nur "Weiter" (gemeldet, wirkte nach einer
+    // verlorenen Runde wie ein einfaches "nochmal versuchen" statt einer
+    // neuen Runde). In der letzten Runde bleibt es bei "Weiter", da es dann
+    // zur Zusammenfassung fuehrt, nicht zu einer weiteren Runde.
+    continueBtn.textContent = fb.roundOver && state.round < state.totalRounds ? "Nächste Runde" : "Weiter";
     continueBtn.addEventListener("click", actions.onContinue);
     container.appendChild(continueBtn);
   } else if (state.phase === "summary" && state.summary) {
@@ -394,5 +417,15 @@ export function renderScreen(headerContainer: HTMLElement, container: HTMLElemen
     again.textContent = "Nochmal spielen";
     again.addEventListener("click", actions.onPlayAgain);
     container.appendChild(again);
+
+    // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+    // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+    // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+    // Button treffen muss.
+    const menuBtn = buildMenuButton(actions.onExit);
+    menuBtn.style.width = "100%";
+    menuBtn.style.marginTop = "8px";
+    menuBtn.style.justifyContent = "center";
+    container.appendChild(menuBtn);
   }
 }

@@ -129,7 +129,14 @@ function buildMapSvg(startName: string, targetName: string, aspect: number): SVG
   svg.appendChild(dotsLayer);
 
   const markersLayer = svgEl("g");
-  const addMarker = (p: Point, label: string, kind: "start" | "target") => {
+  // Start-Label ueber, Ziel-Label UNTER dem jeweiligen Marker (statt beide
+  // darueber) -- liegen Start und Ziel geografisch nah beieinander (auf dem
+  // stark verkleinerten Massstab der Leisten-Ansicht kommt das haeufig vor),
+  // ueberlappten sich die beiden Beschriftungen sonst bis zur
+  // Unleserlichkeit (gemeldet). Mit fester Gegenrichtung bleibt zwischen
+  // beiden immer ein Mindestabstand, ganz unabhaengig vom tatsaechlichen
+  // Abstand der beiden Stationen.
+  const addMarker = (p: Point, label: string, kind: "start" | "target", labelBelow: boolean) => {
     const circle = svgEl("circle");
     circle.setAttribute("cx", p.x.toFixed(1));
     circle.setAttribute("cy", p.y.toFixed(1));
@@ -139,13 +146,13 @@ function buildMapSvg(startName: string, targetName: string, aspect: number): SVG
 
     const text = svgEl("text");
     text.setAttribute("x", p.x.toFixed(1));
-    text.setAttribute("y", (p.y - 15).toFixed(1));
+    text.setAttribute("y", (labelBelow ? p.y + 34 : p.y - 15).toFixed(1));
     text.setAttribute("class", "berlin-map__label");
     text.textContent = label;
     markersLayer.appendChild(text);
   };
-  addMarker(pa, startName, "start");
-  addMarker(pb, targetName, "target");
+  addMarker(pa, startName, "start", false);
+  addMarker(pb, targetName, "target", true);
   svg.appendChild(markersLayer);
 
   return svg;

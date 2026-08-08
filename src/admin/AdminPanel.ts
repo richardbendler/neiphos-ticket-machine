@@ -14,6 +14,7 @@ import {
   setScreensaverEnabled,
   getScreensaverTimeoutMinutes,
   setScreensaverTimeoutMinutes,
+  previewScreensaver,
 } from "../core/screensaver";
 
 // Kommt aus .env.local (nie eingecheckt, siehe .env.local.example und
@@ -548,6 +549,18 @@ function renderScreensaverControl(): HTMLDivElement {
 
   timeoutRow.append(timeoutLabel, timeoutInput, timeoutUnit);
   wrap.appendChild(timeoutRow);
+
+  // Zum bequemen Testen/Design-Abnehmen, ohne die Inaktivitaetszeit
+  // abwarten zu muessen -- zeigt ihn sofort, unabhaengig von der
+  // An/Aus-Einstellung oben (siehe core/screensaver.ts#previewScreensaver).
+  const previewBtn = document.createElement("button");
+  previewBtn.type = "button";
+  previewBtn.className = "btn btn--ghost";
+  previewBtn.style.marginTop = "8px";
+  previewBtn.style.fontSize = "0.8rem";
+  previewBtn.textContent = "Bildschirmschoner jetzt aktivieren";
+  guardedClick(previewBtn, () => previewScreensaver());
+  wrap.appendChild(previewBtn);
 
   checkbox.addEventListener("change", () => {
     setScreensaverEnabled(checkbox.checked);

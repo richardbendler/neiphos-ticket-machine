@@ -13,8 +13,10 @@ import { loadJSON, saveJSON } from "./storage";
 const ENABLED_KEY = ["settings", "screensaverEnabled"];
 const TIMEOUT_KEY = ["settings", "screensaverTimeoutMin"];
 const DEFAULT_TIMEOUT_MIN = 5;
-// Auf ausdruecklichen Wunsch voreingestellt aktiv.
-const DEFAULT_ENABLED = true;
+// War zunaechst standardmaessig aktiv, auf ausdruecklichen Wunsch aber
+// wieder auf "aus" zurueckgesetzt (Design noch nicht ausgereift genug --
+// "arbeite vielleicht spaeter mal dran weiter").
+const DEFAULT_ENABLED = false;
 
 export function isScreensaverEnabled(): boolean {
   return loadJSON<boolean>(ENABLED_KEY, DEFAULT_ENABLED);

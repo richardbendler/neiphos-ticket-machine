@@ -65,26 +65,65 @@ export function applySettingsChanged(): void {
   scheduleIdleTimer();
 }
 
+function buildWheels(count: number): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.className = "screensaver-train__wheels";
+  for (let i = 0; i < count; i++) {
+    const wheel = document.createElement("div");
+    wheel.className = "screensaver-train__wheel";
+    wrap.appendChild(wheel);
+  }
+  return wrap;
+}
+
+/**
+ * Lok + ein Wagen statt einer schlichten Box mit weissen Quadraten (erste
+ * Fassung, auf Nutzer-Feedback hin ueberarbeitet) -- Kabine, Schlot,
+ * Scheinwerfer mit Glow, Fensterreihe mit Glas-Farbverlauf, Akzentstreifen
+ * und Raeder je Wagen. Weiterhin reine CSS-Formen (kein SVG/Bild), bleibt
+ * also genauso billig zu animieren wie vorher.
+ */
+function buildTrain(): HTMLDivElement {
+  const train = document.createElement("div");
+  train.className = "screensaver-train";
+
+  const engine = document.createElement("div");
+  engine.className = "screensaver-train__engine";
+  const cab = document.createElement("div");
+  cab.className = "screensaver-train__cab";
+  const stack = document.createElement("div");
+  stack.className = "screensaver-train__stack";
+  const headlight = document.createElement("div");
+  headlight.className = "screensaver-train__headlight";
+  engine.append(cab, stack, headlight, buildWheels(2));
+  train.appendChild(engine);
+
+  const car = document.createElement("div");
+  car.className = "screensaver-train__car";
+  const stripe = document.createElement("div");
+  stripe.className = "screensaver-train__stripe";
+  car.appendChild(stripe);
+  for (let i = 0; i < 3; i++) {
+    const win = document.createElement("div");
+    win.className = "screensaver-train__window";
+    car.appendChild(win);
+  }
+  const label = document.createElement("div");
+  label.className = "screensaver-train__label";
+  label.textContent = "NEIPHOS EXPRESS";
+  car.append(label, buildWheels(3));
+  train.appendChild(car);
+
+  return train;
+}
+
 function buildOverlay(): HTMLDivElement {
   const overlay = document.createElement("div");
   overlay.className = "screensaver-overlay";
 
   const track = document.createElement("div");
   track.className = "screensaver-track";
-
-  const train = document.createElement("div");
-  train.className = "screensaver-train";
-  const windowCount = 3;
-  for (let i = 0; i < windowCount; i++) {
-    const win = document.createElement("div");
-    win.className = "screensaver-train__window";
-    train.appendChild(win);
-  }
-  const label = document.createElement("div");
-  label.className = "screensaver-train__label";
-  label.textContent = "NEIPHOS EXPRESS";
-  train.appendChild(label);
-  track.appendChild(train);
+  track.appendChild(buildTrain());
   overlay.appendChild(track);
 
   const message = document.createElement("div");
@@ -112,6 +151,11 @@ function hideScreensaver(): void {
   overlayEl.remove();
   overlayEl = null;
   scheduleIdleTimer();
+}
+
+/** Fuer den "Bildschirmschoner jetzt aktivieren"-Testknopf im Admin-Bereich -- zeigt ihn sofort, unabhaengig vom Inaktivitaets-Timer/der An/Aus-Einstellung. */
+export function previewScreensaver(): void {
+  showScreensaver();
 }
 
 /** Einmalig beim App-Start aufzurufen (siehe main.ts). */

@@ -106,6 +106,12 @@ export const icons = {
      <path d="M9.2 18V5.5L19.2 3.5V16"/>
      <path d="M9.2 8 L19.2 6"/>`,
   ),
+  // Sonne/Mond fuer die Tag/Nacht-Uhr in games/mini-metro.
+  sun: svg(
+    `<circle cx="12" cy="12" r="4.2"/>
+     <path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7 5.6 5.6"/>`,
+  ),
+  moon: svg(`<path d="M15.5 3.5A8.5 8.5 0 1 0 20.5 16 6.8 6.8 0 0 1 15.5 3.5Z" fill="currentColor" stroke="none"/>`),
 } as const;
 
 export type IconName = keyof typeof icons;

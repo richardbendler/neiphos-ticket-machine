@@ -884,6 +884,22 @@ sudo systemctl restart polkit
 (Läuft der Server unter einem anderen Linux-Benutzer als `flipper`, dessen
 Namen entsprechend anpassen.)
 
+### 3c. Emoji-Schriftart installieren (Bildschirmschoner)
+
+Der [Bildschirmschoner](#admin-bereich) zeigt eine Lok-Emoji-Glyphe ("🚂").
+Ein frisch aufgesetztes Raspberry Pi OS bringt dafür standardmäßig **keine**
+Farb-Emoji-Schriftart mit (`fc-list | grep -i emoji` liefert nichts) – ohne
+sie zeigt Chromium nur ein leeres Kästchen statt der Lok. Einmalig auf dem
+Pi einrichten:
+
+```bash
+sudo apt-get install -y fonts-noto-color-emoji
+```
+
+Chromium danach einmal neu starten (siehe [Autostart einrichten](#5-autostart-einrichten-linuxraspberry-pi-os)
+bzw. für einen laufenden Kiosk `pkill chromium`, der Autostart übernimmt den
+Rest), damit die neue Schriftart erkannt wird.
+
 ### 4. Chromium im Kiosk-Modus starten (manuell)
 
 Chromium mit dem `--kiosk`-Flag zeigt keine Adressleiste, keine Tabs, kein

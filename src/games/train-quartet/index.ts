@@ -101,9 +101,15 @@ function formatCardCount(value: number): string {
 // waehrend beide Karten gemeinsam in die Bildschirmmitte ruecken.
 // "comparing": beide Karten stehen in voller Groesse nebeneinander, die
 // gewaehlte Eigenschaft ist markiert, das Ergebnis steht fest.
-// "sliding-out": nach "Weiter" verschwindet die linke (alte) Karte nach
-// links, die rechte wandert in die Mitte und wird zur naechsten Karte.
-type Phase = "reveal-player" | "sliding-in" | "comparing" | "sliding-out" | "game-over";
+// "sliding-out": nach "Weiter" fliegen beide Karten (verkleinert) zum
+// Stapel der/des Gewinnenden -- macht auf ausdruecklichen Wunsch klar
+// sichtbar, wo die verglichenen Karten "hin" verschwinden.
+// "dealing": Gegenstueck dazu -- die naechste eigene Karte waechst sichtbar
+// aus dem eigenen (linken) Stapel heraus zur vollen Groesse in die Mitte,
+// statt wie zuvor kommentarlos/ohne Animation an ihrer Zielposition
+// aufzutauchen. Macht ebenso auf ausdruecklichen Wunsch klar, wo die neue
+// Karte "her" kommt.
+type Phase = "reveal-player" | "sliding-in" | "comparing" | "sliding-out" | "dealing" | "game-over";
 type Outcome = "player" | "cpu" | "tie";
 
 function easeOutCubic(t: number): number {
@@ -307,7 +313,8 @@ function createTrainQuartetGame(): MinigameModule {
     chosenStat = null;
     outcome = null;
     const gameOver = playerDeck.length === 0 || cpuDeck.length === 0 || roundsPlayed >= TOTAL_ROUNDS;
-    phase = gameOver ? "game-over" : "reveal-player";
+    phase = gameOver ? "game-over" : "dealing";
+    animTimer = 0;
     if (gameOver) finishGame();
     updateOverlay();
   }
@@ -661,6 +668,13 @@ function createTrainQuartetGame(): MinigameModule {
           animTimer = SLIDE_DURATION;
           finishTransition();
         }
+      } else if (phase === "dealing") {
+        animTimer += dt;
+        if (animTimer >= SLIDE_DURATION) {
+          animTimer = SLIDE_DURATION;
+          phase = "reveal-player";
+          updateOverlay();
+        }
       }
       if (stackFlashSide) {
         stackFlashTimer += dt;
@@ -814,6 +828,31 @@ function createTrainQuartetGame(): MinigameModule {
             ctx.textAlign = "center";
             ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 24);
           }
+        }
+        return;
+      }
+
+      if (phase === "dealing") {
+        // Spiegelbild zum Schrumpfen-in-den-Stapel bei "sliding-out": die
+        // naechste eigene Karte waechst sichtbar aus dem eigenen (linken)
+        // Stapel heraus zur vollen Groesse -- auf ausdruecklichen Wunsch,
+        // damit auch klar wird, wo die neue Karte "her" kommt, nicht nur wo
+        // verglichene Karten "hin" verschwinden.
+        const playerCard = playerDeck[0];
+        if (playerCard) {
+          const t = easeOutCubic(animTimer / SLIDE_DURATION);
+          const scale = lerp(0.15, 1, t);
+          const w = cardWidth * scale;
+          const h = cardHeight * scale;
+          const targetCx = singleX + cardWidth / 2;
+          const targetCy = topOffset + cardHeight / 2;
+          const cx = lerp(leftStackX, targetCx, t);
+          const cy = lerp(stackCenterY, targetCy, t);
+          const rect: Rect = { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, t * 1.6);
+          drawCardFace(ctx, rect, playerCard, { interactive: false, highlightStat: null });
+          ctx.restore();
         }
         return;
       }

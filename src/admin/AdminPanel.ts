@@ -923,146 +923,11 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   h2.textContent = "Admin-Bereich";
   panel.appendChild(h2);
 
-  // --- Touchscreen-Test ------------------------------------------------
-  // Ganz oben, noch vor dem Sync-Status -- gedacht fuer den allerersten
-  // Anschluss eines neuen Touch-Displays (Anlass: Verdacht auf eine tote
-  // Zone oben links), soll also moeglichst schnell erreichbar sein.
-  const touchTestBtn = document.createElement("button");
-  touchTestBtn.type = "button";
-  touchTestBtn.className = "btn btn--ghost";
-  touchTestBtn.style.marginBottom = "12px";
-  touchTestBtn.textContent = "Touchscreen-Test";
-  guardedClick(touchTestBtn, () => openTouchTest());
-  panel.appendChild(touchTestBtn);
-
-  // --- Sync-Status ---------------------------------------------------
-  // Nur eine Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen
-  // Abschnitte unten pruefen/pushen unabhaengig davon selbst (siehe
-  // core/sync.ts). Unterscheidet bewusst DREI Faelle (nicht nur an/aus),
-  // damit auf einen Blick klar ist, WARUM die Sync ggf. nicht laeuft --
-  // "laeuft gerade nur lokal" (kein server/serve.js erreichbar, z. B. beim
-  // Entwickeln mit npm run dev) sieht ganz anders aus als "server/serve.js
-  // laeuft zwar, aber NTM_SYNC ist dort nicht gesetzt" (siehe
-  // core/sync.ts#checkServerSyncStatus).
-  const syncStatus = paragraph("Sync-Status: wird geprüft …");
-  syncStatus.style.fontSize = "0.78rem";
-  syncStatus.style.fontWeight = "600";
-  syncStatus.style.padding = "6px 10px";
-  syncStatus.style.borderRadius = "var(--radius-sm)";
-  syncStatus.style.border = "1px solid var(--panel-border)";
-  panel.appendChild(syncStatus);
-  void checkServerSyncStatus().then((status) => {
-    if (status === "no-server") {
-      syncStatus.textContent = "🖥️ Läuft gerade rein lokal (kein Server erreichbar) — alles bleibt nur auf diesem Gerät.";
-      syncStatus.style.color = "var(--text-muted)";
-    } else if (status === "server-sync-off") {
-      syncStatus.textContent = "🌐 Server erreichbar, geräteübergreifende Synchronisation aber nicht aktiviert (NTM_SYNC fehlt) — Highscores/Statistik/Einstellungen bleiben lokal.";
-      syncStatus.style.color = "var(--text)";
-    } else {
-      syncStatus.textContent =
-        "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen/Feedback werden geteilt. Löschen/Zurücksetzen wirkt zentral, auch auf anderen Geräten (spätestens bei deren nächstem Menübesuch).";
-      syncStatus.style.color = "var(--success)";
-    }
-  });
-
-  // --- System: Lautstaerke + WLAN -------------------------------------
-  // Steuert die ECHTE Betriebssystem-Lautstaerke/WLAN-Verbindung des Pi
-  // (server/serve.js, wpctl/nmcli) -- auf ausdruecklichen Wunsch, damit man
-  // dafuer nicht extra den Kiosk-Modus verlassen muss. Ausserhalb des Pi
-  // (z. B. npm run dev auf einem normalen Entwicklungsrechner ohne
-  // wpctl/nmcli) blenden sich beide Abschnitte automatisch als "nicht
-  // verfuegbar" aus, statt kaputt auszusehen.
-  panel.appendChild(renderSystemSection());
-
-  // --- Kiosk-Steuerung -----------------------------------------------
-  const kioskSection = document.createElement("div");
-  kioskSection.style.margin = "16px 0";
-  const kioskTitle = document.createElement("p");
-  kioskTitle.style.color = "var(--text-muted)";
-  kioskTitle.style.marginBottom = "8px";
-  kioskTitle.textContent = "Kiosk-Modus (Vollbild) dieses Browserfensters:";
-  kioskSection.appendChild(kioskTitle);
-
-  const kioskBtnRow = document.createElement("div");
-  kioskBtnRow.style.display = "flex";
-  kioskBtnRow.style.gap = "8px";
-  kioskBtnRow.style.flexWrap = "wrap";
-
-  const kioskBtn = document.createElement("button");
-  kioskBtn.type = "button";
-  kioskBtn.className = "btn btn--accent";
-  const syncKioskLabel = () => {
-    kioskBtn.textContent = isFullscreenActive() ? "Kiosk-Modus beenden" : "Kiosk-Modus starten";
-  };
-  syncKioskLabel();
-  kioskBtn.addEventListener("click", async () => {
-    if (isFullscreenActive()) {
-      await exitFullscreen();
-    } else {
-      await enterFullscreen();
-    }
-    syncKioskLabel();
-  });
-  kioskBtnRow.appendChild(kioskBtn);
-
-  const kioskGuideBtn = document.createElement("button");
-  kioskGuideBtn.type = "button";
-  kioskGuideBtn.className = "btn btn--ghost";
-  kioskGuideBtn.textContent = "Kiosk-Modus-Anleitung";
-  kioskGuideBtn.addEventListener("click", () => openKioskGuideModal());
-  kioskBtnRow.appendChild(kioskGuideBtn);
-
-  kioskSection.appendChild(kioskBtnRow);
-
-  const kioskHint = document.createElement("p");
-  kioskHint.style.fontSize = "0.78rem";
-  kioskHint.style.marginTop = "8px";
-  kioskHint.textContent =
-    "Hinweis: Das steuert nur den Vollbildmodus dieser Webseite (Fullscreen API), nicht den echten Betriebssystem-Kiosk-Modus des Browsers (--kiosk) -- eine Webseite kann grundsätzlich nicht zuverlässig erkennen, ob der Browser darin gerade läuft.";
-  kioskSection.appendChild(kioskHint);
-
-  // --- Kiosk-Notausgang ------------------------------------------------
-  // Getrennt vom obigen Umschalter (siehe Hinweistext dort): beendet den
-  // echten --kiosk-Chromium-Prozess auf DIESEM Geraet ueber den lokalen
-  // Server (server/serve.js, core/kiosk.ts#exitKioskBrowser) -- z. B. fuer
-  // den Notfall, dass ohne funktionierendes WLAN weder SSH noch ein anderer
-  // Fernzugriff moeglich ist, der darunterliegende Desktop (fuer WLAN-
-  // Neueinrichtung etc.) aber erreichbar sein muss.
-  const exitBtn = document.createElement("button");
-  exitBtn.type = "button";
-  exitBtn.className = "btn btn--ghost";
-  exitBtn.style.marginTop = "8px";
-  exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
-  exitBtn.addEventListener("click", () => {
-    confirmSimple(
-      "Beendet den Kiosk-Browser auf diesem Gerät sofort und legt den darunterliegenden Desktop frei (z. B. für WLAN-Einstellungen im Notfall). Funktioniert nur, wenn der lokale Server (server/serve.js) läuft.",
-      "Ja, Kiosk beenden",
-      () => {
-        exitBtn.disabled = true;
-        exitBtn.textContent = "Wird beendet …";
-        void exitKioskBrowser().then(({ ok, killed }) => {
-          // Hat killed wirklich geklappt, beendet sich diese Seite gleich
-          // von selbst mit -- der Code hier laeuft dann meist gar nicht
-          // mehr zu Ende. Kommt trotzdem eine Antwort an (kein Server, kein
-          // passender Prozess gefunden), bekommt die Admin-Person jetzt
-          // eine erklaerende Meldung STATT dass der Button (wie zuvor)
-          // unbegrenzt bei "Wird beendet..." haengen bleibt, ohne dass
-          // jemals etwas passiert (gemeldeter Bug -- die Antwort wurde
-          // vorher client-seitig ueberhaupt nicht ausgewertet).
-          exitBtn.disabled = false;
-          exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
-          if (!ok) {
-            showServerActionError(exitBtn, "Kein Server erreichbar oder Admin-Sitzung ungültig -- läuft server/serve.js? Bitte Admin-Bereich neu öffnen und erneut versuchen.");
-          } else if (!killed) {
-            showServerActionError(exitBtn, "Es wurde kein laufender Kiosk-Chromium-Prozess gefunden -- läuft der Kiosk gerade wirklich über --user-data-dir=.../ticketmachine-chromium (siehe Kiosk-Modus-Anleitung)?");
-          }
-        });
-      },
-    );
-  });
-  kioskSection.appendChild(exitBtn);
-
-  panel.appendChild(kioskSection);
+  // Reihenfolge der folgenden Abschnitte auf ausdruecklichen Wunsch so
+  // festgelegt (haeufigste/wichtigste Admin-Aufgaben zuerst): Feedback,
+  // Statistik, Highscores, Spiele-Sichtbarkeit, System (Bildschirmschoner/
+  // Lautstaerke/Audioausgabe/WLAN), Kiosk-Modus, Rest (Touchscreen-Test,
+  // Sync-Status).
 
   // --- Feedback ----------------------------------------------------------
   const feedbackTitle = document.createElement("p");
@@ -1241,6 +1106,150 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   gamesHint.style.marginTop = "6px";
   gamesHint.textContent = "Abgehakte Spiele erscheinen im Hauptmenü. Ausgehakte bleiben erhalten (inkl. Highscores), sind nur ausgeblendet.";
   panel.appendChild(gamesHint);
+
+  // --- System: Bildschirmschoner + Lautstaerke + Audioausgabe + WLAN ---
+  // Steuert die ECHTE Betriebssystem-Lautstaerke/WLAN-Verbindung/Audio-
+  // ausgabe des Pi (server/serve.js, wpctl/nmcli) -- auf ausdruecklichen
+  // Wunsch, damit man dafuer nicht extra den Kiosk-Modus verlassen muss.
+  // Ausserhalb des Pi (z. B. npm run dev auf einem normalen
+  // Entwicklungsrechner ohne wpctl/nmcli) blenden sich die betroffenen
+  // Abschnitte automatisch als "nicht verfuegbar" aus, statt kaputt
+  // auszusehen.
+  panel.appendChild(renderSystemSection());
+
+  // --- Kiosk-Steuerung -----------------------------------------------
+  const kioskSection = document.createElement("div");
+  kioskSection.style.margin = "16px 0";
+  const kioskTitle = document.createElement("p");
+  kioskTitle.style.color = "var(--text-muted)";
+  kioskTitle.style.marginBottom = "8px";
+  kioskTitle.textContent = "Kiosk-Modus (Vollbild) dieses Browserfensters:";
+  kioskSection.appendChild(kioskTitle);
+
+  const kioskBtnRow = document.createElement("div");
+  kioskBtnRow.style.display = "flex";
+  kioskBtnRow.style.gap = "8px";
+  kioskBtnRow.style.flexWrap = "wrap";
+
+  const kioskBtn = document.createElement("button");
+  kioskBtn.type = "button";
+  kioskBtn.className = "btn btn--accent";
+  const syncKioskLabel = () => {
+    kioskBtn.textContent = isFullscreenActive() ? "Kiosk-Modus beenden" : "Kiosk-Modus starten";
+  };
+  syncKioskLabel();
+  kioskBtn.addEventListener("click", async () => {
+    if (isFullscreenActive()) {
+      await exitFullscreen();
+    } else {
+      await enterFullscreen();
+    }
+    syncKioskLabel();
+  });
+  kioskBtnRow.appendChild(kioskBtn);
+
+  const kioskGuideBtn = document.createElement("button");
+  kioskGuideBtn.type = "button";
+  kioskGuideBtn.className = "btn btn--ghost";
+  kioskGuideBtn.textContent = "Kiosk-Modus-Anleitung";
+  kioskGuideBtn.addEventListener("click", () => openKioskGuideModal());
+  kioskBtnRow.appendChild(kioskGuideBtn);
+
+  kioskSection.appendChild(kioskBtnRow);
+
+  const kioskHint = document.createElement("p");
+  kioskHint.style.fontSize = "0.78rem";
+  kioskHint.style.marginTop = "8px";
+  kioskHint.textContent =
+    "Hinweis: Das steuert nur den Vollbildmodus dieser Webseite (Fullscreen API), nicht den echten Betriebssystem-Kiosk-Modus des Browsers (--kiosk) -- eine Webseite kann grundsätzlich nicht zuverlässig erkennen, ob der Browser darin gerade läuft.";
+  kioskSection.appendChild(kioskHint);
+
+  // --- Kiosk-Notausgang ------------------------------------------------
+  // Getrennt vom obigen Umschalter (siehe Hinweistext dort): beendet den
+  // echten --kiosk-Chromium-Prozess auf DIESEM Geraet ueber den lokalen
+  // Server (server/serve.js, core/kiosk.ts#exitKioskBrowser) -- z. B. fuer
+  // den Notfall, dass ohne funktionierendes WLAN weder SSH noch ein anderer
+  // Fernzugriff moeglich ist, der darunterliegende Desktop (fuer WLAN-
+  // Neueinrichtung etc.) aber erreichbar sein muss.
+  const exitBtn = document.createElement("button");
+  exitBtn.type = "button";
+  exitBtn.className = "btn btn--ghost";
+  exitBtn.style.marginTop = "8px";
+  exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
+  exitBtn.addEventListener("click", () => {
+    confirmSimple(
+      "Beendet den Kiosk-Browser auf diesem Gerät sofort und legt den darunterliegenden Desktop frei (z. B. für WLAN-Einstellungen im Notfall). Funktioniert nur, wenn der lokale Server (server/serve.js) läuft.",
+      "Ja, Kiosk beenden",
+      () => {
+        exitBtn.disabled = true;
+        exitBtn.textContent = "Wird beendet …";
+        void exitKioskBrowser().then(({ ok, killed }) => {
+          // Hat killed wirklich geklappt, beendet sich diese Seite gleich
+          // von selbst mit -- der Code hier laeuft dann meist gar nicht
+          // mehr zu Ende. Kommt trotzdem eine Antwort an (kein Server, kein
+          // passender Prozess gefunden), bekommt die Admin-Person jetzt
+          // eine erklaerende Meldung STATT dass der Button (wie zuvor)
+          // unbegrenzt bei "Wird beendet..." haengen bleibt, ohne dass
+          // jemals etwas passiert (gemeldeter Bug -- die Antwort wurde
+          // vorher client-seitig ueberhaupt nicht ausgewertet).
+          exitBtn.disabled = false;
+          exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
+          if (!ok) {
+            showServerActionError(exitBtn, "Kein Server erreichbar oder Admin-Sitzung ungültig -- läuft server/serve.js? Bitte Admin-Bereich neu öffnen und erneut versuchen.");
+          } else if (!killed) {
+            showServerActionError(exitBtn, "Es wurde kein laufender Kiosk-Chromium-Prozess gefunden -- läuft der Kiosk gerade wirklich über --user-data-dir=.../ticketmachine-chromium (siehe Kiosk-Modus-Anleitung)?");
+          }
+        });
+      },
+    );
+  });
+  kioskSection.appendChild(exitBtn);
+
+  panel.appendChild(kioskSection);
+
+  // --- Touchscreen-Test ------------------------------------------------
+  // Gedacht fuer den allerersten Anschluss eines neuen Touch-Displays
+  // (Anlass: Verdacht auf eine tote Zone) -- kein alltaeglicher Admin-
+  // Vorgang, daher auf ausdruecklichen Wunsch weiter unten (siehe
+  // Reihenfolge-Kommentar oben).
+  const touchTestBtn = document.createElement("button");
+  touchTestBtn.type = "button";
+  touchTestBtn.className = "btn btn--ghost";
+  touchTestBtn.style.margin = "18px 0 0";
+  touchTestBtn.textContent = "Touchscreen-Test";
+  guardedClick(touchTestBtn, () => openTouchTest());
+  panel.appendChild(touchTestBtn);
+
+  // --- Sync-Status ---------------------------------------------------
+  // Nur eine Anzeige, kein Ablauf haengt hiervon ab -- die einzelnen
+  // Abschnitte oben pruefen/pushen unabhaengig davon selbst (siehe
+  // core/sync.ts). Unterscheidet bewusst DREI Faelle (nicht nur an/aus),
+  // damit auf einen Blick klar ist, WARUM die Sync ggf. nicht laeuft --
+  // "laeuft gerade nur lokal" (kein server/serve.js erreichbar, z. B. beim
+  // Entwickeln mit npm run dev) sieht ganz anders aus als "server/serve.js
+  // laeuft zwar, aber NTM_SYNC ist dort nicht gesetzt" (siehe
+  // core/sync.ts#checkServerSyncStatus).
+  const syncStatus = paragraph("Sync-Status: wird geprüft …");
+  syncStatus.style.fontSize = "0.78rem";
+  syncStatus.style.fontWeight = "600";
+  syncStatus.style.padding = "6px 10px";
+  syncStatus.style.margin = "10px 0 0";
+  syncStatus.style.borderRadius = "var(--radius-sm)";
+  syncStatus.style.border = "1px solid var(--panel-border)";
+  panel.appendChild(syncStatus);
+  void checkServerSyncStatus().then((status) => {
+    if (status === "no-server") {
+      syncStatus.textContent = "🖥️ Läuft gerade rein lokal (kein Server erreichbar) — alles bleibt nur auf diesem Gerät.";
+      syncStatus.style.color = "var(--text-muted)";
+    } else if (status === "server-sync-off") {
+      syncStatus.textContent = "🌐 Server erreichbar, geräteübergreifende Synchronisation aber nicht aktiviert (NTM_SYNC fehlt) — Highscores/Statistik/Einstellungen bleiben lokal.";
+      syncStatus.style.color = "var(--text)";
+    } else {
+      syncStatus.textContent =
+        "✅ Server erreichbar, geräteübergreifende Synchronisation aktiv — Highscores/Statistik/Einstellungen/Feedback werden geteilt. Löschen/Zurücksetzen wirkt zentral, auch auf anderen Geräten (spätestens bei deren nächstem Menübesuch).";
+      syncStatus.style.color = "var(--success)";
+    }
+  });
 
   // --- Schliessen --------------------------------------------------------
   const actions = document.createElement("div");

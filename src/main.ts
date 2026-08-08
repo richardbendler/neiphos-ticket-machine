@@ -4,9 +4,11 @@ import { installKioskHardening } from "./core/kiosk";
 import { Router } from "./core/Router";
 import { pullHighscoresFromServer } from "./core/sync";
 import { initScreensaver } from "./core/screensaver";
+import { installDragScroll } from "./core/dragScroll";
 
 installKioskHardening();
 initScreensaver();
+installDragScroll();
 
 const app = document.getElementById("app");
 if (!app) throw new Error("#app-Root nicht gefunden");

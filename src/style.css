@@ -2284,3 +2284,96 @@ button {
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
   white-space: nowrap;
 }
+
+/* -------------------------- Hüpftier-Glücksspiel (games/hopper-slots) -- */
+
+/* Gleiches Positionierungsschema wie .stage-center-panel (siehe dortiger
+   Kommentar) -- symmetrisch zur echten Bildschirmmitte, unabhaengig von
+   der unterschiedlichen Kopf-/Fusszeilenhoehe. */
+.hs-machine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-top));
+  bottom: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-bottom));
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2vh, 20px);
+  padding: 0 calc(16px + var(--safe-right)) 0 calc(16px + var(--safe-left));
+}
+
+.hs-reels {
+  display: flex;
+  gap: clamp(8px, 1.6vw, 16px);
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
+  border: clamp(3px, 0.6vw, 6px) solid var(--text);
+  border-radius: var(--radius-lg);
+  padding: clamp(10px, 2vh, 18px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.hs-reel-window {
+  width: clamp(64px, 11vw, 110px);
+  height: clamp(64px, 11vw, 110px);
+  overflow: hidden;
+  background: var(--panel);
+  border: 2px solid var(--panel-border-light);
+  border-radius: var(--radius-sm);
+}
+
+.hs-reel-strip {
+  display: flex;
+  flex-direction: column;
+}
+
+.hs-symbol {
+  width: clamp(64px, 11vw, 110px);
+  height: clamp(64px, 11vw, 110px);
+  object-fit: cover;
+  flex-shrink: 0;
+  display: block;
+}
+
+.hs-balance {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.3rem, 4vh, 2rem);
+  color: var(--text);
+}
+
+.hs-message {
+  min-height: 1.4em;
+  font-weight: 700;
+  font-size: clamp(0.9rem, 2.4vh, 1.15rem);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.hs-message--win {
+  color: var(--success);
+}
+
+.hs-spin-btn {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.1rem, 3vh, 1.5rem);
+  padding: clamp(12px, 2.4vh, 20px) clamp(28px, 6vw, 56px);
+  border-radius: 999px;
+  border: 2px solid var(--danger);
+  background: linear-gradient(180deg, #e04b4b, var(--danger));
+  color: #ffffff;
+  box-shadow: 0 4px 0 #8f1c1c;
+}
+
+.hs-spin-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #8f1c1c;
+}
+
+.hs-spin-btn:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}

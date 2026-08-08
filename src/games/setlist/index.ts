@@ -53,7 +53,7 @@ function createSetlistPlaceholder(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Setlist",
-  subtitle: "Welche Songs heute laufen",
+  subtitle: "Welche Artists heute noch performen",
   icon: "musicNote",
   badge: "SL",
   accent: "#6a3fb5",

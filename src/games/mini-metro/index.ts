@@ -884,7 +884,7 @@ function createMiniMetroGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Mini Metro",
-  subtitle: "Baue ein Streckennetz, bevor es überläuft",
+  subtitle: "Bringe Hüpftiere von A nach B",
   icon: "metroMap",
   badge: "MM",
   accent: "#0059a4",

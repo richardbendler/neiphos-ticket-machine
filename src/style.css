@@ -750,6 +750,40 @@ button {
   pointer-events: auto;
 }
 
+/* Kurzer Ladehinweis, waehrend ein Spiel sein (synchrones) init() ausfuehrt
+   -- siehe Router.ts#startGame. Liegt ueber dem noch leeren Canvas, wird
+   entfernt, sobald init() fertig ist. */
+.game-stage__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  z-index: 1;
+}
+
+.game-stage__loading-spinner {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 4px solid var(--btn-border);
+  border-top-color: var(--accent);
+  animation: game-stage-loading-spin 0.8s linear infinite;
+}
+
+@keyframes game-stage-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---------- Buttons (generisch, physisch wirkende Tasten) ---------- */
 
 .btn {

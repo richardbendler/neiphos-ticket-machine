@@ -1104,6 +1104,13 @@ button {
   justify-content: center;
 }
 
+/* Schmale Backspace-Reihe oben rechts (siehe OnScreenKeyboard.ts#buildKeys)
+   -- Backspace sitzt jetzt bei JEDEM Layout dort statt unten links/rechts
+   verstreut, wie bei den meisten echten Tastaturen. */
+.osk__row--end {
+  justify-content: flex-end;
+}
+
 /* War fest 44px/0.95rem, unabhaengig vom verfuegbaren Platz -- auf
    ausdruecklichen Wunsch jetzt responsiv, damit die Tastatur den ihr per
    .modal-panel--keyboard zugestandenen breiteren Rahmen auch wirklich

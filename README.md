@@ -1469,10 +1469,22 @@ Im Admin-Bereich:
 - **Audioausgabe** – Liste der auf dem Gerät vorhandenen PipeWire-Sinks (z. B.
   Klinke und HDMI), antippen wechselt den Standard-Ausgang (`wpctl
   set-default`). Nützlich, wenn z. B. der Ton über HDMI statt über die Klinke
-  laufen soll.
+  laufen soll. Wird beim Öffnen des Admin-Bereichs automatisch abgerufen;
+  zusätzlich gibt es einen eigenen "Aktualisieren"-Button daneben – nützlich,
+  falls ein HDMI-Bildschirm erst NACH dem Hochfahren des Pi angeschlossen
+  wurde und der zugehörige Audioausgang deshalb zunächst nicht in der Liste
+  auftaucht.
 - **WLAN** – Verbindungsstatus, Netzwerksuche und Verbinden/Trennen direkt im
   Admin-Bereich (siehe [WLAN-Verwaltung freischalten](#3b-wlan-verwaltung-im-admin-bereich-freischalten-polkit)
-  für die einmalige Voraussetzung auf dem Pi).
+  für die einmalige Voraussetzung auf dem Pi). Netzwerke, für die `nmcli`
+  bereits ein gespeichertes Verbindungsprofil hat (z. B. weil man sich schon
+  einmal erfolgreich verbunden hatte, auch nach zwischenzeitlichem
+  „Trennen“), sind in der Liste mit „(bekannt)“ markiert und verbinden per
+  Antippen sofort ohne erneute Passworteingabe – die Zugangsdaten bleiben in
+  NetworkManager gespeichert, „Trennen“ löscht nur die aktive Verbindung,
+  nicht das Profil. Klappt das ausnahmsweise nicht mehr (z. B. Passwort beim
+  Access Point geändert), fragt der Dialog automatisch als Fallback nach dem
+  Passwort.
 - **Kiosk-Modus starten/beenden** – schaltet nur den Browser-Vollbildmodus
   (Fullscreen API) dieser Webseite um. Das ist *nicht* dasselbe wie Chromium
   komplett im `--kiosk`-Modus zu beenden – eine Webseite kann aus
@@ -1488,6 +1500,18 @@ Im Admin-Bereich:
   der Desktop aber z. B. für eine WLAN-Neueinrichtung erreichbar sein muss.
   Braucht dafür zwingend einen laufenden `server/serve.js`-Prozess (siehe
   [Deployment auf dem Raspberry Pi](#deployment-auf-dem-raspberry-pi-kiosk)).
+  Der darunterliegende Desktop (labwc, ohne Panel/Taskleiste/WLAN-Applet) ist
+  fuer sich genommen kaum bedienbar – deshalb startet `server/serve.js`
+  automatisch nach 3 Minuten den Kiosk-Chromium neu, falls bis dahin kein
+  neuer Kiosk-Prozess laeuft. Waehrend der Wartezeit oeffnet sich zusaetzlich
+  ein kleines, immer sichtbares Timer-Fenster oben rechts
+  (`server/kiosk-timer.html`, per `file://` als eigenes App-Fenster
+  geladen) mit den Buttons "+5 Min." (verlaengert die Frist um 5 Minuten,
+  `POST /api/kiosk/exit-extend`) und "Zurück in den Kiosk" (startet sofort
+  neu, `POST /api/kiosk/exit-return`) – Status via `GET
+  /api/kiosk/exit-status`. Diese drei Endpunkte sind bewusst NICHT
+  admin-geschützt, da das Timer-Fenster keine eigene Admin-Sitzung hat und
+  ohnehin nur einen bereits laufenden Timer beeinflussen kann.
 - **Spielstatistik** – pro Spiel, wie oft gespielt und Gesamtspielzeit;
   aufklappbar für die einzelnen Zeitpunkte/Dauern jeder Sitzung.
   "Statistik zurücksetzen" löscht die komplette Historie.

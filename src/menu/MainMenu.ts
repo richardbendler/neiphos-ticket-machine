@@ -2,7 +2,15 @@ import { icons } from "../core/icons";
 import { guardedClick } from "../core/guardedClick";
 import type { GameMeta } from "../games/registry";
 
-const GRID_GAP = 12;
+// War ein fester Wert (12px) -- auf ausdruecklichen Wunsch (Vorlage: mehr
+// Luecke zwischen den Kacheln) jetzt an die tatsaechliche Containerbreite
+// gekoppelt (aehnlich einem CSS clamp(14px, 1.6vw, 30px), nur in JS
+// nachgebaut, weil der Gap-Wert HIER exakt mit dem tatsaechlich in
+// .menu-grid gesetzten CSS-Gap uebereinstimmen MUSS, sonst passt die
+// berechnete Kachelbreite nicht mehr zur wirklich verfuegbaren Breite).
+function gapForContainer(containerWidth: number): number {
+  return Math.max(14, Math.min(30, containerWidth * 0.016));
+}
 // Seitenverhaeltnis der Kacheln -- muss mit .menu-tile { aspect-ratio: ... }
 // in style.css uebereinstimmen. Die Hoehe wird trotzdem zusaetzlich explizit
 // per grid-auto-rows gesetzt (nicht nur aus aspect-ratio abgeleitet): bei
@@ -43,7 +51,8 @@ export interface MainMenuResult {
  * bei Bedarf einfach laenger werden, statt in der Breite zu schrumpfen.
  */
 function tileWidthForCols(containerWidth: number, cols: number): number {
-  const tileWidth = (containerWidth - GRID_GAP * (cols - 1)) / cols;
+  const gap = gapForContainer(containerWidth);
+  const tileWidth = (containerWidth - gap * (cols - 1)) / cols;
   return Math.max(MIN_TILE_WIDTH, Math.min(tileWidth, MAX_TILE_WIDTH));
 }
 
@@ -128,6 +137,10 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
     const tileHeight = Math.floor(tileWidth / TILE_ASPECT);
     grid.style.gridTemplateColumns = `repeat(${cols}, ${tileWidth}px)`;
     grid.style.gridAutoRows = `${tileHeight}px`;
+    // Muss exakt der Gap-Wert sein, mit dem oben schon die Kachelbreite
+    // berechnet wurde (siehe gapForContainer) -- sonst driftet die Breite
+    // gegenueber dem tatsaechlich verfuegbaren Platz auseinander.
+    grid.style.gap = `${Math.round(gapForContainer(width))}px`;
     const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, tileWidth / REFERENCE_TILE_WIDTH));
     grid.style.setProperty("--menu-tile-scale", String(scale));
   };

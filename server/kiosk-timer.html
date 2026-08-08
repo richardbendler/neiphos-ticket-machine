@@ -12,22 +12,91 @@
         background: #181b1d;
         color: #ffffff;
         font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        overflow: hidden;
+      }
+      /* Diese Seite laeuft jetzt selbst im Vollbild (siehe
+         server/serve.js#openKioskTimerWindow) -- der darunterliegende
+         labwc-Desktop hat weder Panel noch Hintergrund noch irgendeine
+         Bedienmoeglichkeit und zeigt sonst nur einen leeren schwarzen
+         Bildschirm (gemeldeter Bug). Diese Seite UEBERNIMMT deshalb selbst
+         die Rolle "nutzbarer Notfall-Desktop": Terminal/Dateimanager lassen
+         sich direkt von hier aus starten, ohne dass ein echter Desktop noetig
+         waere. */
+      .center {
+        height: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 10px;
-        -webkit-user-select: none;
-        user-select: none;
+        gap: 18px;
+        text-align: center;
+        padding: 0 24px;
+        box-sizing: border-box;
       }
-      p {
+      h1 {
+        font-size: 1.4rem;
         margin: 0;
+      }
+      p.hint {
+        margin: 0;
+        max-width: 32rem;
+        font-size: 0.9rem;
+        color: #b6bcc2;
+        line-height: 1.5;
+      }
+      .launchers {
+        display: flex;
+        gap: 14px;
+        margin-top: 8px;
+      }
+      .launcher {
+        font-size: 1rem;
+        padding: 16px 22px;
+        border-radius: 10px;
+        border: 1px solid #3a3f44;
+        background: #24282b;
+        color: #ffffff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .launcher:active {
+        background: #2f3438;
+      }
+      .launcher-status {
+        min-height: 1.2em;
         font-size: 0.8rem;
+        color: #b6bcc2;
+      }
+      /* Countdown-Box oben rechts als fixe Overlay-Karte -- die eigentlich
+         gewuenschte Position laesst sich unter Wayland/labwc NICHT ueber
+         Chromium-Fensterflags (--window-position) erreichen, ein Client darf
+         seine eigene Bildschirmposition dort aus gutem Grund nicht selbst
+         bestimmen (anders als frueher unter X11). Deshalb laeuft diese Seite
+         jetzt selbst im Vollbild und positioniert die Box stattdessen ganz
+         gewoehnlich per CSS. */
+      .countdown-box {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        background: #24282b;
+        border: 1px solid #3a3f44;
+        border-radius: 10px;
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+      .countdown-box p {
+        margin: 0;
+        font-size: 0.72rem;
         opacity: 0.7;
         text-align: center;
       }
       #time {
-        font-size: 2.4rem;
+        font-size: 1.6rem;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
       }
@@ -35,9 +104,9 @@
         display: flex;
         gap: 8px;
       }
-      button {
-        font-size: 0.95rem;
-        padding: 10px 14px;
+      .countdown-box button {
+        font-size: 0.8rem;
+        padding: 8px 12px;
         border-radius: 8px;
         border: none;
         font-weight: 700;
@@ -54,18 +123,43 @@
     </style>
   </head>
   <body>
-    <p>Kiosk pausiert -- automatische Rückkehr in</p>
-    <div id="time">--:--</div>
-    <div class="row">
-      <button id="extend" type="button">+5 Min.</button>
-      <button id="return" type="button">Zurück in den Kiosk</button>
+    <div class="countdown-box">
+      <p>Automatische Rückkehr in</p>
+      <div id="time">--:--</div>
+      <div class="row">
+        <button id="extend" type="button">+5 Min.</button>
+        <button id="return" type="button">Zurück in den Kiosk</button>
+      </div>
     </div>
+
+    <div class="center">
+      <h1>Kiosk-Notausgang</h1>
+      <p class="hint">
+        Der Kiosk-Browser wurde beendet. Der darunterliegende Desktop hat
+        keine eigene Bedienoberfläche -- von hier aus lässt sich stattdessen
+        direkt ein Terminal oder ein Dateimanager öffnen (z. B. für
+        <code>nmtui</code> zur WLAN-Einrichtung).
+      </p>
+      <div class="launchers">
+        <button class="launcher" id="launch-terminal" type="button">Terminal öffnen</button>
+        <button class="launcher" id="launch-filemanager" type="button">Dateimanager öffnen</button>
+      </div>
+      <div class="launcher-status" id="launcher-status"></div>
+    </div>
+
     <script>
       // Absolute URL statt relativ: diese Seite wird per file:// geladen
       // (siehe server/serve.js#openKioskTimerWindow), nicht ueber den
       // lokalen Webserver -- eine relative Pfadangabe wuerde sich sonst
       // faelschlich gegen den file://-Ursprung aufloesen.
       const API_BASE = "http://localhost:8080";
+      // Token aus der URL (?token=...), von server/serve.js beim Oeffnen
+      // dieses Fensters vergeben -- schuetzt die Terminal-/Dateimanager-
+      // Endpunkte davor, dass irgendein anderes Geraet im selben WLAN sie
+      // ohne Admin-Anmeldung aufrufen koennte (diese Seite selbst hat keine
+      // eigene Admin-Sitzung, siehe requireAdmin in serve.js).
+      const TOKEN = new URLSearchParams(location.search).get("token") || "";
+
       async function refresh() {
         try {
           const res = await fetch(API_BASE + "/api/kiosk/exit-status");
@@ -92,6 +186,29 @@
       });
       refresh();
       setInterval(refresh, 1000);
+
+      function launch(id, path) {
+        const btn = document.getElementById(id);
+        const status = document.getElementById("launcher-status");
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          status.textContent = "Wird geöffnet …";
+          try {
+            const res = await fetch(API_BASE + path, {
+              method: "POST",
+              headers: { "X-Kiosk-Exit-Token": TOKEN },
+            });
+            const data = await res.json().catch(() => ({}));
+            status.textContent = data.ok ? "" : "Fehlgeschlagen (Notausgang evtl. inzwischen beendet?).";
+          } catch {
+            status.textContent = "Fehlgeschlagen -- Server nicht erreichbar.";
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      }
+      launch("launch-terminal", "/api/kiosk/launch-terminal");
+      launch("launch-filemanager", "/api/kiosk/launch-filemanager");
     </script>
   </body>
 </html>

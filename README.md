@@ -1501,17 +1501,31 @@ Im Admin-Bereich:
   Braucht dafür zwingend einen laufenden `server/serve.js`-Prozess (siehe
   [Deployment auf dem Raspberry Pi](#deployment-auf-dem-raspberry-pi-kiosk)).
   Der darunterliegende Desktop (labwc, ohne Panel/Taskleiste/WLAN-Applet) ist
-  fuer sich genommen kaum bedienbar – deshalb startet `server/serve.js`
+  fuer sich genommen voellig unbedienbar (kein Rechtsklick-Menue, keine
+  Taskleiste, kein Hintergrund) – deshalb startet `server/serve.js`
   automatisch nach 3 Minuten den Kiosk-Chromium neu, falls bis dahin kein
   neuer Kiosk-Prozess laeuft. Waehrend der Wartezeit oeffnet sich zusaetzlich
-  ein kleines, immer sichtbares Timer-Fenster oben rechts
-  (`server/kiosk-timer.html`, per `file://` als eigenes App-Fenster
-  geladen) mit den Buttons "+5 Min." (verlaengert die Frist um 5 Minuten,
-  `POST /api/kiosk/exit-extend`) und "Zurück in den Kiosk" (startet sofort
-  neu, `POST /api/kiosk/exit-return`) – Status via `GET
-  /api/kiosk/exit-status`. Diese drei Endpunkte sind bewusst NICHT
-  admin-geschützt, da das Timer-Fenster keine eigene Admin-Sitzung hat und
-  ohnehin nur einen bereits laufenden Timer beeinflussen kann.
+  eine eigene, vollflaechige Recovery-Seite (`server/kiosk-timer.html`, per
+  `file://` selbst im `--kiosk`-Vollbild geladen – ein Client darf unter
+  Wayland/labwc anders als frueher unter X11 seine eigene Bildschirm-
+  position nicht mehr selbst bestimmen, ein kleines floating Fenster mit
+  fester Position ist dort technisch nicht mehr moeglich). Die Countdown-Box
+  mit "+5 Min." (verlaengert die Frist um 5 Minuten, `POST
+  /api/kiosk/exit-extend`) und "Zurück in den Kiosk" (startet sofort neu,
+  `POST /api/kiosk/exit-return`, Status via `GET /api/kiosk/exit-status`)
+  sitzt oben rechts auf dieser Seite; zusaetzlich gibt es dort zwei Buttons
+  "Terminal öffnen" und "Dateimanager öffnen" (`POST
+  /api/kiosk/launch-terminal` bzw. `/launch-filemanager`, starten
+  `lxterminal`/`pcmanfm`) – darüber lässt sich z. B. `nmtui` für eine
+  WLAN-Neueinrichtung erreichen, ganz ohne einen echten, eigentlich gar
+  nicht vorhandenen Desktop. Die Status-/Verlaengern-/Zurueck-Endpunkte sind
+  bewusst NICHT admin-geschützt, da die Recovery-Seite keine eigene
+  Admin-Sitzung hat und diese drei ohnehin nur einen bereits laufenden Timer
+  beeinflussen koennen; die beiden Programm-Starter-Endpunkte sind dagegen
+  ueber ein einmaliges, nur serverseitig erzeugtes Token geschützt (als
+  `?token=…` in der Fenster-URL mitgegeben, siehe `requireKioskExitToken` in
+  `server/serve.js`) – ohne das koennte sonst jedes andere Geraet im
+  gleichen WLAN ohne jede Anmeldung beliebige Programme auf dem Pi starten.
 - **Spielstatistik** – pro Spiel, wie oft gespielt und Gesamtspielzeit;
   aufklappbar für die einzelnen Zeitpunkte/Dauern jeder Sitzung.
   "Statistik zurücksetzen" löscht die komplette Historie.

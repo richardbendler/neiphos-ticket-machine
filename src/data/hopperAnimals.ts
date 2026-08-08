@@ -3,7 +3,7 @@
  * Sitz-Hüpftiere (Hartplastik-Hüpfball mit Tiergesicht, zwei Ohren UND vier
  * kurzen Beinen zum Draufsitzen/Hüpfen) statt Zügen -- fuer den optionalen
  * Hüpftier-Modus bei Zug-Spotter und Zug-Memory, sowie fuer Passagiere
- * zählen, Mini Metro, Zugfoto und Hüpftier-Glücksspiel.
+ * zählen, Hüpftier Metro, Zugfoto und Hüpftier-Glücksspiel.
  *
  * Bewusst nur EIN Spielzeug-Typ (der "Rody"-Bauart mit Beinen): eine erste
  * Version enthielt zusaetzlich den klassischen "Space Hopper" (Kugel mit
@@ -32,7 +32,7 @@
  * urspruenglichen Fotos hatten einen fast-weissen/-grauen Studio-Hintergrund
  * als JPG einfach mit eingebrannt). Wichtig, weil die Bilder in mehreren
  * Spielen klein UND mit einem eigenen Formsymbol daneben/darauf dargestellt
- * werden (z. B. Mini Metro) -- ein sichtbarer heller Kasten drumherum sah
+ * werden (z. B. Hüpftier Metro) -- ein sichtbarer heller Kasten drumherum sah
  * dort wie ein Darstellungsfehler aus.
  */
 import dogTealUrl from "../assets/images/hoppers/hopper-dog-teal.png";

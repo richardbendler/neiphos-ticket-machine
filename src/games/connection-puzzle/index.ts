@@ -46,6 +46,8 @@ function createConnectionPuzzleGame(): MinigameModule {
   let closeHighscoreModal: (() => void) | null = null;
   let closeIntro: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
+  let mapZone: HTMLDivElement;
+  let headerZone: HTMLDivElement;
   let panel: HTMLDivElement;
   let berlinMap: BerlinMapHandle;
 
@@ -85,7 +87,7 @@ function createConnectionPuzzleGame(): MinigameModule {
       hint: phase === "building" && roundState.attempt === TOTAL_ATTEMPTS ? roundState.optimal.lineIds[0] : undefined,
     };
 
-    renderScreen(panel, base, {
+    renderScreen(headerZone, panel, base, {
       onSelectLine: (lineId) => {
         selectedLines.push(lineId);
         error = null;
@@ -245,28 +247,29 @@ function createConnectionPuzzleGame(): MinigameModule {
       preloadTrainChug();
       allStations = getAllStations();
 
+      // Feste 25/25/50-Aufteilung der Spielflaeche (Karte / Start+Ziel /
+      // Linienauswahl) auf ausdruecklichen Wunsch, statt wie vorher jeweils
+      // nur so viel Platz zu belegen wie der Inhalt mindestens brauchte --
+      // auf groesseren Bildschirmen blieb dadurch unten viel Platz frei
+      // (gemeldet). Siehe .connection-puzzle-*-zone in style.css.
+      mapZone = document.createElement("div");
+      mapZone.className = "connection-puzzle-map-zone";
+      env.overlay.appendChild(mapZone);
+
+      headerZone = document.createElement("div");
+      headerZone.className = "connection-puzzle-start-target-zone";
+      env.overlay.appendChild(headerZone);
+
       panel = document.createElement("div");
-      panel.className = "stage-center-panel";
-      // Platz fuer Highscore-Banner + Mini-Karte oben lassen (siehe unten).
-      // Kompakter (clamp statt fixem 150px) -- die Linienauswahl darunter
-      // ist inhaltlich lang (3 Verkehrsmittel-Gruppen), jeder gesparte
-      // Pixel oben hilft, moeglichst ohne Scrollen auf Handy-Hochkant
-      // auszukommen.
-      panel.style.top = "calc(var(--header-h) + clamp(104px, 16vh, 140px) + var(--safe-top))";
-      panel.style.justifyContent = "flex-start";
+      panel.className = "connection-puzzle-connections-zone";
       env.overlay.appendChild(panel);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatPoints);
       highscoreBanner.update(getHighscoreBoard(GAME_ID));
 
       berlinMap = createBerlinMap();
-      berlinMap.el.style.position = "absolute";
-      berlinMap.el.style.left = "calc(12px + var(--safe-left))";
-      berlinMap.el.style.right = "calc(12px + var(--safe-right))";
-      berlinMap.el.style.top = "calc(var(--header-h) + clamp(16px, 5vh, 40px) + var(--safe-top))";
-      berlinMap.el.style.width = "auto";
-      berlinMap.el.style.zIndex = "15";
-      env.overlay.appendChild(berlinMap.el);
+      berlinMap.el.style.width = "100%";
+      mapZone.appendChild(berlinMap.el);
 
       resetGame();
       render();
@@ -303,6 +306,8 @@ function createConnectionPuzzleGame(): MinigameModule {
       highscoreBanner?.destroy();
       berlinMap?.destroy();
       panel?.remove();
+      headerZone?.remove();
+      mapZone?.remove();
     },
   };
 }

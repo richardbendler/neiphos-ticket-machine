@@ -17,6 +17,8 @@ export interface OnScreenKeyboardOptions {
   extraKeys?: boolean;
   /** Nur bei layout "alphanumeric": fuegt eine Umschalttaste fuer Gross-/Kleinschreibung hinzu (aktuell nur beim Admin-Login genutzt). */
   caseToggle?: boolean;
+  /** Nur bei layout "alphanumeric": zeigt eine Umschalttaste zu einer Sonderzeichen-Ansicht (wie "?123"/"ABC" bei mobilen Tastaturen) -- fuer WLAN-Passwort und Admin-Login/-Bestaetigung, da Passwoerter Sonderzeichen enthalten koennen, die die normale Buchstaben-Tastatur bisher nicht eingeben konnte (gemeldeter Bug: WLAN-Verbindung mit Sonderzeichen-Passwort nicht moeglich). */
+  symbolsToggle?: boolean;
   /** Nur bei layout "alphanumeric": Anzeige wird ein mehrzeiliges, umbrechendes und ab "rows" Zeilen scrollbares Feld statt der sonst einzeiligen, zentrierten Anzeige (fuer laengere Freitexte, z. B. Feedback). */
   multiline?: boolean;
   /** Nur zusammen mit multiline: sichtbare Zeilenzahl, bevor das Feld scrollt (Default 5). */
@@ -30,6 +32,11 @@ export interface OnScreenKeyboardOptions {
 }
 
 const ALPHA_ROWS = ["QWERTZUIOP", "ASDFGHJKL", "YXCVBNM"];
+// Drei Reihen mit je 10 Zeichen (dieselbe Zeichenzahl wie ALPHA_ROWS[0]) --
+// deckt die gaengigsten in Passwoertern verwendeten Sonderzeichen ab. Ziffern
+// muessen hier nicht zusaetzlich rein, die gibt's bei symbolsToggle-Tastaturen
+// ohnehin immer schon ueber das Zahlenfeld (extraKeys).
+const SYMBOL_ROWS = ["!\"§$%&/()=", "?ß´`+*~#'@", "-_.:,;<>|\\"];
 
 export class OnScreenKeyboard {
   readonly el: HTMLDivElement;
@@ -41,6 +48,10 @@ export class OnScreenKeyboard {
   private capsLock = false;
   /** Nur bei caseToggle: klassisches Shift ("⇧") -- macht nur den naechsten Buchstaben einmalig gross, dann automatisch wieder aus. */
   private shiftOnce = false;
+  /** Nur bei symbolsToggle: ob gerade die Sonderzeichen-Ansicht (statt Buchstaben) gezeigt wird. */
+  private symbolsMode = false;
+  /** Nur bei layout "alphanumeric": Container fuer die Buchstaben-/Sonderzeichen-Reihen, wird bei symbolsToggle komplett neu aufgebaut (siehe renderLetterRows). */
+  private lettersArea: HTMLDivElement | null = null;
   private readonly opts: Required<Omit<OnScreenKeyboardOptions, "onChange" | "onSubmit" | "displayFontSize" | "displayColor">> & {
     onChange?: (value: string) => void;
     onSubmit?: (value: string) => void;
@@ -48,6 +59,7 @@ export class OnScreenKeyboard {
     displayColor?: string;
   };
   private readonly clickHandler: (e: Event) => void;
+  private readonly keydownHandler: (e: KeyboardEvent) => void;
   private resizeObserver: ResizeObserver | null = null;
 
   constructor(options: OnScreenKeyboardOptions) {
@@ -60,6 +72,7 @@ export class OnScreenKeyboard {
       mask: options.mask ?? false,
       extraKeys: options.extraKeys ?? false,
       caseToggle: options.caseToggle ?? false,
+      symbolsToggle: options.symbolsToggle ?? false,
       multiline: options.multiline ?? false,
       rows: options.rows ?? 5,
       onChange: options.onChange,
@@ -99,12 +112,12 @@ export class OnScreenKeyboard {
     this.el.appendChild(this.buildKeys());
     this.clickHandler = (e) => this.handleClick(e);
     this.el.addEventListener("click", this.clickHandler);
-
-    // Buchstabentasten wurden oben immer mit ihrem Grossbuchstaben-Label
-    // gebaut -- bei caseToggle (Start = kleingeschrieben) muessen die
-    // Beschriftungen daher einmalig auf klein umgestellt werden.
-    if (this.opts.caseToggle) this.applyCaseToLetterKeys();
-
+    // Zusaetzlich zur Bildschirmtastatur (die bleibt der fuer den Kiosk-
+    // Betrieb vorgesehene primaere Eingabeweg) nimmt eine angeschlossene
+    // USB-Tastatur direkt Text entgegen -- rein zum bequemen Testen, siehe
+    // handleKeydown().
+    this.keydownHandler = (e) => this.handleKeydown(e);
+    document.addEventListener("keydown", this.keydownHandler);
     this.updateDisplay();
   }
 
@@ -113,39 +126,33 @@ export class OnScreenKeyboard {
     wrap.className = "osk";
 
     if (this.opts.layout === "numeric") {
+      // Schmale Extra-Reihe nur fuer Backspace, rechtsbuendig -- auf
+      // ausdruecklichen Wunsch soll Backspace bei JEDER Tastatur oben
+      // rechts sitzen, wie bei den meisten echten Tastaturen (vorher unten
+      // links neben der 0).
+      const topRow = document.createElement("div");
+      topRow.className = "osk__row osk__row--end";
+      topRow.appendChild(this.buildKey("←", "←"));
+      wrap.appendChild(topRow);
+
       const rows = [
         ["1", "2", "3"],
         ["4", "5", "6"],
         ["7", "8", "9"],
-        ["←", "0", "OK"],
       ];
       for (const row of rows) {
         wrap.appendChild(this.buildRow(row));
       }
-    } else {
-      ALPHA_ROWS.forEach((row, i) => {
-        const rowEl = this.buildRow(row.split(""));
-        // Zwei getrennte Umschalttasten (wie bei einer echten Tastatur, auf
-        // die mittlere und untere Buchstabenreihe verteilt) -- nur wenn
-        // caseToggle aktiv ist (aktuell nur Admin-Login, siehe Options-
-        // Kommentar): "⇪" ist die Feststelltaste (bleibt an, bis sie erneut
-        // gedrueckt wird) und sitzt wie auf einer echten Tastatur in der
-        // mittleren Reihe; "⇧" (einmaliges Shift) sitzt darunter in der
-        // untersten Buchstabenreihe.
-        if (this.opts.caseToggle && i === 1) {
-          rowEl.appendChild(this.buildKey("⇪", "⇪"));
-        }
-        if (this.opts.caseToggle && i === ALPHA_ROWS.length - 1) {
-          rowEl.appendChild(this.buildKey("⇧", "⇧"));
-        }
-        wrap.appendChild(rowEl);
-      });
       const lastRow = document.createElement("div");
       lastRow.className = "osk__row";
-      lastRow.appendChild(this.buildKey("␣ Leerzeichen", " ", "osk__key--wide"));
-      lastRow.appendChild(this.buildKey("←", "←"));
-      lastRow.appendChild(this.buildKey(this.opts.submitLabel, "OK", "osk__key--accent osk__key--wide"));
+      lastRow.appendChild(this.buildKey("0", "0"));
+      lastRow.appendChild(this.buildKey("OK", "OK", "osk__key--accent osk__key--wide"));
       wrap.appendChild(lastRow);
+    } else {
+      this.lettersArea = document.createElement("div");
+      this.lettersArea.className = "osk__letters";
+      this.renderLetterRows();
+      wrap.appendChild(this.lettersArea);
     }
 
     if (!this.opts.extraKeys) return wrap;
@@ -158,6 +165,60 @@ export class OnScreenKeyboard {
     outer.className = "osk__with-extra";
     outer.append(wrap, this.buildNumpad());
     return outer;
+  }
+
+  /**
+   * Baut die Buchstaben- ODER Sonderzeichen-Reihen (je nach symbolsMode)
+   * inklusive Backspace (oben rechts, siehe buildKeys) und der untersten
+   * Reihe (Leerzeichen/OK, plus Umschalttaste zu Sonderzeichen falls
+   * symbolsToggle aktiv ist) komplett neu -- wird nicht nur einmalig beim
+   * Aufbau aufgerufen, sondern jedes Mal, wenn die "?123"/"ABC"-Taste
+   * gedrueckt wird (siehe handleClick), da sich dabei der komplette
+   * Zeichensatz aendert, nicht nur eine Beschriftung wie bei Gross-/
+   * Kleinschreibung (applyCaseToLetterKeys).
+   */
+  private renderLetterRows(): void {
+    const container = this.lettersArea!;
+    container.innerHTML = "";
+    const rowsSource = this.symbolsMode ? SYMBOL_ROWS : ALPHA_ROWS;
+    rowsSource.forEach((row, i) => {
+      const rowEl = this.buildRow(row.split(""));
+      if (i === 0) {
+        rowEl.appendChild(this.buildKey("←", "←"));
+      }
+      // Zwei getrennte Umschalttasten (wie bei einer echten Tastatur, auf
+      // die mittlere und untere Buchstabenreihe verteilt) -- nur wenn
+      // caseToggle aktiv ist UND gerade Buchstaben (nicht Sonderzeichen)
+      // gezeigt werden, Gross-/Kleinschreibung ergibt bei Sonderzeichen
+      // keinen Sinn. "⇪" ist die Feststelltaste (bleibt an, bis sie erneut
+      // gedrueckt wird) und sitzt wie auf einer echten Tastatur in der
+      // mittleren Reihe; "⇧" (einmaliges Shift) sitzt darunter in der
+      // untersten Buchstabenreihe.
+      if (!this.symbolsMode && this.opts.caseToggle && i === 1) {
+        rowEl.appendChild(this.buildKey("⇪", "⇪"));
+      }
+      if (!this.symbolsMode && this.opts.caseToggle && i === rowsSource.length - 1) {
+        rowEl.appendChild(this.buildKey("⇧", "⇧"));
+      }
+      container.appendChild(rowEl);
+    });
+
+    const lastRow = document.createElement("div");
+    lastRow.className = "osk__row";
+    if (this.opts.symbolsToggle) {
+      // Wie bei mobilen Tastaturen: kleine Umschalttaste links neben dem
+      // Leerzeichen, Beschriftung zeigt jeweils das ZIEL des naechsten
+      // Tastendrucks (nicht den aktuellen Zustand).
+      lastRow.appendChild(this.buildKey(this.symbolsMode ? "ABC" : "#!?", "TOGGLE_SYMBOLS"));
+    }
+    lastRow.appendChild(this.buildKey("␣ Leerzeichen", " ", "osk__key--wide"));
+    lastRow.appendChild(this.buildKey(this.opts.submitLabel, "OK", "osk__key--accent osk__key--wide"));
+    container.appendChild(lastRow);
+
+    // Buchstabentasten werden oben immer mit ihrem Grossbuchstaben-Label
+    // gebaut -- bei caseToggle (Start = kleingeschrieben) muss die
+    // Beschriftung daher einmalig auf klein umgestellt werden.
+    if (this.opts.caseToggle) this.applyCaseToLetterKeys();
   }
 
   private buildNumpad(): HTMLDivElement {
@@ -195,10 +256,50 @@ export class OnScreenKeyboard {
     return btn;
   }
 
+  /**
+   * Erlaubt zusaetzlich zur Bildschirmtastatur auch Eingaben ueber eine
+   * angeschlossene physische USB-Tastatur -- rein zum bequemen Testen
+   * gedacht, die Bildschirmtastatur bleibt der fuer den eigentlichen Kiosk-
+   * Betrieb vorgesehene Weg. Physische Eingaben werden 1:1 uebernommen
+   * (auch Gross-/Kleinschreibung so, wie tatsaechlich getippt) OHNE durch
+   * die eigene Umschalt-Logik (capsLock/shiftOnce) zu laufen -- eine echte
+   * Tastatur bringt ihre Gross-/Kleinschreibung schon selbst mit.
+   */
+  private handleKeydown(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      this.value = this.value.slice(0, -1);
+      this.updateDisplay();
+      this.opts.onChange?.(this.value);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      this.opts.onSubmit?.(this.value);
+      return;
+    }
+    if (e.key.length !== 1) return; // Modifier-/Funktionstasten (Tab, Shift, Pfeile, ...) ignorieren
+    if (this.opts.layout === "numeric" && !/^[0-9]$/.test(e.key)) return;
+    if (this.value.length >= this.opts.maxLength) return;
+    e.preventDefault();
+    this.value += e.key;
+    this.updateDisplay();
+    this.opts.onChange?.(this.value);
+  }
+
   private handleClick(e: Event): void {
     const target = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-key]");
     if (!target) return;
     const key = target.dataset.key!;
+    if (key === "TOGGLE_SYMBOLS") {
+      this.symbolsMode = !this.symbolsMode;
+      // Anders als beim Gross-/Klein-Umschalten (applyCaseToLetterKeys)
+      // aendert sich hier der komplette Zeichensatz -- die Reihen muessen
+      // deshalb neu aufgebaut werden, ein reines Umlabeln reicht nicht.
+      this.renderLetterRows();
+      return;
+    }
     if (key === "⇧") {
       // Klassisches Shift: macht nur den naechsten Buchstaben einmalig
       // gross (wird beim naechsten Buchstaben-Tastendruck unten wieder
@@ -301,7 +402,11 @@ export class OnScreenKeyboard {
 
   private fitNumericKeys(): void {
     const cols = 3;
-    const rows = 4;
+    // 5 statt 4: die zusaetzliche schmale Backspace-Reihe oben (siehe
+    // buildKeys) zaehlt fuer die Hoehenberechnung mit, sonst koennten die
+    // Tasten auf kurzen Bildschirmen zusammen wieder ueber den unteren
+    // Bildschirmrand hinausragen.
+    const rows = 5;
     const rowGap = 6;
     const colGap = 6;
     const width = this.el.clientWidth;
@@ -320,6 +425,7 @@ export class OnScreenKeyboard {
 
   destroy(): void {
     this.el.removeEventListener("click", this.clickHandler);
+    document.removeEventListener("keydown", this.keydownHandler);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.el.remove();

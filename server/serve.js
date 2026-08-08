@@ -45,7 +45,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -347,6 +347,149 @@ function serveStatic(res, pathname) {
   });
 }
 
+// ------------------------------------------- Kiosk-Notausgang: Selbstheilung
+//
+// Siehe /api/kiosk/exit weiter unten: nach dem "Notausgang" (Kiosk-Chromium
+// beenden, um z. B. an die WLAN-Einstellungen zu kommen) startet der Kiosk
+// sich nach dieser Schonfrist automatisch selbst neu, falls er nicht laengst
+// von Hand wieder laeuft -- verhindert einen dauerhaften Blackscreen ohne
+// jede Bedienmoeglichkeit (gemeldeter Vorfall: ohne Fernzugriff kam man vom
+// leeren Compositor aus praktisch nie mehr zurueck in den Kiosk). Dazu ein
+// kleines, dauerhaft sichtbares Timer-Fenster oben rechts (server/
+// kiosk-timer.html, eigenes schlankes User-Data-Dir statt des Kiosk-Profils,
+// damit es sich unabhaengig oeffnen/schliessen laesst) mit Anzeige der
+// Restzeit sowie Buttons zum Verlaengern und zum sofortigen manuellen
+// Zurueckspringen.
+const KIOSK_RELAUNCH_DELAY_MS = 3 * 60 * 1000; // 3 Minuten
+const KIOSK_EXTEND_MS = 5 * 60 * 1000; // 5 Minuten pro "Verlaengern"-Klick
+const KIOSK_USER_DATA_DIR = "/home/flipper/.config/ticketmachine-chromium";
+const KIOSK_TIMER_USER_DATA_DIR = "/home/flipper/.config/ticketmachine-timer";
+const KIOSK_TIMER_HTML_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "kiosk-timer.html");
+let kioskRelaunchTimer = null;
+let kioskRelaunchAt = null;
+
+function kioskEnv() {
+  return {
+    ...process.env,
+    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || "wayland-0",
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || "/run/user/1000",
+    XDG_SESSION_TYPE: process.env.XDG_SESSION_TYPE || "wayland",
+  };
+}
+
+function closeKioskTimerWindow() {
+  execFile("pkill", ["-f", "ticketmachine-timer"], () => {
+    // Fehler (z. B. "kein passender Prozess") ist hier irrelevant -- Ziel
+    // ist nur "falls offen, schliessen".
+  });
+}
+
+function relaunchKioskChromium() {
+  kioskRelaunchTimer = null;
+  kioskRelaunchAt = null;
+  closeKioskTimerWindow();
+  execFile("pgrep", ["-f", "ticketmachine-chromium"], (error, stdout) => {
+    // Laeuft schon wieder (z. B. inzwischen manuell per SSH neu gestartet)
+    // -- nicht doppelt starten.
+    if (stdout && stdout.trim()) return;
+    // Chromiums eigene Instanz-Sperre (SingletonLock/-Socket/-Cookie im
+    // --user-data-dir) ueberlebt ein hartes Beenden (pkill) manchmal, obwohl
+    // der Prozess laut obigem pgrep laengst weg ist -- ein neuer Chromium
+    // startet dann still gar kein Fenster, weil er glaubt, es liefe schon
+    // eine Instanz (gemeldeter Bug: "Zurueck in den Kiosk" tat sichtbar
+    // nichts). Da pgrep hier bereits bestaetigt hat, dass nichts mehr
+    // laeuft, koennen diese Dateien gefahrlos entfernt werden.
+    for (const name of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+      fs.rmSync(path.join(KIOSK_USER_DATA_DIR, name), { force: true });
+    }
+    const child = spawn(
+      "chromium",
+      [
+        "--kiosk",
+        `--user-data-dir=${KIOSK_USER_DATA_DIR}`,
+        "--noerrdialogs",
+        "--disable-infobars",
+        "--disable-session-crashed-bubble",
+        "--disable-pinch",
+        "--overscroll-history-navigation=0",
+        "--check-for-update-interval=31536000",
+        "--autoplay-policy=no-user-gesture-required",
+        "--password-store=basic",
+        "--ozone-platform=wayland",
+        "http://localhost:8080",
+      ],
+      { env: kioskEnv(), detached: true, stdio: "ignore" },
+    );
+    child.unref();
+  });
+}
+
+/** Kleines, immer sichtbares Fenster oben rechts mit Countdown/Verlaengern/Zurueck-Button -- eigenes Profil, damit closeKioskTimerWindow() es gezielt (und nur es) beenden kann. */
+function openKioskTimerWindow() {
+  execFile("pgrep", ["-f", "ticketmachine-timer"], (error, stdout) => {
+    if (stdout && stdout.trim()) return; // schon offen
+    // Gleicher Grund wie in relaunchKioskChromium(): eine ueberlebende
+    // Instanz-Sperre aus einem vorherigen harten Beenden wuerde dieses
+    // Fenster sonst still verhindern.
+    for (const name of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+      fs.rmSync(path.join(KIOSK_TIMER_USER_DATA_DIR, name), { force: true });
+    }
+    const child = spawn(
+      "chromium",
+      [
+        `--app=file://${KIOSK_TIMER_HTML_PATH}`,
+        `--user-data-dir=${KIOSK_TIMER_USER_DATA_DIR}`,
+        "--window-size=340,220",
+        "--window-position=1580,0",
+        "--noerrdialogs",
+        "--disable-infobars",
+        "--ozone-platform=wayland",
+      ],
+      { env: kioskEnv(), detached: true, stdio: "ignore" },
+    );
+    child.unref();
+  });
+}
+
+function scheduleKioskRelaunch(delayMs) {
+  if (kioskRelaunchTimer) clearTimeout(kioskRelaunchTimer);
+  kioskRelaunchAt = Date.now() + delayMs;
+  kioskRelaunchTimer = setTimeout(relaunchKioskChromium, delayMs);
+  openKioskTimerWindow();
+}
+
+/**
+ * SSIDs, fuer die NetworkManager bereits ein gespeichertes Verbindungsprofil
+ * hat (inkl. Zugangsdaten) -- "nmcli device wifi connect <ssid>" OHNE
+ * Passwort aktiviert fuer diese automatisch das vorhandene Profil samt
+ * gespeichertem psk, ein erneutes Abfragen ist also unnoetig. nmcli benennt
+ * per "device wifi connect" angelegte Profile standardmaessig genau wie die
+ * SSID, daher reicht hier ein Namensabgleich statt eines Abgleichs ueber die
+ * tatsaechliche 802-11-wireless.ssid-Eigenschaft jedes Profils.
+ */
+function getKnownWifiSsids(callback) {
+  execFile("nmcli", ["-t", "-f", "NAME,TYPE", "connection", "show"], (error, stdout) => {
+    if (error) {
+      callback(new Set());
+      return;
+    }
+    const known = new Set(
+      stdout
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const parts = line.split(":");
+          const type = parts.pop();
+          const name = parts.join(":");
+          return { name, type };
+        })
+        .filter((c) => c.type === "802-11-wireless")
+        .map((c) => c.name),
+    );
+    callback(known);
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
@@ -625,8 +768,47 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 500, { ok: false, killed: false, exitCode });
           return;
         }
-        sendJson(res, 200, { ok: true, killed: exitCode === 0 });
+        const killed = exitCode === 0;
+        // Selbstheilung: ohne echten Desktop mit Panel/WLAN-Applet (siehe
+        // README, dafuer gibt's ja gerade den WLAN-Bereich im Admin-Panel)
+        // blieb der darunterliegende Compositor nach dem Beenden bisher ein
+        // dauerhaft leerer, nicht bedienbarer Blackscreen -- ohne Fernzugriff
+        // (SSH/Ethernet) kam man von dort aus praktisch NIE wieder in den
+        // Kiosk zurueck (gemeldeter Vorfall). Jetzt startet der Kiosk sich
+        // nach einer Schonfrist automatisch selbst neu, falls er nicht
+        // laengst manuell (z. B. per SSH) wieder laeuft.
+        if (killed) scheduleKioskRelaunch(KIOSK_RELAUNCH_DELAY_MS);
+        sendJson(res, 200, { ok: true, killed, relaunchInMinutes: killed ? KIOSK_RELAUNCH_DELAY_MS / 60_000 : null });
       });
+      return;
+    }
+
+    // Absichtlich OHNE requireAdmin: das kleine Timer-Fenster (siehe
+    // openKioskTimerWindow) hat keine eigene Admin-Sitzung und soll auch
+    // keine brauchen -- es kann ohnehin nur einen bereits laufenden Timer
+    // anzeigen/verlaengern/vorzeitig beenden, keine neuen admin-geschuetzten
+    // Aktionen ausloesen. Ohne aktiven Timer bleibt es wirkungslos.
+    if (url.pathname === "/api/kiosk/exit-status" && req.method === "GET") {
+      const active = kioskRelaunchAt !== null;
+      sendJson(res, 200, { active, remainingMs: active ? Math.max(0, kioskRelaunchAt - Date.now()) : 0 });
+      return;
+    }
+
+    if (url.pathname === "/api/kiosk/exit-extend" && req.method === "POST") {
+      if (kioskRelaunchAt === null) {
+        sendJson(res, 200, { active: false });
+        return;
+      }
+      const remaining = Math.max(0, kioskRelaunchAt - Date.now());
+      scheduleKioskRelaunch(remaining + KIOSK_EXTEND_MS);
+      sendJson(res, 200, { active: true, remainingMs: kioskRelaunchAt - Date.now() });
+      return;
+    }
+
+    if (url.pathname === "/api/kiosk/exit-return" && req.method === "POST") {
+      if (kioskRelaunchTimer) clearTimeout(kioskRelaunchTimer);
+      relaunchKioskChromium();
+      sendJson(res, 200, { ok: true });
       return;
     }
 
@@ -769,43 +951,51 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/system/wifi/scan" && req.method === "GET") {
       if (!requireAdmin(req, res)) return;
-      execFile(
-        "nmcli",
-        ["-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "device", "wifi", "list", "--rescan", "yes"],
-        { timeout: 15_000 },
-        (error, stdout) => {
-          if (error) {
-            sendJson(res, 500, { error: "nmcli_scan_failed" });
-            return;
-          }
-          const seen = new Set();
-          const networks = stdout
-            .split("\n")
-            .filter(Boolean)
-            .map((line) => {
-              // nmcli-terse-Felder sind ":"-getrennt; die SSID selbst steht
-              // vorne und koennte theoretisch selbst ein ":" enthalten,
-              // daher von HINTEN (feste Feldanzahl der drei letzten Spalten)
-              // statt von vorne zerlegen.
-              const parts = line.split(":");
-              const inUse = parts.pop();
-              const security = parts.pop();
-              const signal = parts.pop();
-              const ssid = parts.join(":");
-              return {
-                ssid,
-                signal: Number(signal) || 0,
-                secured: security !== "" && security !== "--",
-                inUse: inUse === "*",
-              };
-            })
-            // Dieselbe SSID kann mehrfach auftauchen (mehrere Access Points
-            // desselben Netzwerks) -- nur den ersten (staerksten, da nmcli
-            // absteigend sortiert liefert) Treffer behalten.
-            .filter((n) => n.ssid && !seen.has(n.ssid) && seen.add(n.ssid));
-          sendJson(res, 200, { networks });
-        },
-      );
+      // Bekannte Netzwerke (bereits per nmcli gespeicherte Zugangsdaten) VOR
+      // dem eigentlichen Scan ermitteln, um sie in der Antwort pro SSID zu
+      // markieren -- siehe getKnownWifiSsids weiter unten. nmcli benennt
+      // per "device wifi connect" angelegte Profile standardmaessig genau
+      // wie die SSID, daher reicht ein simpler Namensabgleich.
+      getKnownWifiSsids((knownSsids) => {
+        execFile(
+          "nmcli",
+          ["-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "device", "wifi", "list", "--rescan", "yes"],
+          { timeout: 15_000 },
+          (error, stdout) => {
+            if (error) {
+              sendJson(res, 500, { error: "nmcli_scan_failed" });
+              return;
+            }
+            const seen = new Set();
+            const networks = stdout
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => {
+                // nmcli-terse-Felder sind ":"-getrennt; die SSID selbst steht
+                // vorne und koennte theoretisch selbst ein ":" enthalten,
+                // daher von HINTEN (feste Feldanzahl der drei letzten Spalten)
+                // statt von vorne zerlegen.
+                const parts = line.split(":");
+                const inUse = parts.pop();
+                const security = parts.pop();
+                const signal = parts.pop();
+                const ssid = parts.join(":");
+                return {
+                  ssid,
+                  signal: Number(signal) || 0,
+                  secured: security !== "" && security !== "--",
+                  inUse: inUse === "*",
+                  known: knownSsids.has(ssid),
+                };
+              })
+              // Dieselbe SSID kann mehrfach auftauchen (mehrere Access Points
+              // desselben Netzwerks) -- nur den ersten (staerksten, da nmcli
+              // absteigend sortiert liefert) Treffer behalten.
+              .filter((n) => n.ssid && !seen.has(n.ssid) && seen.add(n.ssid));
+            sendJson(res, 200, { networks });
+          },
+        );
+      });
       return;
     }
 

@@ -7,6 +7,7 @@ import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { startTrainChug, stopTrainChug, preloadTrainChug, playPartyShuttleJingle } from "../../core/sound";
 import { registerGame } from "../registry";
+import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "train-sim";
 // Eigenes Board (statt "default"), da das alte Spielprinzip (meiste besuchte
@@ -161,6 +162,7 @@ function createTrainSimGame(): MinigameModule {
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  let exitGame: () => void = () => {};
 
   let topBar: HTMLDivElement;
   let goalLine: HTMLDivElement;
@@ -350,6 +352,16 @@ function createTrainSimGame(): MinigameModule {
     again.textContent = "Nochmal";
     again.addEventListener("click", resetRun);
     finishHost.appendChild(again);
+
+    // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+    // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+    // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+    // Button treffen muss.
+    const menuBtn = buildMenuButton(exitGame);
+    menuBtn.style.width = "100%";
+    menuBtn.style.marginTop = "8px";
+    menuBtn.style.justifyContent = "center";
+    finishHost.appendChild(menuBtn);
   }
 
   function resetRun(): void {
@@ -671,6 +683,7 @@ function createTrainSimGame(): MinigameModule {
 
     init(env: GameEnv) {
       preloadTrainChug();
+      exitGame = env.exit;
       topBar = document.createElement("div");
       topBar.className = "stage-top-bar";
 

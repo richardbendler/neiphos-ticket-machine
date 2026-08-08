@@ -50,6 +50,7 @@ function createConnectionPuzzleGame(): MinigameModule {
   let headerZone: HTMLDivElement;
   let panel: HTMLDivElement;
   let berlinMap: BerlinMapHandle;
+  let exitGame: () => void = () => {};
 
   function startNewRound(): RoundState {
     const { start, end, optimal } = pickRandomPair(allStations);
@@ -124,6 +125,7 @@ function createConnectionPuzzleGame(): MinigameModule {
         resetGame();
         render();
       },
+      onExit: exitGame,
     });
   }
 
@@ -245,6 +247,7 @@ function createConnectionPuzzleGame(): MinigameModule {
 
     init(env: GameEnv) {
       preloadTrainChug();
+      exitGame = env.exit;
       allStations = getAllStations();
 
       // Feste 25/25/50-Aufteilung der Spielflaeche (Karte / Start+Ziel /

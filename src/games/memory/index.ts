@@ -7,6 +7,7 @@ import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { fitAspectToContainer } from "../../core/squareFit";
 import { icons } from "../../core/icons";
+import { buildMenuButton } from "../../core/menuButton";
 import { registerGame } from "../registry";
 
 const GAME_ID = "memory";
@@ -121,6 +122,7 @@ function createMemoryGame(): MinigameModule {
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  let exitGame: () => void = () => {};
 
   let panel: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
@@ -324,6 +326,16 @@ function createMemoryGame(): MinigameModule {
       actions.append(again, change);
       card.appendChild(actions);
       panel.appendChild(card);
+
+      // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+      // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+      // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+      // Button treffen muss.
+      const menuBtn = buildMenuButton(exitGame);
+      menuBtn.style.width = "100%";
+      menuBtn.style.marginTop = "8px";
+      menuBtn.style.justifyContent = "center";
+      card.appendChild(menuBtn);
     } else {
       panel.innerHTML = "";
     }
@@ -479,6 +491,7 @@ function createMemoryGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      exitGame = env.exit;
       panel = document.createElement("div");
       panel.className = "stage-center-panel";
 

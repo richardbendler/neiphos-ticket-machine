@@ -3,6 +3,7 @@ import { theme } from "../../core/theme";
 import { OnScreenKeyboard } from "../../core/OnScreenKeyboard";
 import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
+import { buildMenuButton } from "../../core/menuButton";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
@@ -113,6 +114,7 @@ function createCountPassengersGame(): MinigameModule {
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  let exitGame: () => void = () => {};
 
   function renderSpeedPanel(): void {
     speedPanel.innerHTML = "";
@@ -283,6 +285,16 @@ function createCountPassengersGame(): MinigameModule {
       actions.appendChild(changeSpeed);
 
       panel.appendChild(actions);
+
+      // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+      // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+      // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+      // Button treffen muss.
+      const menuBtn = buildMenuButton(exitGame);
+      menuBtn.style.width = "100%";
+      menuBtn.style.marginTop = "8px";
+      menuBtn.style.justifyContent = "center";
+      panel.appendChild(menuBtn);
     }
   }
 
@@ -399,6 +411,7 @@ function createCountPassengersGame(): MinigameModule {
 
     init(env: GameEnv) {
       preloadTrainChug();
+      exitGame = env.exit;
       for (const card of hopperAnimalCards) getImage(card.image);
 
       speedPanel = document.createElement("div");
@@ -484,12 +497,14 @@ function createCountPassengersGame(): MinigameModule {
         if (trainOffsetX > size.width) {
           startInputPhase();
         }
-      } else {
-        ctx.fillStyle = theme.textFaint;
-        ctx.textAlign = "center";
-        ctx.font = `500 13px ${theme.font}`;
-        ctx.fillText(phase === "input" ? "Der Zug ist durchgefahren." : "", size.width / 2, trackY - 100);
       }
+      // Sonst (u. a. "input"): bewusst NICHTS mehr zeichnen -- hier stand
+      // frueher "Der Zug ist durchgefahren." in hellgrauer Schrift auf dem
+      // Canvas, das aber je nach Bildschirmgroesse teilweise hinter/neben
+      // dem DOM-Panel (Frage + Zahlenfeld + Tastatur) hervorschimmerte und
+      // wie liegengebliebener "Geister-Text" wirkte (gemeldet). Die Frage
+      // "Wie viele Hüpftiere hast du gezählt?" im Panel selbst sagt ohnehin
+      // schon alles Noetige, der Canvas-Text war rein redundant.
     },
 
     cleanup() {

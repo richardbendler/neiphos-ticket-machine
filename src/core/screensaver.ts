@@ -1,4 +1,5 @@
 import { loadJSON, saveJSON } from "./storage";
+import shinkansenN700 from "../assets/images/trains/shinkansen-n700.png";
 
 /**
  * Bildschirmschoner: zeigt nach einer einstellbaren Zeit ganz ohne Eingabe
@@ -68,28 +69,28 @@ export function applySettingsChanged(): void {
 }
 
 /**
- * Dritte Ueberarbeitung nach wiederholtem Nutzer-Feedback ("sieht noch
- * kacke aus" / "das mit dem Zug scheinst du nicht hinzubekommen"): zwei
- * eigene CSS-Konstruktionen (Lok+Wagen aus mehreren Kastenformen, danach
- * ein einzelner Umriss per border-radius) wirkten beide nicht wie ein
- * Zug -- bei border-radius in dieser Groessenordnung (70% Bildschirmhoehe)
- * entsteht nur ein unfoermiger Klecks, keine erkennbare Zugform. Statt
- * selbst eine Silhouette zu konstruieren, jetzt die fertig illustrierte
- * Emoji-Glyphe "🚂" (Lokomotive, U+1F682) -- die ist von professionellen
- * Icon-Designern gezeichnet, sieht dadurch garantiert wie ein Zug aus.
- * Bewusst diese statt z. B. "🚆" gewaehlt: Recherche zeigt, "🚂" wird
- * plattformuebergreifend sehr konsistent als seitliche, nach LINKS fahrende
- * Lok dargestellt (passt exakt zu unserer Fahrtrichtung), waehrend "🚆" je
- * nach Schriftart zwischen Seitenansicht und einer Frontalansicht
- * schwankt (lokal unter Windows/Edge getestet: Frontalansicht -- fuer eine
- * seitlich ueber den Bildschirm scrollende Animation ungeeignet). Bleibt
- * als Text genauso billig zu animieren (translateX) wie jede andere
- * Loesung hier.
+ * Vierte Ueberarbeitung nach wiederholtem Nutzer-Feedback: zwei eigene
+ * CSS-Konstruktionen wirkten nicht wie ein Zug (siehe Git-Historie), die
+ * danach genutzte Emoji-Glyphe "🚂" sah zwar wie ein Zug aus, wurde bei der
+ * gewuenschten Groesse (70% Bildschirmhoehe) aber sichtbar verpixelt
+ * (gemeldet) -- Farb-Emoji-Schriftarten wie Noto Color Emoji (Standard auf
+ * Raspberry Pi OS) sind intern Bitmaps mit einer festen, recht kleinen
+ * Aufloesung (ueblich ca. 136px), ein Hochskalieren per font-size auf
+ * hunderte Pixel vergroessert zwangslaeufig genau diese Pixel sichtbar mit
+ * -- das ist ein GRUNDSAETZLICHES Problem von Bitmap-Emoji-Fonts, keine
+ * Einstellung, die man wegkonfigurieren koennte. Jetzt stattdessen eines
+ * der echten, hochaufgeloesten Zugfotos, die im Rest der App ohnehin schon
+ * verwendet werden (siehe data/trains.ts) -- als PNG MIT Transparenz
+ * exportiert (statt der sonst ueblichen rechteckigen JPGs), skaliert daher
+ * sauber ohne sichtbaren Rahmen frei auf dem dunklen Hintergrund.
  */
 function buildTrain(): HTMLDivElement {
   const train = document.createElement("div");
   train.className = "screensaver-train";
-  train.textContent = "🚂";
+  const img = document.createElement("img");
+  img.src = shinkansenN700;
+  img.alt = "";
+  train.appendChild(img);
   return train;
 }
 

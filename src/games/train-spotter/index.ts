@@ -12,6 +12,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { fitSquareToContainer } from "../../core/squareFit";
 import { icons } from "../../core/icons";
 import { registerGame } from "../registry";
+import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "train-spotter";
 const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
@@ -85,6 +86,7 @@ function createTrainSpotterGame(): MinigameModule {
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let closeIntro: (() => void) | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  let exitGame: () => void = () => {};
 
   let gridHost: HTMLDivElement;
   let doneOverlay: HTMLDivElement;
@@ -194,7 +196,16 @@ function createTrainSpotterGame(): MinigameModule {
     change.textContent = "Anderes Thema";
     change.addEventListener("click", showThemeSelect);
 
-    doneOverlay.append(title, sub, again, change);
+    // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+    // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+    // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+    // Button treffen muss.
+    const menuBtn = buildMenuButton(exitGame);
+    menuBtn.style.width = "100%";
+    menuBtn.style.marginTop = "8px";
+    menuBtn.style.justifyContent = "center";
+
+    doneOverlay.append(title, sub, again, change, menuBtn);
   }
 
   function showThemeSelect(): void {
@@ -286,6 +297,7 @@ function createTrainSpotterGame(): MinigameModule {
     id: GAME_ID,
 
     init(env: GameEnv) {
+      exitGame = env.exit;
       gridHost = document.createElement("div");
       gridHost.className = "tile-grid";
 

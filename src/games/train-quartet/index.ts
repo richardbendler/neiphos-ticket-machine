@@ -6,6 +6,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { registerGame } from "../registry";
+import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "train-quartet";
 const STAT_KEYS = Object.keys(STAT_LABELS) as (keyof TrainStats)[];
@@ -174,6 +175,7 @@ function createTrainQuartetGame(): MinigameModule {
   let continueBtn: HTMLButtonElement | null = null;
   let messageEl: HTMLDivElement | null = null;
   let evaluationEl: HTMLDivElement | null = null;
+  let menuBtn: HTMLButtonElement | null = null;
   let closeIntro: (() => void) | null = null;
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
@@ -211,7 +213,7 @@ function createTrainQuartetGame(): MinigameModule {
   }
 
   function updateOverlay(): void {
-    if (!messageEl || !continueBtn || !evaluationEl) return;
+    if (!messageEl || !continueBtn || !evaluationEl || !menuBtn) return;
     if (phase === "comparing" && outcome) {
       const text =
         outcome === "player"
@@ -224,6 +226,7 @@ function createTrainQuartetGame(): MinigameModule {
       evaluationEl.style.display = "none";
       continueBtn.style.display = "block";
       continueBtn.textContent = "Weiter";
+      menuBtn.style.display = "none";
     } else if (phase === "game-over") {
       const summary =
         playerRoundWins > cpuRoundWins
@@ -237,10 +240,12 @@ function createTrainQuartetGame(): MinigameModule {
       evaluationEl.style.display = "block";
       continueBtn.style.display = "block";
       continueBtn.textContent = "Nochmal spielen";
+      menuBtn.style.display = "flex";
     } else {
       messageEl.style.display = "none";
       evaluationEl.style.display = "none";
       continueBtn.style.display = "none";
+      menuBtn.style.display = "none";
     }
   }
 
@@ -596,6 +601,16 @@ function createTrainQuartetGame(): MinigameModule {
       continueBtn.style.display = "none";
       continueBtn.addEventListener("click", handleContinue);
 
+      // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+      // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+      // Spielende (game-over) nicht extra den kleineren, weiter entfernten
+      // Kopfleisten-Button treffen muss. Nur dort sichtbar, siehe
+      // updateOverlay().
+      menuBtn = buildMenuButton(env.exit);
+      menuBtn.style.display = "none";
+      menuBtn.style.width = "100%";
+      menuBtn.style.justifyContent = "center";
+
       const wrap = document.createElement("div");
       wrap.className = "stage-sheet";
       wrap.style.alignItems = "center";
@@ -608,6 +623,7 @@ function createTrainQuartetGame(): MinigameModule {
       wrap.appendChild(messageEl);
       wrap.appendChild(evaluationEl);
       wrap.appendChild(continueBtn);
+      wrap.appendChild(menuBtn);
       env.overlay.appendChild(wrap);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatCardCount);
@@ -769,26 +785,29 @@ function createTrainQuartetGame(): MinigameModule {
             // Grosser, sanft huepfender Pfeil + fette Anzeige beim allerersten
             // Zug JEDER Partie (nicht nur beim allerersten Mal ueberhaupt) --
             // auf Anhieb soll klar sein, dass die Statzeilen auf der Karte
-            // selbst antippbar sind.
-            const bounce = Math.sin(tutorialPulseTimer * 3.4) * 6;
+            // selbst antippbar sind. Pfeil+Text auf ausdruecklichen Wunsch
+            // deutlich vergroessert (wirkten vorher zu klein/unauffaellig) --
+            // passt weiterhin bequem in die ohnehin schon grosszuegig
+            // bemessene untere Reserve (bottomMargin, bis zu 210px).
+            const bounce = Math.sin(tutorialPulseTimer * 3.4) * 8;
             const arrowCenterX = size.width / 2;
-            const arrowTopY = rect.y + rect.height + 14 + bounce;
+            const arrowTopY = rect.y + rect.height + 16 + bounce;
             ctx.fillStyle = theme.accent;
             ctx.beginPath();
             ctx.moveTo(arrowCenterX, arrowTopY);
-            ctx.lineTo(arrowCenterX - 15, arrowTopY + 16);
-            ctx.lineTo(arrowCenterX - 6, arrowTopY + 16);
-            ctx.lineTo(arrowCenterX - 6, arrowTopY + 28);
-            ctx.lineTo(arrowCenterX + 6, arrowTopY + 28);
-            ctx.lineTo(arrowCenterX + 6, arrowTopY + 16);
-            ctx.lineTo(arrowCenterX + 15, arrowTopY + 16);
+            ctx.lineTo(arrowCenterX - 24, arrowTopY + 26);
+            ctx.lineTo(arrowCenterX - 10, arrowTopY + 26);
+            ctx.lineTo(arrowCenterX - 10, arrowTopY + 44);
+            ctx.lineTo(arrowCenterX + 10, arrowTopY + 44);
+            ctx.lineTo(arrowCenterX + 10, arrowTopY + 26);
+            ctx.lineTo(arrowCenterX + 24, arrowTopY + 26);
             ctx.closePath();
             ctx.fill();
 
             ctx.fillStyle = theme.accent;
-            ctx.font = `800 19px ${theme.fontDisplay}`;
+            ctx.font = `800 30px ${theme.fontDisplay}`;
             ctx.textAlign = "center";
-            ctx.fillText("Wähle eine Eigenschaft!", size.width / 2, arrowTopY + 54);
+            ctx.fillText("Wähle eine Eigenschaft!", size.width / 2, arrowTopY + 82);
           } else {
             ctx.fillStyle = theme.textMuted;
             ctx.font = `700 15px ${theme.fontDisplay}`;
@@ -874,6 +893,7 @@ function createTrainQuartetGame(): MinigameModule {
       messageEl = null;
       evaluationEl = null;
       continueBtn = null;
+      menuBtn = null;
     },
   };
 }

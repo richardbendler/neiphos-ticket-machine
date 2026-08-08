@@ -8,6 +8,7 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
+import { buildMenuButton } from "../../core/menuButton";
 
 const imageCache = new Map<string, HTMLImageElement>();
 function getImage(src: string): HTMLImageElement {
@@ -108,6 +109,7 @@ function createTrainPhotoGame(): MinigameModule {
   let closeIntro: (() => void) | null = null;
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  let exitGame: () => void = () => {};
 
   function trackY(size: { height: number }): number {
     return size.height * 0.58;
@@ -287,6 +289,16 @@ function createTrainPhotoGame(): MinigameModule {
     actions.appendChild(changeSpeed);
 
     sheet.appendChild(actions);
+
+    // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+    // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+    // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+    // Button treffen muss.
+    const menuBtn = buildMenuButton(exitGame);
+    menuBtn.style.width = "100%";
+    menuBtn.style.marginTop = "8px";
+    menuBtn.style.justifyContent = "center";
+    sheet.appendChild(menuBtn);
   }
 
   function drawTrain(ctx: CanvasRenderingContext2D, offsetX: number, y: number): void {
@@ -509,6 +521,7 @@ function createTrainPhotoGame(): MinigameModule {
 
     init(env: GameEnv) {
       preloadTrainChug();
+      exitGame = env.exit;
       for (const card of hopperAnimalCards) getImage(card.image);
 
       speedPanel = document.createElement("div");

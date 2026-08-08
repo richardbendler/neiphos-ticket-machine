@@ -1933,7 +1933,7 @@ button {
   stroke-width: 5px;
 }
 
-/* ------------------- Verbindungssuche: feste 25/25/50-Zonen-Aufteilung
+/* ------------------- Verbindungssuche: feste 25/20/55-Zonen-Aufteilung
    (games/connection-puzzle) -- auf ausdruecklichen Wunsch, weil auf
    groesseren Bildschirmen (viel verfuegbare --game-area-h) vorher unten viel
    Platz frei blieb: die Karte und die Linienauswahl waren jeweils nur so
@@ -1941,7 +1941,11 @@ button {
    da war. Jede Zone bekommt jetzt einen FESTEN Anteil von --game-area-h,
    Schriftgroessen/Chip-Groessen darin sind vh-basiert (siehe games/
    connection-puzzle/ui.ts), skalieren also mit, wenn die Zone dadurch
-   groesser wird. */
+   groesser wird. Start/Ziel-Zone war urspruenglich 25%, auf ausdruecklichen
+   Wunsch auf 20% reduziert (die groessere Schrift dort brauchte den vollen
+   Anteil ohnehin nicht) -- die frei werdenden 5% gehen an die Linienzone
+   darunter, wo sich die ausgewaehlten Linien-Chips und der Fehler-/
+   Tipp-Text sonst zu dicht draengten (gemeldet). */
 .connection-puzzle-map-zone {
   position: absolute;
   left: 0;
@@ -1963,7 +1967,7 @@ button {
   left: 0;
   right: 0;
   top: calc(var(--header-h) + var(--safe-top) + var(--game-area-h) * 0.25);
-  height: calc(var(--game-area-h) * 0.25);
+  height: calc(var(--game-area-h) * 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1975,7 +1979,7 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--header-h) + var(--safe-top) + var(--game-area-h) * 0.5);
+  top: calc(var(--header-h) + var(--safe-top) + var(--game-area-h) * 0.45);
   bottom: calc(var(--footer-h) + var(--safe-bottom));
   display: flex;
   flex-direction: column;
@@ -2078,32 +2082,39 @@ button {
 
 .screensaver-track {
   position: relative;
-  /* Etwas hoeher als die Zielgroesse (siehe .screensaver-train) -- der Zug
-     selbst soll ca. 70% der Bildschirmhoehe einnehmen, braucht als Kind mit
-     height:94% aber einen leicht groesseren Rahmen. */
   width: 100%;
-  height: 75vh;
+  /* Nur noch eine grosszuegige Huelle -- die tatsaechliche Hoehe ergibt sich
+     jetzt aus der Bildbreite (siehe .screensaver-train), nicht mehr
+     umgekehrt. */
+  height: 40vh;
   flex-shrink: 0;
   overflow: hidden;
 }
 
-/* Dritte Ueberarbeitung nach wiederholtem Nutzer-Feedback -- siehe
-   ausfuehrlichen Kommentar in core/screensaver.ts#buildTrain: zwei eigene
-   CSS-Konstruktionen wirkten beide nicht wie ein Zug, jetzt stattdessen die
-   fertig illustrierte Emoji-Glyphe "🚆". font-size ist hier direkt die
-   Steuergroesse (kein separates Breiten-/Hoehen-Modell mehr noetig). */
+/* Vierte Ueberarbeitung -- siehe ausfuehrlichen Kommentar in
+   core/screensaver.ts#buildTrain: ein echtes, hochaufgeloestes Zugfoto
+   (PNG mit Transparenz) statt der bei grosser Darstellung sichtbar
+   verpixelten Emoji-Glyphe. Ueber die BREITE skaliert (nicht mehr wie beim
+   Emoji per font-size/Hoehe) -- das Foto ist sehr breit und flach
+   (Zugfront-Perspektive), eine Hoehenvorgabe wie zuvor haette es absurd
+   breit gezogen. */
 .screensaver-train {
   position: absolute;
   top: 50%;
   left: 0;
-  font-size: 70vh;
-  line-height: 1;
+  width: clamp(340px, 46vw, 1000px);
   filter: drop-shadow(0 clamp(10px, 2vh, 26px) clamp(16px, 3vh, 34px) rgba(0, 0, 0, 0.5));
   /* Start komplett rechts ausserhalb, Ende komplett links ausserhalb -- "-100%"
      bezieht sich bei transform auf die EIGENE Breite des Elements, dadurch
      ist die Animation unabhaengig von der tatsaechlichen Zugbreite immer
      sauber. "Gemuetlich" = grosszuegige 22s pro Durchlauf. */
   animation: screensaver-scroll 22s linear infinite;
+}
+
+.screensaver-train img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 @keyframes screensaver-scroll {

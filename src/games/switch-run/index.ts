@@ -6,6 +6,7 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { showGameIntro } from "../../core/gameIntro";
 import { startTrainChug, stopTrainChug, preloadTrainChug, playSwitchSuccessSound, playSwitchCrashSound } from "../../core/sound";
 import { registerGame } from "../registry";
+import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "switch-run";
 const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
@@ -64,6 +65,7 @@ function createSwitchRunGame(): MinigameModule {
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
   let closeIntro: (() => void) | null = null;
   let highscoreBanner: HighscoreBannerHandle;
+  let exitGame: () => void = () => {};
 
   let buttonBar: HTMLDivElement;
   const laneButtons: Partial<Record<Lane, HTMLButtonElement>> = {};
@@ -105,7 +107,15 @@ function createSwitchRunGame(): MinigameModule {
       again.className = "btn btn--accent";
       again.textContent = "Nochmal spielen";
       again.addEventListener("click", () => restart());
-      gameOverPanel.append(title, scoreLine, again);
+      // Gleiches Design wie der permanente "Menü"-Button oben links (siehe
+      // core/menuButton.ts) -- auf ausdruecklichen Wunsch, damit man nach
+      // Spielende nicht extra den kleineren, weiter entfernten Kopfleisten-
+      // Button treffen muss.
+      const menuBtn = buildMenuButton(exitGame);
+      menuBtn.style.width = "100%";
+      menuBtn.style.marginTop = "8px";
+      menuBtn.style.justifyContent = "center";
+      gameOverPanel.append(title, scoreLine, again, menuBtn);
     }
   }
 
@@ -126,7 +136,11 @@ function createSwitchRunGame(): MinigameModule {
       description: [
         "Vor jeder Weiche läuft ein Countdown",
         "Wähle Links, Mitte oder Rechts",
-        "Eine Richtung ist immer eine Sackgasse",
+        // Auf ausdruecklichen Wunsch expliziter als vorher ("Eine Richtung
+        // ist immer eine Sackgasse") -- das liess offen, ob sich die
+        // Sackgasse merken/erraten laesst. Jetzt klar als reines
+        // Gluecksspiel benannt, bei jeder Weiche neu ausgelost.
+        "Welche Richtung die Sackgasse ist, wird bei jeder Weiche neu zufällig ausgelost -- reines Glück!",
         "Ohne Wahl hältst du am Ende einfach an",
       ],
       onStart: () => {
@@ -413,6 +427,7 @@ function createSwitchRunGame(): MinigameModule {
 
     init(env: GameEnv) {
       preloadTrainChug();
+      exitGame = env.exit;
       buttonBar = document.createElement("div");
       buttonBar.style.display = "none";
       buttonBar.style.gap = "12px";

@@ -11,13 +11,20 @@
  * nicht als Hüpftier erkennbar war (eher wie ein kleines Fabelwesen mit
  * Fühlern). Nur Motive mit klar sichtbaren Beinen/Fuessen zaehlen hier.
  *
- * Diese 24 Bilder wurden vom Projekt-Betreiber selbst per Screenshot
+ * Diese Bilder wurden vom Projekt-Betreiber selbst per Screenshot
  * zusammengestellt (Produktfotos verschiedener Online-Shops, keine
  * durchgaengige CC-Lizenzangabe wie bei den urspruenglichen 8 Flickr-Fotos)
  * -- bewusste Entscheidung fuer dieses private, nicht-kommerzielle
  * Festival-Kiosk-Projekt. Absichtlich viele verschiedene Tierarten (nicht
  * nur Farbvarianten eines einzigen Tiers) fuer bessere Unterscheidbarkeit
  * im Memory-/Spotter-Spiel.
+ *
+ * "elephant-blue" und "elephant-red" wurden wieder entfernt: beide stammten
+ * aus EINEM Quellfoto mit einem blauen UND einem roten Elefanten
+ * nebeneinander, das nachtraeglich in zwei Einzelbilder aufgetrennt wurde --
+ * an den Raendern blieb dadurch jeweils ein sichtbarer Rest des jeweils
+ * anderen Elefanten stehen (gemeldet, sah dadurch schlecht/unfertig aus).
+ * "elephant-gray" ist ein eigenstaendiges, sauberes Foto und bleibt erhalten.
  */
 import dogTealUrl from "../assets/images/hoppers/hopper-dog-teal.jpg";
 import caterpillarGreenUrl from "../assets/images/hoppers/hopper-caterpillar-green.jpg";
@@ -27,8 +34,6 @@ import dinoGreenUrl from "../assets/images/hoppers/hopper-dino-green.jpg";
 import dogPurpleUrl from "../assets/images/hoppers/hopper-dog-purple.jpg";
 import dinoTealUrl from "../assets/images/hoppers/hopper-dino-teal.jpg";
 import dogBrownUrl from "../assets/images/hoppers/hopper-dog-brown.jpg";
-import elephantBlueUrl from "../assets/images/hoppers/hopper-elephant-blue.jpg";
-import elephantRedUrl from "../assets/images/hoppers/hopper-elephant-red.jpg";
 import dinoOrangeUrl from "../assets/images/hoppers/hopper-dino-orange.jpg";
 import trexGreenUrl from "../assets/images/hoppers/hopper-trex-green.jpg";
 import unicornPurpleUrl from "../assets/images/hoppers/hopper-unicorn-purple.jpg";
@@ -59,8 +64,6 @@ export const hopperAnimalCards: HopperAnimalCard[] = [
   { id: "dog-purple", name: "Hüpftier-Hund (lila)", image: dogPurpleUrl },
   { id: "dino-teal", name: "Hüpftier-Dino (türkis)", image: dinoTealUrl },
   { id: "dog-brown", name: "Hüpftier-Hund (braun)", image: dogBrownUrl },
-  { id: "elephant-blue", name: "Hüpftier-Elefant (blau)", image: elephantBlueUrl },
-  { id: "elephant-red", name: "Hüpftier-Elefant (rot)", image: elephantRedUrl },
   { id: "dino-orange", name: "Hüpftier-Dino (orange)", image: dinoOrangeUrl },
   { id: "trex-green", name: "Hüpftier-T-Rex (grün)", image: trexGreenUrl },
   { id: "unicorn-purple", name: "Hüpftier-Einhorn (lila)", image: unicornPurpleUrl },

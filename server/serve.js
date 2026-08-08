@@ -367,6 +367,23 @@ const KIOSK_TIMER_USER_DATA_DIR = "/home/flipper/.config/ticketmachine-timer";
 const KIOSK_TIMER_HTML_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "kiosk-timer.html");
 let kioskRelaunchTimer = null;
 let kioskRelaunchAt = null;
+// Nur waehrend eine Notausgang-Pause aktiv ist gesetzt (siehe
+// openKioskTimerWindow) -- schuetzt launch-terminal/launch-filemanager
+// weiter unten davor, dass irgendein anderes Geraet im selben WLAN sie ohne
+// Admin-Anmeldung aufrufen koennte. Die kiosk-timer.html-Seite selbst hat
+// keine eigene Admin-Sitzung (siehe requireAdmin), bekommt das Token aber
+// als URL-Parameter mit, wenn der -- bereits admin-geschuetzte --
+// /api/kiosk/exit-Aufruf dieses Fenster oeffnet.
+let kioskExitToken = null;
+
+function requireKioskExitToken(req, res) {
+  const provided = req.headers["x-kiosk-exit-token"];
+  if (!kioskExitToken || typeof provided !== "string" || !provided || !timingSafeEqual(provided, kioskExitToken)) {
+    sendJson(res, 403, { error: "forbidden" });
+    return false;
+  }
+  return true;
+}
 
 function kioskEnv() {
   return {
@@ -387,7 +404,16 @@ function closeKioskTimerWindow() {
 function relaunchKioskChromium() {
   kioskRelaunchTimer = null;
   kioskRelaunchAt = null;
+  kioskExitToken = null;
   closeKioskTimerWindow();
+  // Ueber die Recovery-Seite evtl. geoeffnetes Terminal/Dateimanager (siehe
+  // /api/kiosk/launch-terminal, /launch-filemanager) beim Rueckkehren in den
+  // Kiosk ebenfalls schliessen -- sonst bliebe ein Terminal unsichtbar im
+  // Hintergrund bestehen und waere z. B. per Alt+Tab an einer angeschlossenen
+  // USB-Tastatur erreichbar. Fehler (kein passender Prozess) sind hier
+  // irrelevant, siehe closeKioskTimerWindow().
+  execFile("pkill", ["-f", "lxterminal"], () => {});
+  execFile("pkill", ["-f", "pcmanfm"], () => {});
   execFile("pgrep", ["-f", "ticketmachine-chromium"], (error, stdout) => {
     // Laeuft schon wieder (z. B. inzwischen manuell per SSH neu gestartet)
     // -- nicht doppelt starten.
@@ -424,7 +450,25 @@ function relaunchKioskChromium() {
   });
 }
 
-/** Kleines, immer sichtbares Fenster oben rechts mit Countdown/Verlaengern/Zurueck-Button -- eigenes Profil, damit closeKioskTimerWindow() es gezielt (und nur es) beenden kann. */
+/**
+ * Vollflaechiges Recovery-Fenster (Countdown/Verlaengern/Zurueck-Button PLUS
+ * Terminal-/Dateimanager-Buttons) -- eigenes Profil, damit
+ * closeKioskTimerWindow() es gezielt (und nur es) beenden kann.
+ *
+ * Frueher ein kleines floating Fenster mit --window-size/--window-position
+ * oben rechts: unter Wayland/labwc darf ein Client seine eigene
+ * Bildschirmposition nicht selbst bestimmen (anders als unter X11), die
+ * Flags wurden schlicht ignoriert und labwc platzierte das Fenster
+ * stattdessen zentriert (gemeldeter Bug). Jetzt laeuft diese Seite selbst
+ * im Vollbild (--kiosk, gleiches Muster wie der Haupt-Kiosk) und
+ * positioniert die Countdown-Box per CSS oben rechts -- gleichzeitig loest
+ * das den zweiten gemeldeten Bug (nach dem Beenden blieb ein voellig
+ * unbedienbarer Blackscreen, da labwc ohne Panel/Taskleiste/Hintergrund
+ * laeuft): die Seite bietet jetzt selbst Buttons zum Oeffnen von Terminal
+ * und Dateimanager (siehe /api/kiosk/launch-terminal und
+ * /api/kiosk/launch-filemanager weiter unten), ein echter nutzbarer Desktop
+ * ist dafuer nicht mehr noetig.
+ */
 function openKioskTimerWindow() {
   execFile("pgrep", ["-f", "ticketmachine-timer"], (error, stdout) => {
     if (stdout && stdout.trim()) return; // schon offen
@@ -434,16 +478,18 @@ function openKioskTimerWindow() {
     for (const name of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
       fs.rmSync(path.join(KIOSK_TIMER_USER_DATA_DIR, name), { force: true });
     }
+    if (!kioskExitToken) kioskExitToken = crypto.randomBytes(16).toString("hex");
     const child = spawn(
       "chromium",
       [
-        `--app=file://${KIOSK_TIMER_HTML_PATH}`,
+        "--kiosk",
         `--user-data-dir=${KIOSK_TIMER_USER_DATA_DIR}`,
-        "--window-size=340,220",
-        "--window-position=1580,0",
         "--noerrdialogs",
         "--disable-infobars",
+        "--disable-pinch",
+        "--overscroll-history-navigation=0",
         "--ozone-platform=wayland",
+        `file://${KIOSK_TIMER_HTML_PATH}?token=${kioskExitToken}`,
       ],
       { env: kioskEnv(), detached: true, stdio: "ignore" },
     );
@@ -808,6 +854,29 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/kiosk/exit-return" && req.method === "POST") {
       if (kioskRelaunchTimer) clearTimeout(kioskRelaunchTimer);
       relaunchKioskChromium();
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    // Terminal/Dateimanager direkt aus der Notausgang-Seite heraus oeffnen
+    // (siehe server/kiosk-timer.html) -- der darunterliegende labwc-Desktop
+    // hat sonst keinerlei Bedienoberflaeche (kein Panel, keine Taskleiste,
+    // kein Rechtsklick-Menue), ohne das blieb der "Notausgang" trotz
+    // beendetem Kiosk-Browser praktisch unbedienbar (gemeldeter Bug). Per
+    // Token statt requireAdmin geschuetzt, siehe requireKioskExitToken oben
+    // -- diese Seite hat keine eigene Admin-Sitzung.
+    if (url.pathname === "/api/kiosk/launch-terminal" && req.method === "POST") {
+      if (!requireKioskExitToken(req, res)) return;
+      const child = spawn("lxterminal", [], { env: kioskEnv(), detached: true, stdio: "ignore" });
+      child.unref();
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === "/api/kiosk/launch-filemanager" && req.method === "POST") {
+      if (!requireKioskExitToken(req, res)) return;
+      const child = spawn("pcmanfm", [], { env: kioskEnv(), detached: true, stdio: "ignore" });
+      child.unref();
       sendJson(res, 200, { ok: true });
       return;
     }

@@ -1245,7 +1245,7 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   exitBtn.textContent = "Kiosk-Browser jetzt beenden (Notausgang)";
   exitBtn.addEventListener("click", () => {
     confirmSimple(
-      "Beendet den Kiosk-Browser auf diesem Gerät sofort und legt den darunterliegenden Desktop frei (z. B. für WLAN-Einstellungen im Notfall). Es erscheint ein kleines Timer-Fenster oben rechts, das nach ein paar Minuten automatisch wieder in den Kiosk-Modus zurückspringt -- über das Fenster lässt sich die Zeit verlängern oder sofort zurückspringen. Funktioniert nur, wenn der lokale Server (server/serve.js) läuft.",
+      "Beendet den Kiosk-Browser auf diesem Gerät sofort. Es erscheint eine eigene Recovery-Seite mit einem Countdown oben rechts (verlängerbar, oder sofort zurück in den Kiosk) sowie Buttons, um direkt ein Terminal oder einen Dateimanager zu öffnen (z. B. für eine WLAN-Neueinrichtung per nmtui) -- ein echter Desktop ist dahinter nicht vorhanden. Funktioniert nur, wenn der lokale Server (server/serve.js) läuft.",
       "Ja, Kiosk beenden",
       () => {
         exitBtn.disabled = true;

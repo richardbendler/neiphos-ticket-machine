@@ -2,11 +2,17 @@ import type { GameSize } from "./Game";
 
 /**
  * Genereller Aufloesungs-Abschlag fuer die interne Canvas-Zeichenflaeche
- * (siehe Kommentar in resize() weiter unten) -- 0.7 bedeutet ca. die Haelfte
- * der Pixelzahl (0.7*0.7 ~ 0.49), also ungefaehr halbe Fuellrate/Zeichenlast
- * gegenueber der vollen Anzeigeaufloesung.
+ * (siehe Kommentar in resize() weiter unten). War zeitweise 0.7, dann 0.85 --
+ * auf einem Pi 3 mit korrekt gesetztem CPU-Governor "performance" (siehe
+ * README, Abschnitt "Performance-Tuning fuer den Pi 3") wurde selbst bei
+ * 0.85 noch sichtbare Verpixelung gemeldet (v. a. bei echten Foto-Assets,
+ * z. B. Zug-Quartett-Karten). Jetzt auf 1 (kein Abschlag mehr) -- die
+ * urspruengliche Ruckel-Ursache war die Systemebene (CPU-Governor,
+ * unnoetige Desktop-Prozesse, siehe README), nicht primaer die Canvas-
+ * Aufloesung. Bei erneuten Performance-Problemen auf schwacher Hardware
+ * diesen Wert als Erstes wieder senken (0.85 als erster Zwischenschritt).
  */
-const RENDER_SCALE = 0.7;
+const RENDER_SCALE = 1;
 
 /**
  * Richtet ein Canvas fuer scharfes Rendering auf Displays mit
@@ -20,6 +26,13 @@ export function setupCanvas(canvas: HTMLCanvasElement): {
   const maybeCtx = canvas.getContext("2d", { alpha: false });
   if (!maybeCtx) throw new Error("2D-Canvas-Kontext wird von diesem Browser nicht unterstuetzt.");
   const ctx: CanvasRenderingContext2D = maybeCtx;
+  // Browser-Default fuer imageSmoothingQuality ist "low" (billigster
+  // Resampling-Filter) -- faellt v. a. bei drawImage() mit Skalierung
+  // (Foto-Assets wie die Zug-Quartett-Karten, siehe games/train-quartet)
+  // als unnoetige zusaetzliche Unschaerfe/Blockigkeit auf. "high" kostet auf
+  // dem Pi 3 keine spuerbare zusaetzliche Zeit (Bilder werden nur einmal pro
+  // Layoutaenderung neu skaliert gezeichnet, nicht jeden Frame).
+  ctx.imageSmoothingQuality = "high";
 
   function resize(): GameSize {
     // DPR auf 2 gedeckelt: der Pi 5 muss nicht jedes Pixel eines 3x-Displays

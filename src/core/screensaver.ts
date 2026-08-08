@@ -65,55 +65,29 @@ export function applySettingsChanged(): void {
   scheduleIdleTimer();
 }
 
-function buildWheels(count: number): HTMLDivElement {
-  const wrap = document.createElement("div");
-  wrap.className = "screensaver-train__wheels";
-  for (let i = 0; i < count; i++) {
-    const wheel = document.createElement("div");
-    wheel.className = "screensaver-train__wheel";
-    wrap.appendChild(wheel);
-  }
-  return wrap;
-}
-
 /**
- * Lok + ein Wagen statt einer schlichten Box mit weissen Quadraten (erste
- * Fassung, auf Nutzer-Feedback hin ueberarbeitet) -- Kabine, Schlot,
- * Scheinwerfer mit Glow, Fensterreihe mit Glas-Farbverlauf, Akzentstreifen
- * und Raeder je Wagen. Weiterhin reine CSS-Formen (kein SVG/Bild), bleibt
- * also genauso billig zu animieren wie vorher.
+ * Dritte Ueberarbeitung nach wiederholtem Nutzer-Feedback ("sieht noch
+ * kacke aus" / "das mit dem Zug scheinst du nicht hinzubekommen"): zwei
+ * eigene CSS-Konstruktionen (Lok+Wagen aus mehreren Kastenformen, danach
+ * ein einzelner Umriss per border-radius) wirkten beide nicht wie ein
+ * Zug -- bei border-radius in dieser Groessenordnung (70% Bildschirmhoehe)
+ * entsteht nur ein unfoermiger Klecks, keine erkennbare Zugform. Statt
+ * selbst eine Silhouette zu konstruieren, jetzt die fertig illustrierte
+ * Emoji-Glyphe "🚂" (Lokomotive, U+1F682) -- die ist von professionellen
+ * Icon-Designern gezeichnet, sieht dadurch garantiert wie ein Zug aus.
+ * Bewusst diese statt z. B. "🚆" gewaehlt: Recherche zeigt, "🚂" wird
+ * plattformuebergreifend sehr konsistent als seitliche, nach LINKS fahrende
+ * Lok dargestellt (passt exakt zu unserer Fahrtrichtung), waehrend "🚆" je
+ * nach Schriftart zwischen Seitenansicht und einer Frontalansicht
+ * schwankt (lokal unter Windows/Edge getestet: Frontalansicht -- fuer eine
+ * seitlich ueber den Bildschirm scrollende Animation ungeeignet). Bleibt
+ * als Text genauso billig zu animieren (translateX) wie jede andere
+ * Loesung hier.
  */
 function buildTrain(): HTMLDivElement {
   const train = document.createElement("div");
   train.className = "screensaver-train";
-
-  const engine = document.createElement("div");
-  engine.className = "screensaver-train__engine";
-  const cab = document.createElement("div");
-  cab.className = "screensaver-train__cab";
-  const stack = document.createElement("div");
-  stack.className = "screensaver-train__stack";
-  const headlight = document.createElement("div");
-  headlight.className = "screensaver-train__headlight";
-  engine.append(cab, stack, headlight, buildWheels(2));
-  train.appendChild(engine);
-
-  const car = document.createElement("div");
-  car.className = "screensaver-train__car";
-  const stripe = document.createElement("div");
-  stripe.className = "screensaver-train__stripe";
-  car.appendChild(stripe);
-  for (let i = 0; i < 3; i++) {
-    const win = document.createElement("div");
-    win.className = "screensaver-train__window";
-    car.appendChild(win);
-  }
-  const label = document.createElement("div");
-  label.className = "screensaver-train__label";
-  label.textContent = "NEIPHOS EXPRESS";
-  car.append(label, buildWheels(3));
-  train.appendChild(car);
-
+  train.textContent = "🚂";
   return train;
 }
 

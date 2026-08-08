@@ -863,6 +863,13 @@ button {
   z-index: 1000;
   padding: 12px 20px;
   overflow-y: auto;
+  /* Fehlte hier (anders als bei den uebrigen overflow-y:auto-Containern,
+     siehe z. B. .modal-panel/.highscore-board/.scroll-list) -- die globale
+     "touch-action: none" auf html/body (siehe oben, gegen Pinch-/Doppeltap-
+     Zoom) blockierte dadurch Touch-Drag-Scrollen in JEDEM Dialog (Admin-
+     Bereich, Feedback, Kiosk-Anleitung, ...), nur Scrollrad/Scrollbalken-
+     Ziehen funktionierten noch (gemeldeter Bug). */
+  touch-action: pan-y;
 }
 
 .modal-panel {

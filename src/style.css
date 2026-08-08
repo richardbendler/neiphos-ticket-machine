@@ -1948,14 +1948,25 @@ button {
   background: #14181a;
   overflow: hidden;
   cursor: pointer;
+  /* Flex-Spalte statt fester vh-Positionen fuer Track/Nachricht -- robust
+     gegenueber unterschiedlich langem Nachrichtentext/Bildschirmhoehen,
+     der Bildschirmschoner-Hinweis unten bleibt trotzdem unabhaengig davon
+     immer am unteren Rand (siehe .screensaver-hint, position:absolute). */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 3vh, 36px);
 }
 
 .screensaver-track {
-  position: absolute;
-  top: 36%;
-  left: 0;
+  position: relative;
+  /* Etwas hoeher als die Zielgroesse (siehe .screensaver-train) -- der Zug
+     selbst soll ca. 60% der Bildschirmhoehe einnehmen, braucht als Kind mit
+     height:94% aber einen leicht groesseren Rahmen. */
   width: 100%;
-  height: clamp(110px, 20vh, 200px);
+  height: 64vh;
+  flex-shrink: 0;
   overflow: hidden;
 }
 
@@ -1965,12 +1976,16 @@ button {
   left: 0;
   display: flex;
   align-items: center;
-  gap: clamp(14px, 3vw, 28px);
-  height: 68%;
-  padding: 0 clamp(20px, 4vw, 40px);
+  gap: clamp(20px, 3vw, 40px);
+  /* 60% der Bildschirmhoehe auf ausdruecklichen Wunsch ("ruhig so 60%
+     einnehmen, nicht schlimm wenn der Text nicht komplett auf einmal zu
+     sehen ist") -- deutlich groesser als die urspruengliche, eher
+     dekorative Randanimation. */
+  height: 94%;
+  padding: 0 clamp(30px, 4vw, 60px);
   background: var(--primary);
-  border-radius: clamp(16px, 3vh, 28px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border-radius: clamp(24px, 4vh, 48px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
   white-space: nowrap;
   /* Start komplett rechts ausserhalb, Ende komplett links ausserhalb -- "-100%"
      bezieht sich bei transform auf die EIGENE Breite des Elements, dadurch
@@ -1991,18 +2006,21 @@ button {
 
 .screensaver-train__window {
   flex-shrink: 0;
-  width: clamp(28px, 5vw, 52px);
-  height: 60%;
+  width: clamp(50px, 8vw, 140px);
+  height: 55%;
   background: #ffffff;
-  border-radius: clamp(6px, 1vw, 10px);
-  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-radius: clamp(10px, 1.4vw, 20px);
+  border: 3px solid rgba(0, 0, 0, 0.15);
 }
 
 .screensaver-train__label {
   flex-shrink: 0;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.2rem, 4vw, 2.2rem);
+  /* Skaliert mit der Bildschirmhoehe (das Zug-Rechteck ist jetzt 60vh
+     gross) statt mit der Breite -- bei "NEIPHOS EXPRESS" darf ruhig nicht
+     mehr alles auf einen Blick sichtbar sein, siehe .screensaver-track. */
+  font-size: clamp(2rem, 8vh, 5.5rem);
   color: var(--accent);
   letter-spacing: 0.04em;
 }
@@ -2010,7 +2028,7 @@ button {
 .screensaver-message {
   position: relative;
   z-index: 1;
-  margin: clamp(140px, 26vh, 260px) auto 0;
+  flex-shrink: 0;
   max-width: min(90vw, 640px);
   text-align: center;
   font-family: var(--font-display);

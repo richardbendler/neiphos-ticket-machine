@@ -17,3 +17,4 @@ import "./dj-mixer";
 import "./train-photo";
 import "./train-sim";
 import "./mini-metro";
+import "./hopper-slots";

@@ -22,13 +22,10 @@ const TILE_ASPECT = 2.35;
 const MAX_TILE_WIDTH = 620;
 const MIN_TILE_WIDTH = 40;
 // Querformat (Breite >= Hoehe): immer 3 Spalten (bei aktuell 9 Spielen
-// also ein 3x3-Raster). Hochformat: bevorzugt 2 Spalten, faellt aber auf 1
-// zurueck, wenn selbst 2 Spalten die Kacheln unangenehm schmal machen wuerden
-// -- Kacheln UND Schrift werden ansonsten per Skalierungsfaktor kleiner/
-// groesser, statt bei wenig Platz auf noch mehr Spalten umzuspringen.
+// also ein 3x3-Raster) -- auf ausdruecklichen Wunsch fest beibehalten.
+// Hochformat: keine feste Praeferenz mehr, siehe computeGridLayout unten.
 const LANDSCAPE_COLS = 3;
-const PORTRAIT_PREFERRED_COLS = 2;
-const PORTRAIT_MIN_TILE_WIDTH_FOR_TWO_COLS = 170;
+const PORTRAIT_MAX_COLS = 3;
 // Kachelbreite, bei der Schrift/Icon in style.css ihre "normale" Groesse
 // (1.08rem/0.76rem/46px) haben -- der Skalierungsfaktor ist relativ dazu.
 const REFERENCE_TILE_WIDTH = 280;
@@ -41,37 +38,64 @@ export interface MainMenuResult {
   destroy: () => void;
 }
 
-/**
- * Kachelbreite fuer eine gegebene Spaltenzahl -- haengt bewusst NUR von der
- * verfuegbaren Breite ab, nicht von der Hoehe. Ein fruehere Version bezog
- * auch die Hoehe mit ein (um ohne Scrollen auszukommen), das liess Kacheln
- * bei vielen Zeilen (z. B. eine einzelne schmale Spalte mit 9 Kacheln
- * untereinander) aber absurd schmal werden -- mit Buchstabe-fuer-Buchstabe-
- * Zeilenumbruch. .menu-grid ist ohnehin scrollbar, also darf die Liste
- * bei Bedarf einfach laenger werden, statt in der Breite zu schrumpfen.
- */
+interface TileLayout {
+  cols: number;
+  tileWidth: number;
+  tileHeight: number;
+}
+
+/** Kachelbreite fuer eine gegebene Spaltenzahl -- haengt nur von der Breite ab. */
 function tileWidthForCols(containerWidth: number, cols: number): number {
   const gap = gapForContainer(containerWidth);
   const tileWidth = (containerWidth - gap * (cols - 1)) / cols;
   return Math.max(MIN_TILE_WIDTH, Math.min(tileWidth, MAX_TILE_WIDTH));
 }
 
-function computeGridLayout(containerWidth: number, containerHeight: number, count: number): { cols: number; tileWidth: number } {
+/**
+ * Kachelgroesse (Breite UND Hoehe) fuer eine feste Spaltenzahl, so dass alle
+ * resultierenden Zeilen garantiert ohne Scrollen in containerHeight passen
+ * (auf ausdruecklichen Wunsch -- das Hauptmenue darf nie scrollbar sein).
+ * Die Luecken (gap) zwischen den Zeilen bleiben dabei bewusst FEST (nicht
+ * mitgeschrumpft) -- sonst wuerden sie bei vielen Zeilen einen wachsenden
+ * Anteil des Platzes wegfressen, weil sie anders als die Kachelhoehe nicht
+ * mitschrumpfen wuerden. Bindend ist die kleinere der beiden Vorgaben (aus
+ * Breite bzw. aus Hoehe berechnet), die Kachelbreite folgt danach wieder aus
+ * dem festen TILE_ASPECT-Verhaeltnis.
+ */
+function fitTilesForCols(containerWidth: number, containerHeight: number, count: number, cols: number): TileLayout {
+  const c = Math.max(1, Math.min(cols, count));
+  const gap = gapForContainer(containerWidth);
+  const widthTileWidth = tileWidthForCols(containerWidth, c);
+  const rows = Math.ceil(count / c);
+  const heightForTiles = Math.max(rows, containerHeight - (rows - 1) * gap);
+  const heightTileHeight = Math.floor(heightForTiles / rows);
+  const widthTileHeight = Math.floor(widthTileWidth / TILE_ASPECT);
+  const tileHeight = Math.max(1, Math.min(widthTileHeight, heightTileHeight));
+  const tileWidth = Math.max(MIN_TILE_WIDTH, Math.min(widthTileWidth, Math.floor(tileHeight * TILE_ASPECT)));
+  return { cols: c, tileWidth, tileHeight };
+}
+
+function computeGridLayout(containerWidth: number, containerHeight: number, count: number): TileLayout {
   const isPortrait = containerHeight > containerWidth;
 
   if (!isPortrait) {
     const cols = Math.min(LANDSCAPE_COLS, Math.max(1, count));
-    return { cols, tileWidth: Math.floor(tileWidthForCols(containerWidth, cols)) };
+    return fitTilesForCols(containerWidth, containerHeight, count, cols);
   }
 
-  const preferredCols = Math.min(PORTRAIT_PREFERRED_COLS, Math.max(1, count));
-  const preferredWidth = tileWidthForCols(containerWidth, preferredCols);
-  if (preferredCols <= 1 || preferredWidth >= PORTRAIT_MIN_TILE_WIDTH_FOR_TWO_COLS) {
-    return { cols: preferredCols, tileWidth: Math.floor(preferredWidth) };
+  // Hochformat: probiert 1..PORTRAIT_MAX_COLS Spalten durch und waehlt die
+  // Variante mit der groessten resultierenden Kachelhoehe (= beste
+  // Lesbarkeit). Eine feste Spaltenzahl-Praeferenz (vorher: "2, sonst 1")
+  // beruecksichtigte nur die Breite -- bei vielen Kacheln und wenig Hoehe
+  // konnte das zu unleserlich winzigen Kacheln fuehren, obwohl mehr Spalten
+  // (weniger Zeilen = weniger feste Luecken) eigentlich mehr Platz je
+  // Kachel uebrig gelassen haetten.
+  let best = fitTilesForCols(containerWidth, containerHeight, count, 1);
+  for (let cols = 2; cols <= Math.min(PORTRAIT_MAX_COLS, count); cols++) {
+    const candidate = fitTilesForCols(containerWidth, containerHeight, count, cols);
+    if (candidate.tileHeight > best.tileHeight) best = candidate;
   }
-  // 2 Spalten waeren zu schmal -- lieber eine breite Spalte mit groesserer
-  // Schrift als zwei knapp lesbare.
-  return { cols: 1, tileWidth: Math.floor(tileWidthForCols(containerWidth, 1)) };
+  return best;
 }
 
 /**
@@ -124,23 +148,40 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
   // die Kacheln den Bildschirm wirklich aus, egal ob Hochformat, Querformat
   // oder Browserfenster in Entwicklergroesse.
   const applyLayout = () => {
-    // clientWidth/-Height statt getBoundingClientRect(): schliesst die per
-    // "scrollbar-gutter: stable" reservierte Scrollbar-Spalte korrekt aus,
-    // und zwar unabhaengig davon, ob gerade tatsaechlich gescrollt werden
-    // kann -- sonst wird die Breite VOR dem Erscheinen der Scrollbar
-    // gemessen und die Kacheln ragen anschliessend leicht ueber den
-    // sichtbaren Bereich hinaus.
+    // clientWidth/-Height statt getBoundingClientRect(): schliesst Rundungs-
+    // Unschaerfe bei Border/Padding korrekt aus.
     const width = grid.clientWidth;
     const height = grid.clientHeight;
     if (width < 1 || height < 1 || games.length === 0) return;
-    const { cols, tileWidth } = computeGridLayout(width, height, games.length);
-    const tileHeight = Math.floor(tileWidth / TILE_ASPECT);
+    const { cols, tileWidth: widthTileWidth } = computeGridLayout(width, height, games.length);
+    const gap = gapForContainer(width);
+
+    // Auf ausdruecklichen Wunsch darf das Hauptmenue NIE scrollbar sein --
+    // weder Quer- noch Hochformat, unabhaengig von Bildschirmgroesse oder
+    // Spieleanzahl. computeGridLayout() bestimmt Spaltenzahl/Kachelbreite
+    // bisher nur anhand der Breite (siehe Kommentar dort); hier wird
+    // zusaetzlich die tatsaechlich verfuegbare Hoehe einberechnet: die
+    // Luecken (gap) zwischen den Zeilen bleiben dabei bewusst FEST (nicht
+    // mitgeschrumpft -- sonst fressen sie bei vielen Zeilen einen wachsenden
+    // Anteil des Platzes weg, weil sie anders als die Kachelhoehe nicht mit
+    // heruntergerechnet wuerden) -- nur die Kachelhoehe selbst
+    // wird an die nach Abzug aller Luecken verbleibende Hoehe angepasst, die
+    // Breite folgt daraus im festen TILE_ASPECT-Verhaeltnis. Bindend ist
+    // jeweils die kleinere der beiden Vorgaben (aus Breite bzw. aus Hoehe
+    // berechnet) -- so passen alle Zeilen garantiert ohne Scrollen hinein.
+    const rows = Math.ceil(games.length / cols);
+    const heightForTiles = Math.max(rows, height - (rows - 1) * gap);
+    const heightTileHeight = Math.floor(heightForTiles / rows);
+    const widthTileHeight = Math.floor(widthTileWidth / TILE_ASPECT);
+    const tileHeight = Math.max(1, Math.min(widthTileHeight, heightTileHeight));
+    const tileWidth = Math.max(MIN_TILE_WIDTH, Math.min(widthTileWidth, Math.floor(tileHeight * TILE_ASPECT)));
+
     grid.style.gridTemplateColumns = `repeat(${cols}, ${tileWidth}px)`;
     grid.style.gridAutoRows = `${tileHeight}px`;
     // Muss exakt der Gap-Wert sein, mit dem oben schon die Kachelbreite
     // berechnet wurde (siehe gapForContainer) -- sonst driftet die Breite
     // gegenueber dem tatsaechlich verfuegbaren Platz auseinander.
-    grid.style.gap = `${Math.round(gapForContainer(width))}px`;
+    grid.style.gap = `${Math.round(gap)}px`;
     const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, tileWidth / REFERENCE_TILE_WIDTH));
     grid.style.setProperty("--menu-tile-scale", String(scale));
   };

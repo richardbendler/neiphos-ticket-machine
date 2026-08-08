@@ -176,7 +176,17 @@ export function createBerlinMap(): BerlinMapHandle {
 
   function renderCollapsed(): void {
     if (!currentStart || !currentTarget) return;
-    const svg = buildMapSvg(currentStart, currentTarget, COLLAPSED_ASPECT);
+    // Tatsaechliches Seitenverhaeltnis des Containers verwenden statt des
+    // festen COLLAPSED_ASPECT-Werts -- der passte nur zur frueheren festen
+    // Balkenhoehe. Seit die Kartenzone bei der Verbindungssuche einen
+    // festen Prozentanteil der Bildschirmhoehe bekommt (siehe
+    // .connection-puzzle-map-zone), kann das reale Verhaeltnis je nach
+    // Bildschirmgroesse stark abweichen -- ohne Anpassung fuehrte "meet"
+    // sonst zu einer falsch skalierten Karte samt abgeschnittener
+    // Beschriftung (gemeldet). Fallback auf den festen Wert nur, falls der
+    // Container noch keine Groesse hat (ganz erster Render-Tick).
+    const aspect = el.clientWidth > 0 && el.clientHeight > 0 ? el.clientWidth / el.clientHeight : COLLAPSED_ASPECT;
+    const svg = buildMapSvg(currentStart, currentTarget, aspect);
     el.querySelector(".berlin-map__svg")?.remove();
     el.insertBefore(svg, hint);
   }

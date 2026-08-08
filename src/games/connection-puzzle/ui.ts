@@ -65,17 +65,29 @@ export interface ScreenActions {
   onPlayAgain: () => void;
 }
 
+/**
+ * Fuellt die eigene, feste Zone (25% von --game-area-h, siehe
+ * .connection-puzzle-start-target-zone in style.css) komplett aus, statt
+ * wie vorher nur so gross wie unbedingt noetig zu sein -- auf groesseren
+ * Bildschirmen blieb sonst viel Platz frei (gemeldet). Schriftgroessen sind
+ * deshalb direkt als Anteil von --game-area-h berechnet (nicht nur vh),
+ * damit sie mit der tatsaechlichen Zonengroesse mitwachsen.
+ */
 function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   const card = document.createElement("div");
   card.className = "ticket-card";
   card.style.textAlign = "center";
   card.style.width = "100%";
-  card.style.padding = "clamp(6px, 1.8vh, 10px) 16px";
+  card.style.height = "100%";
+  card.style.display = "flex";
+  card.style.flexDirection = "column";
+  card.style.alignItems = "center";
+  card.style.justifyContent = "center";
+  card.style.padding = "clamp(6px, 1.8vh, 16px) clamp(16px, 3vw, 32px)";
+  card.style.boxSizing = "border-box";
 
   const roundInfo = document.createElement("div");
-  // Vorher 0.7rem -- auf ausdruecklichen Wunsch deutlich groesser und
-  // fetter, war vorher kaum zu erkennen.
-  roundInfo.style.fontSize = "1rem";
+  roundInfo.style.fontSize = "clamp(0.85rem, calc(var(--game-area-h) * 0.032), 1.6rem)";
   roundInfo.style.fontWeight = "700";
   roundInfo.style.color = "var(--paper-text)";
   roundInfo.style.letterSpacing = "0.06em";
@@ -91,14 +103,15 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   row.style.display = "flex";
   row.style.alignItems = "center";
   row.style.justifyContent = "center";
-  row.style.gap = "10px";
-  row.style.marginTop = "clamp(4px, 1.2vh, 8px)";
+  row.style.width = "100%";
+  row.style.gap = "clamp(10px, 2.4vw, 28px)";
+  row.style.marginTop = "clamp(4px, 1.2vh, 14px)";
 
   const startCol = document.createElement("div");
   startCol.style.flex = "1";
   startCol.style.minWidth = "0";
   const startLabel = document.createElement("div");
-  startLabel.style.fontSize = "0.62rem";
+  startLabel.style.fontSize = "clamp(0.62rem, calc(var(--game-area-h) * 0.018), 1.1rem)";
   startLabel.style.color = "var(--paper-muted)";
   startLabel.style.letterSpacing = "0.1em";
   startLabel.style.textTransform = "uppercase";
@@ -107,7 +120,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   const startValue = document.createElement("div");
   startValue.style.fontFamily = "var(--font-display)";
   startValue.style.fontWeight = "800";
-  startValue.style.fontSize = "clamp(0.95rem, 3.2vh, 1.2rem)";
+  startValue.style.fontSize = "clamp(0.95rem, calc(var(--game-area-h) * 0.075), 3rem)";
   startValue.style.overflow = "hidden";
   startValue.style.textOverflow = "ellipsis";
   startValue.style.whiteSpace = "nowrap";
@@ -117,7 +130,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
 
   const arrow = document.createElement("div");
   arrow.style.color = "var(--accent-dark)";
-  arrow.style.fontSize = "1.1rem";
+  arrow.style.fontSize = "clamp(1.1rem, calc(var(--game-area-h) * 0.06), 2.4rem)";
   arrow.style.flexShrink = "0";
   arrow.textContent = "→";
   row.appendChild(arrow);
@@ -126,7 +139,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   targetCol.style.flex = "1";
   targetCol.style.minWidth = "0";
   const targetLabel = document.createElement("div");
-  targetLabel.style.fontSize = "0.62rem";
+  targetLabel.style.fontSize = "clamp(0.62rem, calc(var(--game-area-h) * 0.018), 1.1rem)";
   targetLabel.style.color = "var(--paper-muted)";
   targetLabel.style.letterSpacing = "0.1em";
   targetLabel.style.textTransform = "uppercase";
@@ -135,7 +148,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   const targetValue = document.createElement("div");
   targetValue.style.fontFamily = "var(--font-display)";
   targetValue.style.fontWeight = "800";
-  targetValue.style.fontSize = "clamp(0.95rem, 3.2vh, 1.2rem)";
+  targetValue.style.fontSize = "clamp(0.95rem, calc(var(--game-area-h) * 0.075), 3rem)";
   targetValue.style.overflow = "hidden";
   targetValue.style.textOverflow = "ellipsis";
   targetValue.style.whiteSpace = "nowrap";
@@ -266,9 +279,16 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
   }
 }
 
-export function renderScreen(container: HTMLElement, state: ScreenState, actions: ScreenActions): void {
+/**
+ * headerContainer = eigene Start/Ziel-Zone (25% von --game-area-h), body-
+ * Container = Zone fuer Linienauswahl/Feedback/Zusammenfassung (50%) --
+ * beide fest positioniert, siehe .connection-puzzle-*-zone in style.css.
+ */
+export function renderScreen(headerContainer: HTMLElement, container: HTMLElement, state: ScreenState, actions: ScreenActions): void {
+  headerContainer.innerHTML = "";
+  renderStartTarget(headerContainer, state);
+
   container.innerHTML = "";
-  renderStartTarget(container, state);
 
   if (state.phase === "building") {
     renderBreadcrumb(container, state, actions);
@@ -279,6 +299,7 @@ export function renderScreen(container: HTMLElement, state: ScreenState, actions
     msg.style.textAlign = "center";
     msg.style.color = fb.success ? "var(--success)" : "var(--text)";
     msg.style.fontWeight = "700";
+    msg.style.fontSize = "clamp(0.95rem, calc(var(--game-area-h) * 0.032), 1.7rem)";
     msg.style.margin = "10px 0 4px";
     msg.textContent = fb.message;
     container.appendChild(msg);
@@ -289,6 +310,7 @@ export function renderScreen(container: HTMLElement, state: ScreenState, actions
       score.style.color = "var(--accent)";
       score.style.fontFamily = "var(--font-display)";
       score.style.fontWeight = "700";
+      score.style.fontSize = "clamp(1.1rem, calc(var(--game-area-h) * 0.045), 2.2rem)";
       score.textContent = `+${fb.scoreGained} Punkte`;
       container.appendChild(score);
     }
@@ -348,7 +370,7 @@ export function renderScreen(container: HTMLElement, state: ScreenState, actions
     const score = document.createElement("p");
     score.style.textAlign = "center";
     score.style.fontFamily = "var(--font-display)";
-    score.style.fontSize = "1.6rem";
+    score.style.fontSize = "clamp(1.6rem, calc(var(--game-area-h) * 0.07), 3.4rem)";
     score.style.fontWeight = "800";
     score.style.color = "var(--accent)";
     score.style.margin = "10px 0 4px";

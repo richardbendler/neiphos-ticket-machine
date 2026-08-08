@@ -401,19 +401,24 @@ function closeKioskTimerWindow() {
   });
 }
 
+function closeRecoveryDesktop() {
+  execFile("pkill", ["-f", "wf-panel-pi"], () => {});
+  execFile("pkill", ["-f", "pcmanfm"], () => {});
+}
+
 function relaunchKioskChromium() {
   kioskRelaunchTimer = null;
   kioskRelaunchAt = null;
   kioskExitToken = null;
   closeKioskTimerWindow();
-  // Ueber die Recovery-Seite evtl. geoeffnetes Terminal/Dateimanager (siehe
-  // /api/kiosk/launch-terminal, /launch-filemanager) beim Rueckkehren in den
-  // Kiosk ebenfalls schliessen -- sonst bliebe ein Terminal unsichtbar im
-  // Hintergrund bestehen und waere z. B. per Alt+Tab an einer angeschlossenen
-  // USB-Tastatur erreichbar. Fehler (kein passender Prozess) sind hier
+  // Den waehrend der Pause gestarteten echten Desktop (siehe
+  // openRecoveryDesktop) sowie ein darueber evtl. geoeffnetes Terminal
+  // wieder schliessen -- sonst bliebe das alles unsichtbar im Hintergrund
+  // bestehen und waere z. B. per Alt+Tab an einer angeschlossenen USB-
+  // Tastatur erreichbar. Fehler (kein passender Prozess) sind hier
   // irrelevant, siehe closeKioskTimerWindow().
+  closeRecoveryDesktop();
   execFile("pkill", ["-f", "lxterminal"], () => {});
-  execFile("pkill", ["-f", "pcmanfm"], () => {});
   execFile("pgrep", ["-f", "ticketmachine-chromium"], (error, stdout) => {
     // Laeuft schon wieder (z. B. inzwischen manuell per SSH neu gestartet)
     // -- nicht doppelt starten.
@@ -451,23 +456,21 @@ function relaunchKioskChromium() {
 }
 
 /**
- * Vollflaechiges Recovery-Fenster (Countdown/Verlaengern/Zurueck-Button PLUS
- * Terminal-/Dateimanager-Buttons) -- eigenes Profil, damit
+ * Kleines, schwebendes Fenster mit Countdown/Verlaengern/Zurueck-Button PLUS
+ * Terminal-/Dateimanager-Buttons -- eigenes Profil, damit
  * closeKioskTimerWindow() es gezielt (und nur es) beenden kann.
  *
- * Frueher ein kleines floating Fenster mit --window-size/--window-position
- * oben rechts: unter Wayland/labwc darf ein Client seine eigene
- * Bildschirmposition nicht selbst bestimmen (anders als unter X11), die
- * Flags wurden schlicht ignoriert und labwc platzierte das Fenster
- * stattdessen zentriert (gemeldeter Bug). Jetzt laeuft diese Seite selbst
- * im Vollbild (--kiosk, gleiches Muster wie der Haupt-Kiosk) und
- * positioniert die Countdown-Box per CSS oben rechts -- gleichzeitig loest
- * das den zweiten gemeldeten Bug (nach dem Beenden blieb ein voellig
- * unbedienbarer Blackscreen, da labwc ohne Panel/Taskleiste/Hintergrund
- * laeuft): die Seite bietet jetzt selbst Buttons zum Oeffnen von Terminal
- * und Dateimanager (siehe /api/kiosk/launch-terminal und
- * /api/kiosk/launch-filemanager weiter unten), ein echter nutzbarer Desktop
- * ist dafuer nicht mehr noetig.
+ * Bewusst KEIN --kiosk (Vollbild) mehr: das wuerde den in
+ * openRecoveryDesktop() gestarteten echten Desktop darunter vollstaendig
+ * verdecken (gemeldeter Bug -- "ich lande immer noch nicht auf dem
+ * Desktop", obwohl wf-panel-pi/pcmanfm im Hintergrund liefen). Die
+ * urspruenglich per --window-position=oben-rechts geplante feste Position
+ * funktioniert unter Wayland/labwc ohnehin nicht (ein Client darf seine
+ * eigene Bildschirmposition anders als frueher unter X11 nicht selbst
+ * bestimmen) -- labwc platziert das Fenster stattdessen selbst (meist
+ * zentriert), was jetzt in Ordnung ist: dank des echten Desktops
+ * (Taskleiste/Fensterliste über wf-panel-pi) kann man es bei Bedarf wie
+ * jedes andere Fenster selbst verschieben.
  */
 function openKioskTimerWindow() {
   execFile("pgrep", ["-f", "ticketmachine-timer"], (error, stdout) => {
@@ -482,14 +485,12 @@ function openKioskTimerWindow() {
     const child = spawn(
       "chromium",
       [
-        "--kiosk",
+        `--app=file://${KIOSK_TIMER_HTML_PATH}?token=${kioskExitToken}`,
         `--user-data-dir=${KIOSK_TIMER_USER_DATA_DIR}`,
+        "--window-size=380,260",
         "--noerrdialogs",
         "--disable-infobars",
-        "--disable-pinch",
-        "--overscroll-history-navigation=0",
         "--ozone-platform=wayland",
-        `file://${KIOSK_TIMER_HTML_PATH}?token=${kioskExitToken}`,
       ],
       { env: kioskEnv(), detached: true, stdio: "ignore" },
     );
@@ -497,10 +498,36 @@ function openKioskTimerWindow() {
   });
 }
 
+/**
+ * Der eigentliche, ECHTE Desktop fuer die Dauer der Notausgang-Pause:
+ * wf-panel-pi (offizielle Raspberry-Pi-Taskleiste fuer Wayland-Compositors
+ * wie labwc -- Startmenue, Netzwerk-Applet, Lautstaerke, Uhr) plus
+ * pcmanfm im Desktop-Modus (Hintergrundbild, Desktop-Icons, Rechtsklick-
+ * Menue mit "Terminal hier oeffnen" etc.). Beide sind auf diesem Geraet
+ * bereits vorinstalliert (Teil des normalen Raspberry Pi OS), liefen aber
+ * bisher nie, weil das System direkt in den Kiosk-Browser startet, ohne
+ * je eine vollstaendige Desktop-Sitzung aufzubauen. Ohne das blieb der
+ * Notausgang trotz beendetem Kiosk-Browser praktisch unbedienbar
+ * (gemeldeter Bug: "ich lande immer noch nicht auf dem Desktop").
+ */
+function openRecoveryDesktop() {
+  execFile("pgrep", ["-f", "wf-panel-pi"], (error, stdout) => {
+    if (stdout && stdout.trim()) return; // schon offen
+    const panel = spawn("wf-panel-pi", [], { env: kioskEnv(), detached: true, stdio: "ignore" });
+    panel.unref();
+  });
+  execFile("pgrep", ["-f", "pcmanfm --desktop"], (error, stdout) => {
+    if (stdout && stdout.trim()) return; // schon offen
+    const desktop = spawn("pcmanfm", ["--desktop"], { env: kioskEnv(), detached: true, stdio: "ignore" });
+    desktop.unref();
+  });
+}
+
 function scheduleKioskRelaunch(delayMs) {
   if (kioskRelaunchTimer) clearTimeout(kioskRelaunchTimer);
   kioskRelaunchAt = Date.now() + delayMs;
   kioskRelaunchTimer = setTimeout(relaunchKioskChromium, delayMs);
+  openRecoveryDesktop();
   openKioskTimerWindow();
 }
 
@@ -541,7 +568,7 @@ const server = http.createServer(async (req, res) => {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Password");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Password, X-Kiosk-Exit-Token");
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();

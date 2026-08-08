@@ -16,87 +16,37 @@
         user-select: none;
         overflow: hidden;
       }
-      /* Diese Seite laeuft jetzt selbst im Vollbild (siehe
-         server/serve.js#openKioskTimerWindow) -- der darunterliegende
-         labwc-Desktop hat weder Panel noch Hintergrund noch irgendeine
-         Bedienmoeglichkeit und zeigt sonst nur einen leeren schwarzen
-         Bildschirm (gemeldeter Bug). Diese Seite UEBERNIMMT deshalb selbst
-         die Rolle "nutzbarer Notfall-Desktop": Terminal/Dateimanager lassen
-         sich direkt von hier aus starten, ohne dass ein echter Desktop noetig
-         waere. */
-      .center {
+      /*
+       * Bewusst ein kleines, normales Fenster (siehe
+       * server/serve.js#openKioskTimerWindow) statt Vollbild: der
+       * darunterliegende echte Desktop (wf-panel-pi + pcmanfm --desktop,
+       * siehe openRecoveryDesktop) soll sichtbar und bedienbar bleiben,
+       * dieses Fenster deckt ihn sonst komplett zu (gemeldeter Bug -- "ich
+       * lande immer noch nicht auf dem Desktop"). Die urspruenglich
+       * gewuenschte feste Position oben rechts liess sich unter Wayland/
+       * labwc ohnehin nicht erreichen (--window-position wird ignoriert),
+       * dank des echten Desktops darunter laesst sich dieses Fenster bei
+       * Bedarf aber jetzt ganz normal verschieben.
+       */
+      .card {
         height: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 18px;
+        gap: 10px;
         text-align: center;
-        padding: 0 24px;
+        padding: 14px;
         box-sizing: border-box;
       }
-      h1 {
-        font-size: 1.4rem;
-        margin: 0;
-      }
       p.hint {
-        margin: 0;
-        max-width: 32rem;
-        font-size: 0.9rem;
-        color: #b6bcc2;
-        line-height: 1.5;
-      }
-      .launchers {
-        display: flex;
-        gap: 14px;
-        margin-top: 8px;
-      }
-      .launcher {
-        font-size: 1rem;
-        padding: 16px 22px;
-        border-radius: 10px;
-        border: 1px solid #3a3f44;
-        background: #24282b;
-        color: #ffffff;
-        font-weight: 700;
-        cursor: pointer;
-      }
-      .launcher:active {
-        background: #2f3438;
-      }
-      .launcher-status {
-        min-height: 1.2em;
-        font-size: 0.8rem;
-        color: #b6bcc2;
-      }
-      /* Countdown-Box oben rechts als fixe Overlay-Karte -- die eigentlich
-         gewuenschte Position laesst sich unter Wayland/labwc NICHT ueber
-         Chromium-Fensterflags (--window-position) erreichen, ein Client darf
-         seine eigene Bildschirmposition dort aus gutem Grund nicht selbst
-         bestimmen (anders als frueher unter X11). Deshalb laeuft diese Seite
-         jetzt selbst im Vollbild und positioniert die Box stattdessen ganz
-         gewoehnlich per CSS. */
-      .countdown-box {
-        position: fixed;
-        top: 16px;
-        right: 16px;
-        background: #24282b;
-        border: 1px solid #3a3f44;
-        border-radius: 10px;
-        padding: 12px 16px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-      }
-      .countdown-box p {
-        margin: 0;
+        margin: 0 0 4px;
         font-size: 0.72rem;
-        opacity: 0.7;
-        text-align: center;
+        color: #b6bcc2;
+        line-height: 1.4;
       }
       #time {
-        font-size: 1.6rem;
+        font-size: 2rem;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
       }
@@ -104,9 +54,9 @@
         display: flex;
         gap: 8px;
       }
-      .countdown-box button {
-        font-size: 0.8rem;
-        padding: 8px 12px;
+      button {
+        font-size: 0.82rem;
+        padding: 9px 12px;
         border-radius: 8px;
         border: none;
         font-weight: 700;
@@ -120,27 +70,30 @@
         background: #1f8a4c;
         color: #ffffff;
       }
+      .launcher {
+        border: 1px solid #3a3f44;
+        background: #24282b;
+        color: #ffffff;
+      }
+      .launcher:active {
+        background: #2f3438;
+      }
+      .launcher-status {
+        min-height: 1.1em;
+        font-size: 0.72rem;
+        color: #b6bcc2;
+      }
     </style>
   </head>
   <body>
-    <div class="countdown-box">
-      <p>Automatische Rückkehr in</p>
+    <div class="card">
+      <p class="hint">Der echte Desktop läuft im Hintergrund -- Kiosk pausiert, automatische Rückkehr in</p>
       <div id="time">--:--</div>
       <div class="row">
         <button id="extend" type="button">+5 Min.</button>
         <button id="return" type="button">Zurück in den Kiosk</button>
       </div>
-    </div>
-
-    <div class="center">
-      <h1>Kiosk-Notausgang</h1>
-      <p class="hint">
-        Der Kiosk-Browser wurde beendet. Der darunterliegende Desktop hat
-        keine eigene Bedienoberfläche -- von hier aus lässt sich stattdessen
-        direkt ein Terminal oder ein Dateimanager öffnen (z. B. für
-        <code>nmtui</code> zur WLAN-Einrichtung).
-      </p>
-      <div class="launchers">
+      <div class="row" style="margin-top: 6px">
         <button class="launcher" id="launch-terminal" type="button">Terminal öffnen</button>
         <button class="launcher" id="launch-filemanager" type="button">Dateimanager öffnen</button>
       </div>

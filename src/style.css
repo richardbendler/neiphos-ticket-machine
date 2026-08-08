@@ -2430,35 +2430,118 @@ button {
 
 /* Gleiches Positionierungsschema wie .stage-center-panel (siehe dortiger
    Kommentar) -- symmetrisch zur echten Bildschirmmitte, unabhaengig von
-   der unterschiedlichen Kopf-/Fusszeilenhoehe. */
-.hs-machine {
+   der unterschiedlichen Kopf-/Fusszeilenhoehe. Dunkler "Geraetegehaeuse"-
+   Rahmen (statt vorher direkt freistehender Walzen) -- auf ausdruecklichen
+   Wunsch soll das Ganze wie ein echter Spielautomat wirken, nicht wie drei
+   lose Kaestchen auf dem Hintergrund. */
+.hs-cabinet {
   position: absolute;
   left: 0;
   right: 0;
   top: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-top));
   bottom: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-bottom));
   z-index: 15;
+  margin: auto 0;
+  width: min(94vw, 480px);
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: clamp(8px, 1.6vh, 14px);
+  padding: clamp(10px, 2vh, 18px);
+  background: linear-gradient(165deg, #4a4d55, #24262b);
+  border: 3px solid #17181b;
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 8px 0 rgba(0, 0, 0, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.hs-cabinet--win-glow {
+  box-shadow:
+    0 8px 0 rgba(0, 0, 0, 0.35),
+    0 0 26px 6px rgba(255, 204, 51, 0.75),
+    inset 0 2px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Leuchtreklame-Kopf mit kleinen "Gluehbirnen" -- rein dekorativ. */
+.hs-marquee {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: clamp(6px, 1.2vh, 10px) 6px clamp(2px, 0.6vh, 4px);
+  background: linear-gradient(180deg, #7a1010, #4a0a0a);
+  border-radius: calc(var(--radius-lg) - 4px) calc(var(--radius-lg) - 4px) 0 0;
+  border-bottom: 2px solid #2a0606;
+}
+
+.hs-marquee__lights {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 4px;
+}
+
+.hs-marquee__lights span {
+  width: clamp(4px, 1vw, 7px);
+  height: clamp(4px, 1vw, 7px);
+  border-radius: 50%;
+  background: #ffcc33;
+  box-shadow: 0 0 4px 1px rgba(255, 204, 51, 0.9);
+  animation: hsMarqueeTwinkle 1.6s ease-in-out infinite;
+}
+
+.hs-marquee__lights span:nth-child(odd) {
+  animation-delay: 0.4s;
+}
+
+.hs-marquee__lights span:nth-child(3n) {
+  animation-delay: 0.8s;
+}
+
+@keyframes hsMarqueeTwinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.hs-marquee__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1rem, 3.4vw, 1.4rem);
+  letter-spacing: 0.04em;
+  color: #ffcc33;
+  text-shadow: 0 0 8px rgba(255, 204, 51, 0.6), 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.hs-reels-frame {
+  position: relative;
+  width: 100%;
+  display: flex;
   justify-content: center;
-  gap: clamp(10px, 2vh, 20px);
-  padding: 0 calc(16px + var(--safe-right)) 0 calc(16px + var(--safe-left));
 }
 
 .hs-reels {
   display: flex;
-  gap: clamp(8px, 1.6vw, 16px);
+  gap: clamp(6px, 1.4vw, 14px);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   border: clamp(3px, 0.6vw, 6px) solid var(--text);
   border-radius: var(--radius-lg);
-  padding: clamp(10px, 2vh, 18px);
+  padding: clamp(8px, 1.6vh, 14px);
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .hs-reel-window {
-  width: clamp(64px, 11vw, 110px);
-  height: clamp(64px, 11vw, 110px);
+  width: clamp(58px, 10vw, 100px);
+  height: clamp(58px, 10vw, 100px);
   overflow: hidden;
   background: var(--panel);
   border: 2px solid var(--panel-border-light);
@@ -2471,37 +2554,103 @@ button {
 }
 
 .hs-symbol {
-  width: clamp(64px, 11vw, 110px);
-  height: clamp(64px, 11vw, 110px);
-  object-fit: cover;
+  width: clamp(58px, 10vw, 100px);
+  height: clamp(58px, 10vw, 100px);
+  object-fit: contain;
   flex-shrink: 0;
   display: block;
 }
 
-.hs-balance {
+/* Klassische Gewinnlinie quer ueber die Walzenmitte -- rein dekorativ (es
+   gibt hier nur eine Symbolreihe je Walze), aber ein vertrautes visuelles
+   Signal "das hier ist die Reihe, die zaehlt". */
+.hs-payline {
+  position: absolute;
+  left: calc(clamp(3px, 0.6vw, 6px) + clamp(8px, 1.6vw, 14px));
+  right: calc(clamp(3px, 0.6vw, 6px) + clamp(8px, 1.6vw, 14px));
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: rgba(214, 36, 44, 0.55);
+  box-shadow: 0 0 4px rgba(214, 36, 44, 0.6);
+  pointer-events: none;
+}
+
+/* Kompakte Gewinntabelle -- zeigt, was drei Gleiche je Tier bringen (echte
+   Automaten haben dafuer immer eine sichtbare Paytable, kein Blackbox-
+   Gefuehl). */
+.hs-paytable {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 4px 2px;
+}
+
+.hs-paytable__item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 2px 8px 2px 3px;
+}
+
+.hs-paytable__item img {
+  width: clamp(16px, 3.4vw, 22px);
+  height: clamp(16px, 3.4vw, 22px);
+  object-fit: contain;
+}
+
+.hs-paytable__item span {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(0.62rem, 1.6vw, 0.78rem);
+  color: #f4d9a0;
+}
+
+.hs-panel {
+  display: flex;
+  gap: clamp(8px, 2vw, 16px);
+  width: 100%;
+  justify-content: center;
+}
+
+/* Digitale Anzeige im LCD-Look (Punktestand/verbleibende Drehs). */
+.hs-readout {
+  flex: 1;
+  max-width: 160px;
+  text-align: center;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.3rem, 4vh, 2rem);
-  color: var(--text);
+  font-size: clamp(0.95rem, 3vh, 1.3rem);
+  color: #ffcc33;
+  background: #1a1c1f;
+  border: 2px solid #050505;
+  border-radius: var(--radius-sm);
+  padding: clamp(4px, 1vh, 8px) 6px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 0 6px rgba(255, 204, 51, 0.55);
 }
 
 .hs-message {
   min-height: 1.4em;
   font-weight: 700;
-  font-size: clamp(0.9rem, 2.4vh, 1.15rem);
-  color: var(--text-muted);
+  font-size: clamp(0.85rem, 2.2vh, 1.05rem);
+  color: #e8e6e0;
   text-align: center;
 }
 
 .hs-message--win {
-  color: var(--success);
+  color: #6fe28a;
 }
 
 .hs-spin-btn {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: clamp(1.1rem, 3vh, 1.5rem);
-  padding: clamp(12px, 2.4vh, 20px) clamp(28px, 6vw, 56px);
+  padding: clamp(10px, 2vh, 18px) clamp(28px, 6vw, 56px);
   border-radius: 999px;
   border: 2px solid var(--danger);
   background: linear-gradient(180deg, #e04b4b, var(--danger));

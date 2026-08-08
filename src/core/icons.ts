@@ -91,6 +91,14 @@ export const icons = {
      <path d="M8.5 5.5 7 2.5M15.5 5.5 17 2.5"/>
      <path d="M7 17 L5.5 21M10 18 L9 21.5M14 18 L15 21.5M17 17 L18.5 21"/>`,
   ),
+  // Drei Haltestellen-Grundformen (Kreis/Quadrat/Dreieck, wie im Spiel
+  // selbst) durch eine Linie verbunden -- fuer games/mini-metro.
+  metroMap: svg(
+    `<circle cx="4.5" cy="19.5" r="2.3" fill="currentColor" stroke="none"/>
+     <rect x="9.7" y="2" width="4.6" height="4.6" rx="0.6" fill="currentColor" stroke="none"/>
+     <path d="M19 15.5 L22 20.5 L16 20.5 Z" fill="currentColor" stroke="none"/>
+     <path d="M5.5 17.8 L11.2 7.3 M13 6.5 L18.3 15" stroke-dasharray="2.4 2.4"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

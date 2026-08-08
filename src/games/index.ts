@@ -18,3 +18,4 @@ import "./train-photo";
 import "./train-sim";
 import "./mini-metro";
 import "./hopper-slots";
+import "./setlist";

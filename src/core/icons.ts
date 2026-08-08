@@ -99,6 +99,13 @@ export const icons = {
      <path d="M19 15.5 L22 20.5 L16 20.5 Z" fill="currentColor" stroke="none"/>
      <path d="M5.5 17.8 L11.2 7.3 M13 6.5 L18.3 15" stroke-dasharray="2.4 2.4"/>`,
   ),
+  // Zwei verbundene Achtelnoten -- fuer den Setlist-Menuepunkt.
+  musicNote: svg(
+    `<circle cx="6.5" cy="18" r="2.7" fill="currentColor" stroke="none"/>
+     <circle cx="16.5" cy="16" r="2.7" fill="currentColor" stroke="none"/>
+     <path d="M9.2 18V5.5L19.2 3.5V16"/>
+     <path d="M9.2 8 L19.2 6"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -493,6 +493,12 @@ button {
 
 .menu-header {
   margin-bottom: 12px;
+  /* Duenne Trennlinie unter der Ueberschrift, bevor das Kachelraster
+     beginnt -- angelehnt an die VBB-Vorlage (dort trennt eine Linie
+     "Bitte Fahrausweis oder Fahrtziel wählen." sichtbar vom Tastenraster
+     darunter, bei uns vorher nur ueber den reinen Abstand geloest). */
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .menu-header h1 {
@@ -560,8 +566,14 @@ button {
   /* Deutlich kraeftiger als vorher (war 1px) -- angelehnt an die dicke,
      dunkle Umrahmung der Tasten in der VBB-Vorlage. */
   border: clamp(2px, 0.35vw, 3px) solid var(--btn-border);
-  background: linear-gradient(135deg, var(--btn-face-top) 0%, var(--btn-face-bottom) 100%);
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  /* Auf ausdruecklichen Wunsch flacher/naeher am Vorlagenbild -- die VBB-
+     Tasten wirken fast einfarbig grau statt sichtbar 3D-gewoelbt (vorher:
+     deutlicher Verlauf 135deg + kraeftiger Schatten + Glanzlicht-Rand).
+     Nur hier (Menue-Kacheln) geaendert, das normale .btn-3D-Design (siehe
+     core/theme.ts-Kommentar "wie am echten Fahrkartenautomaten") bleibt
+     fuer alle anderen Buttons in der App unangetastet. */
+  background: linear-gradient(180deg, #eef0f2 0%, #e2e5e9 100%);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
   color: var(--text);
   overflow: hidden;
   text-align: left;
@@ -569,8 +581,8 @@ button {
 
 .menu-tile:active {
   transform: translateY(1px);
-  background: linear-gradient(135deg, var(--btn-face-active-top) 0%, var(--btn-face-active-bottom) 100%);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg, #e2e5e9 0%, #d7dade 100%);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 .menu-tile__text {

@@ -80,6 +80,11 @@ const TRAIN_H = 18;
 // Haltestelle dazu, siehe tick().
 const DAY_MS = 18_000;
 const DAYS_PER_WEEK = 7;
+// Echte Wochentag-Kuerzel statt nur einer Tageszahl -- die urspruengliche
+// Spezifikation wollte oben rechts "eine Zeitanzeige UND den Wochentag"
+// (nicht nur eine Zaehl-Nummer), und das Vorbild-Handyspiel zeigt dort
+// ebenfalls ein Wochentag-Kuerzel ("MON") statt einer Zahl.
+const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // Ein Analog-Uhr-Umlauf entspricht einer Tageshaelfte (hell) bzw. der
 // anderen Haelfte (dunkel) -- zwei Umlaeufe = ein Tag, siehe updateClock().
 const DAY_HALF_S = DAY_MS / 1000 / 2;
@@ -532,7 +537,7 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function updateCounters(): void {
-    dayLabelEl.textContent = `Tag ${((gameDay - 1) % DAYS_PER_WEEK) + 1}/${DAYS_PER_WEEK} · Woche ${Math.ceil(gameDay / DAYS_PER_WEEK)}`;
+    dayLabelEl.textContent = `${WEEKDAY_LABELS[(gameDay - 1) % DAYS_PER_WEEK]} · Woche ${Math.ceil(gameDay / DAYS_PER_WEEK)}`;
     deliveredLabelEl.textContent = formatDelivered(delivered);
     sparelokBtn.querySelector(".mm-resource__count")!.textContent = String(spareLoks);
     sparelokBtn.disabled = spareLoks <= 0;

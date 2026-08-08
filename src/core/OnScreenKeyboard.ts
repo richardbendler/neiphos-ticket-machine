@@ -340,7 +340,16 @@ export class OnScreenKeyboard {
   /** Aktualisiert nur die ANZEIGE der Buchstabentasten (Gross/Klein) -- dataset.key bleibt unveraendert kanonisch, siehe handleClick. */
   private applyCaseToLetterKeys(): void {
     const effectiveUpper = this.opts.caseToggle ? this.capsLock || this.shiftOnce : this.uppercase;
-    const keys = this.el.querySelectorAll<HTMLButtonElement>("[data-key]");
+    // this.lettersArea statt this.el abfragen: beim allerersten Aufruf (aus
+    // renderLetterRows() heraus, waehrend buildKeys() noch laeuft) haengt
+    // das gebaute Tasten-Markup zwar schon in lettersArea, aber lettersArea
+    // selbst noch NICHT in this.el (der Konstruktor haengt buildKeys() erst
+    // NACH dessen Rueckgabe an) -- eine Abfrage auf this.el fand dann exakt
+    // 0 Tasten und liess die caseToggle-Tastatur (WLAN-/Admin-Login) beim
+    // Oeffnen faelschlich gross starten, statt wie vorgesehen klein (siehe
+    // capsLock/shiftOnce Start = false) und erst durch Umschalt/Shift gross
+    // umschaltbar (gemeldeter Bug).
+    const keys = (this.lettersArea ?? this.el).querySelectorAll<HTMLButtonElement>("[data-key]");
     keys.forEach((btn) => {
       const k = btn.dataset.key!;
       if (/^[A-ZÄÖÜ]$/.test(k)) {

@@ -531,17 +531,13 @@ button {
   width: 100%;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* Reserviert die Scrollbar-Breite IMMER, auch wenn (noch) nicht
-     gescrollt wird. Ohne das wird die Kachelbreite in MainMenu.ts anhand
-     der Breite VOR dem Erscheinen der Scrollbar berechnet -- sobald der
-     Inhalt dann hoch genug fuer eine Scrollbar wird, ist die gesetzte
-     Spaltenbreite um exakt deren Breite (konstant, unabhaengig von der
-     Bildschirmgroesse) zu breit, was permanent ein kleines horizontales
-     Scrollen ermoeglicht. */
-  scrollbar-gutter: stable;
-  touch-action: pan-y;
+  /* Auf ausdruecklichen Wunsch NIE scrollbar -- MainMenu.ts#applyLayout
+     skaliert Kachelbreite/-hoehe so, dass alle Zeilen immer ohne Scrollen
+     in die verfuegbare Hoehe passen, ein Scrollbalken sollte also nie noetig
+     werden. overflow bleibt trotzdem hidden statt visible, als Absicherung
+     falls ein extremer Seitenverhaeltnis-/MIN_TILE_WIDTH-Randfall die
+     Berechnung doch mal knapp verfehlt. */
+  overflow: hidden;
 }
 
 .menu-tile {
@@ -1645,6 +1641,83 @@ button {
   content: "?";
 }
 
+/* Spieler-Panels links/rechts vom Kartenraster im Duo-Modus (siehe
+   games/memory/index.ts, updatePlayerPanels) -- ersetzen die vorherige
+   kleine Text-/Badge-Zeile ueber dem Raster, auf ausdruecklichen Wunsch
+   deutlich auffaelliger, wer gerade dran ist. */
+.memory-player-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 8px;
+  border-radius: var(--radius-lg);
+  border: 3px solid var(--panel-border);
+  background: var(--panel);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.memory-player-panel--active {
+  border-color: var(--accent-dark);
+  border-width: 5px;
+  box-shadow:
+    0 0 0 4px rgba(255, 204, 51, 0.35),
+    0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.memory-player-panel__name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.8rem, 1.5vw, 1.05rem);
+  color: var(--text);
+  text-align: center;
+}
+
+.memory-player-panel__score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.6rem, 3.4vw, 2.5rem);
+  color: var(--primary);
+  line-height: 1;
+}
+
+.memory-player-panel--active .memory-player-panel__score {
+  color: var(--accent-dark);
+}
+
+/* Kurzer, selbst verschwindender Hinweis nach einem Fehlversuch im
+   Duo-Modus ("Kein Paar -- jetzt ist Spieler 2 dran!"), siehe showTurnToast. */
+.memory-turn-toast {
+  position: absolute;
+  top: calc(var(--header-h) + 14px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: var(--accent);
+  color: #2b2004;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.85rem, 1.8vw, 1.1rem);
+  padding: 8px 18px;
+  border-radius: 999px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  white-space: nowrap;
+}
+
+.memory-turn-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ---------- DJ-Mischer / Step-Sequencer ---------- */
 
 .seq {
@@ -1817,10 +1890,6 @@ button {
   width: 64px;
   height: 64px;
 }
-
-/* .menu-grid nutzt grid-auto-fill mit minmax() (siehe oben) und passt die
-   Spaltenzahl dadurch bereits automatisch an jede Bildschirmbreite an --
-   keine manuellen Breakpoints noetig. */
 
 /* ---------- Berlin-Mini-Karte (Verbindungssuche) ---------- */
 

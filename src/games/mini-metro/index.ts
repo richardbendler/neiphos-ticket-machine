@@ -32,6 +32,14 @@ import { registerGame } from "../registry";
  * - Passagiere planen bei Bedarf eine Route MIT Umstieg (siehe findNextHop):
  *   gibt es keine direkte Linie zum Fahrtziel, aber ein Umweg ueber eine
  *   gemeinsame Haltestelle zweier Linien, wird das automatisch erkannt.
+ * - Waggons haengen an EINZELNEN Zuegen (nicht an der Linie als Ganzes) und
+ *   werden wie Loks aus einem Vorrat links per Antippen-dann-Ziel-antippen
+ *   zugewiesen -- Ziel ist hier aber ein tatsaechlicher Zug auf der Strecke,
+ *   nicht eine Linie (siehe trainAt/handleDown).
+ * - Ringlinien sind erlaubt, aber jede Haltestelle darf pro Linie maximal
+ *   ZWEIMAL vorkommen -- und zwar ausschliesslich als Schluss des Rings
+ *   zurueck zur allerersten Haltestelle dieser Linie ("einmal rein, einmal
+ *   raus"), siehe tryExtendActiveLine.
  */
 
 const GAME_ID = "mini-metro";
@@ -46,6 +54,8 @@ const SHAPES: StationShape[] = ["circle", "square", "triangle"];
 const LINE_COLORS = ["#d6242c", "#0059a4", "#1f8a4c", "#e0a800", "#a53a97", "#0f7a86"];
 const INITIAL_LINE_SLOTS = 2;
 const MAX_LINE_SLOTS = LINE_COLORS.length;
+// Auf ausdruecklichen Wunsch 30% dicker (war 5).
+const LINE_WIDTH = 6.5;
 
 const MAX_STATIONS = 9;
 const STATION_RADIUS = 15;
@@ -63,14 +73,27 @@ const OVERLOAD_FILL_S = 20;
 const OVERLOAD_DRAIN_S = 10;
 const OVERLOAD_RING_RADIUS = STATION_RADIUS + 10;
 
-// Verbindung-loesen-UI: nach einem Tipp (ohne Ziehen) auf eine verbundene
-// Haltestelle erscheint je angeschlossener Linienrichtung ein Minus-Symbol
-// in diesem Abstand vom Haltestellen-Mittelpunkt -- deutlich ausserhalb des
-// eigentlichen Haltestellen-Kreises, damit es sich nicht mit dem normalen
-// Antipp-Bereich (siehe stationAt) ueberschneidet.
+// "Station aus Linie nehmen"-UI: nach einem Tipp (ohne Ziehen) auf eine
+// bereits verbundene Haltestelle erscheint JE LINIE, die diese Haltestelle
+// beruehrt, EIN Symbol in diesem Abstand vom Haltestellen-Mittelpunkt --
+// deutlich ausserhalb des eigentlichen Antipp-Bereichs (siehe stationAt).
+// Bewusst pro LINIE statt pro Verbindungsrichtung (frueherer Ansatz): das
+// Symbol nimmt die komplette Haltestelle aus dieser einen Linie heraus,
+// der Rest der Linie bleibt dabei als EINE zusammenhaengende Strecke
+// bestehen (removeStationFromLine) -- unabhaengig davon, an welchem Ende
+// die Linie urspruenglich gezogen wurde.
 const DELETE_BADGE_OFFSET = STATION_RADIUS + 24;
 const DELETE_BADGE_RADIUS = 13;
 const ARMED_STATION_TIMEOUT_MS = 4000;
+
+// Linien-Stummel: eine bestehende Linie laesst sich NUR noch verlaengern,
+// indem man sie an diesem kurzen, ueber die Endstation hinausragenden
+// Streckenstueck greift (nicht mehr an der Haltestelle selbst) -- ein Tipp
+// direkt auf die Haltestelle startet stattdessen immer eine NEUE Linie.
+// Das macht beide Gesten nebeneinander bedienbar, siehe Datei-Kommentar
+// bei handleDown.
+const LINE_STUB_LENGTH = 22;
+const LINE_STUB_HIT_RADIUS = 18;
 
 // Kamera-Zoom auf die ueberlastete Haltestelle, BEVOR das (unveraenderte)
 // Game-Over-Panel erscheint -- auf ausdruecklichen Wunsch. Erst nach Ablauf
@@ -83,11 +106,16 @@ const GAMEOVER_ZOOM_SCALE = 2.4;
 const TRAIN_SPEED_PX_S = 130;
 const TRAIN_DWELL_S = 0.55;
 const BASE_CAPACITY = 6; // "Loks koennen immer genau sechs Passagiere greifen"
-const WAGON_CAPACITY_BONUS = 3;
+const WAGON_CAPACITY = 6; // Ein Waggon traegt genau so viel wie die Lok selbst, auf ausdruecklichen Wunsch.
+// Passagiere steigen nicht mehr alle gleichzeitig ein, sondern nacheinander
+// mit dieser Verzoegerung -- der Zug wartet dafuer notfalls laenger als
+// TRAIN_DWELL_S an der Haltestelle (siehe stepTrain).
+const BOARD_STAGGER_S = 0.3;
 // Etwas groesser als zuvor (war 22x14) -- auf ausdruecklichen Wunsch, plus
 // jetzt immer zur aktuellen Fahrtrichtung ausgerichtet (siehe drawTrains).
 const TRAIN_W = 30;
 const TRAIN_H = 18;
+const WAGON_GAP = 4;
 
 // Ein "Tag" ist ein kurzes, beschleunigtes Intervall (siehe Datei-Kommentar
 // oben) -- sieben Tage pro "Woche", am Wochenwechsel gibt es automatisch
@@ -123,6 +151,14 @@ const MARGIN_RIGHT = 90;
 const MARGIN_LEFT = 24;
 const MARGIN_BOTTOM = 100;
 const MIN_STATION_DIST = STATION_RADIUS * 4.2;
+
+// Sicherheitsabstand des Tutorial-Pfeils zur Kopfzeile (86px hoch, siehe
+// --header-h in style.css): der oberste gezeichnete Text lag beim frueheren
+// festen Versatz (MARGIN_TOP - 22) teils nur ~3px unterhalb der Kopfzeile
+// -- je nach Bildschirmhoehe/Schriftrendering reichte das nicht, der Text
+// wurde vom Header angeschnitten (gemeldet). tipY wird jetzt zusaetzlich
+// gegen diesen Mindestwert geclampt, unabhaengig von der Bildschirmhoehe.
+const TUTORIAL_HEADER_CLEARANCE = 110;
 
 const imageCache = new Map<string, HTMLImageElement>();
 function getImage(src: string): HTMLImageElement {
@@ -179,17 +215,25 @@ interface Train {
   dwell: number; // > 0 = steht gerade an einer Haltestelle
   carrying: Passenger[];
   capacity: number;
+  wagons: number; // Haengt am ZUG (nicht mehr an der Linie), siehe Datei-Kommentar oben.
+  // Passagiere, die GERADE einsteigen (nacheinander, siehe BOARD_STAGGER_S)
+  // -- bleiben bis zum tatsaechlichen Einsteigen noch in station.waiting.
+  boardQueue: Passenger[];
+  boardTimer: number;
 }
 
 interface Line {
   color: string;
   stationIds: number[];
   trains: Train[];
-  wagons: number;
 }
 
 function formatDelivered(value: number): string {
   return value === 1 ? "1 Passagier" : `${value} Passagiere`;
+}
+
+function createTrain(): Train {
+  return { fromIdx: 0, dir: 1, t: 0, dwell: 0, carrying: [], capacity: BASE_CAPACITY, wagons: 0, boardQueue: [], boardTimer: 0 };
 }
 
 function createMiniMetroGame(): MinigameModule {
@@ -197,6 +241,7 @@ function createMiniMetroGame(): MinigameModule {
   let lines: (Line | null)[] = [];
   let maxLines = INITIAL_LINE_SLOTS;
   let spareLoks = 0;
+  let spareWagons = 0;
   let delivered = 0;
   let gameDay = 1;
   let dayTimerS = 0;
@@ -211,15 +256,17 @@ function createMiniMetroGame(): MinigameModule {
   let highscoreBanner: HighscoreBannerHandle;
   let exitGame: () => void = () => {};
 
+  // 0 = pausiert, 1 = normal, 2 = doppelte Geschwindigkeit -- skaliert
+  // einfach das an tick() uebergebene dt, siehe update(). Wirkt dadurch
+  // gleichmaessig auf Zeit/Zuege/Passagier-Nachschub/Ueberlastung, ohne
+  // dass jede einzelne Konstante angefasst werden muss.
+  let gameSpeed: 0 | 1 | 2 = 1;
+
   let weeklyModalOpen = false;
-  let awaitingWagonPick = false;
   let armedDeleteIndex: number | null = null;
   let armedDeleteTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Verbindung-an-einer-Haltestelle-loesen (siehe Datei-Kommentar oben bei
-  // DELETE_BADGE_OFFSET): getrennt von armedDeleteIndex oben, das loescht
-  // eine KOMPLETTE Linie ueber die Farbkugel-Spalte rechts -- hier geht es
-  // um das gezielte Loesen EINER einzelnen Verbindung an EINER Haltestelle.
+  // "Station aus Linie nehmen" -- siehe Datei-Kommentar bei DELETE_BADGE_OFFSET.
   let armedDeleteStationId: number | null = null;
   let armedStationDeleteTimer: ReturnType<typeof setTimeout> | null = null;
   // Tap- vs. Zieh-Erkennung: handleDown merkt sich die angetippte Haltestelle,
@@ -229,6 +276,11 @@ function createMiniMetroGame(): MinigameModule {
   // Ergebnis wirkungsloser) Linien-Zieh-Versuch.
   let downStationId: number | null = null;
   let dragMoved = false;
+  // Wird in handleDown gesetzt, wenn dabei SPEKULATIV eine neue (noch leere,
+  // nur aus einer Haltestelle bestehende) Linie angelegt wurde -- bleibt es
+  // bei einem reinen Tipp (kein Ziehen), wird dieser Slot in handleUp wieder
+  // freigegeben, statt dauerhaft einen Linien-Slot zu belegen.
+  let freshLineIndex: number | null = null;
 
   // Game-Over-Zoom (siehe GAMEOVER_ZOOM_S): waehrend "zooming" true ist, laeuft
   // keine normale Spiellogik mehr (siehe tick()), nur die Zoom-Animation.
@@ -253,8 +305,9 @@ function createMiniMetroGame(): MinigameModule {
 
   let dayLabelEl: HTMLDivElement;
   let deliveredLabelEl: HTMLDivElement;
-  let resourceRowEl: HTMLDivElement;
+  let resourceColEl: HTMLDivElement;
   let sparelokBtn: HTMLButtonElement;
+  let wagonBtn: HTMLButtonElement;
   let lineColumnEl: HTMLDivElement;
   let lineCircles: HTMLButtonElement[] = [];
   let hintEl: HTMLDivElement;
@@ -263,17 +316,13 @@ function createMiniMetroGame(): MinigameModule {
   let clockHandEl: HTMLDivElement;
   let clockFaceEl: HTMLDivElement;
   let clockBadgeEl: HTMLSpanElement;
+  let speedRowEl: HTMLDivElement;
+  let pauseBtn: HTMLButtonElement;
+  let playBtn: HTMLButtonElement;
+  let ffBtn: HTMLButtonElement;
 
   function stationById(id: number): Station {
     return stations.find((s) => s.id === id)!;
-  }
-
-  function lineCapacity(line: Line): number {
-    return BASE_CAPACITY + line.wagons * WAGON_CAPACITY_BONUS;
-  }
-
-  function activeLineCount(): number {
-    return lines.filter((l) => l && l.stationIds.length >= 2).length;
   }
 
   // ------------------------------------------------------------- Haltestellen
@@ -378,22 +427,16 @@ function createMiniMetroGame(): MinigameModule {
 
   function ensureTrainOnNewLine(line: Line): void {
     if (line.trains.length === 0 && line.stationIds.length >= 2) {
-      line.trains.push({ fromIdx: 0, dir: 1, t: 0, dwell: 0, carrying: [], capacity: lineCapacity(line) });
+      line.trains.push(createTrain());
     }
   }
 
-  function findLineIndexAtStation(stationId: number): { lineIndex: number; end: "start" | "end" } | null {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line || line.stationIds.length === 0) continue;
-      if (line.stationIds[0] === stationId) return { lineIndex: i, end: "start" };
-      if (line.stationIds[line.stationIds.length - 1] === stationId) return { lineIndex: i, end: "end" };
-    }
-    return null;
-  }
-
-  function stationOnAnyLine(stationId: number): boolean {
-    return lines.some((l) => l && l.stationIds.includes(stationId));
+  function isMiddleOfAnyLine(stationId: number): boolean {
+    return lines.some((line) => {
+      if (!line) return false;
+      const idx = line.stationIds.indexOf(stationId);
+      return idx > 0 && idx < line.stationIds.length - 1;
+    });
   }
 
   function firstFreeLineSlot(): number | null {
@@ -408,29 +451,55 @@ function createMiniMetroGame(): MinigameModule {
     renderLineColumn();
   }
 
-  // ---------------------------------------- Einzelne Verbindung loesen (Tap)
+  // ---------------------------------------- Einzelne Haltestelle aus Linie nehmen (Tap)
 
-  /** Alle Linienrichtungen, die an dieser Haltestelle haengen -- je Nachbar-Haltestelle auf einer Linie ein Eintrag. */
-  function getStationConnections(stationId: number): Array<{ lineIndex: number; neighborId: number }> {
-    const result: Array<{ lineIndex: number; neighborId: number }> = [];
-    lines.forEach((line, lineIndex) => {
-      if (!line) return;
-      const idx = line.stationIds.indexOf(stationId);
-      if (idx < 0) return;
-      if (idx > 0) result.push({ lineIndex, neighborId: line.stationIds[idx - 1] });
-      if (idx < line.stationIds.length - 1) result.push({ lineIndex, neighborId: line.stationIds[idx + 1] });
+  /** Alle Linien, die diese Haltestelle beruehren (mit mindestens zwei Haltestellen, also wirklich befahren). */
+  function getLinesAtStation(stationId: number): number[] {
+    const result: number[] = [];
+    lines.forEach((line, i) => {
+      if (line && line.stationIds.length >= 2 && line.stationIds.includes(stationId)) result.push(i);
     });
     return result;
   }
 
-  function getDeleteBadgePositions(stationId: number): Array<{ lineIndex: number; neighborId: number; x: number; y: number }> {
+  /** Je betroffener Linie EIN Symbol, positioniert "weg von der Linie" (Gegenrichtung der Summe aller Nachbarrichtungen an dieser Haltestelle auf dieser Linie). */
+  function getRemoveBadgePositions(stationId: number): Array<{ lineIndex: number; x: number; y: number; color: string }> {
     const station = stationById(stationId);
-    return getStationConnections(stationId).map((c) => {
-      const neighbor = stationById(c.neighborId);
-      const dx = neighbor.x - station.x;
-      const dy = neighbor.y - station.y;
-      const len = Math.hypot(dx, dy) || 1;
-      return { ...c, x: station.x + (dx / len) * DELETE_BADGE_OFFSET, y: station.y + (dy / len) * DELETE_BADGE_OFFSET };
+    return getLinesAtStation(stationId).map((lineIndex, i, arr) => {
+      const line = lines[lineIndex]!;
+      const idx = line.stationIds.indexOf(stationId);
+      const neighborIds: number[] = [];
+      if (idx > 0) neighborIds.push(line.stationIds[idx - 1]);
+      if (idx < line.stationIds.length - 1) neighborIds.push(line.stationIds[idx + 1]);
+      let sumX = 0;
+      let sumY = 0;
+      for (const nid of neighborIds) {
+        const n = stationById(nid);
+        const dx = n.x - station.x;
+        const dy = n.y - station.y;
+        const len = Math.hypot(dx, dy) || 1;
+        sumX += dx / len;
+        sumY += dy / len;
+      }
+      let awayX = -sumX;
+      let awayY = -sumY;
+      let awayLen = Math.hypot(awayX, awayY);
+      if (awayLen < 0.001) {
+        awayX = 0;
+        awayY = -1;
+        awayLen = 1;
+      }
+      const baseAngle = Math.atan2(awayY / awayLen, awayX / awayLen);
+      // Bei mehreren betroffenen Linien die Symbole leicht faechern, damit
+      // sie sich nicht gegenseitig ueberlappen.
+      const spread = (i - (arr.length - 1) / 2) * 0.5;
+      const angle = baseAngle + spread;
+      return {
+        lineIndex,
+        x: station.x + Math.cos(angle) * DELETE_BADGE_OFFSET,
+        y: station.y + Math.sin(angle) * DELETE_BADGE_OFFSET,
+        color: line.color,
+      };
     });
   }
 
@@ -454,30 +523,76 @@ function createMiniMetroGame(): MinigameModule {
     else armStationDelete(stationId);
   }
 
+  function reindexTrainsForSplice(line: Line, removedIdx: number): void {
+    for (const t of line.trains) {
+      if (t.fromIdx > removedIdx) t.fromIdx -= 1;
+      else if (t.fromIdx === removedIdx) t.fromIdx = Math.max(0, removedIdx - 1);
+    }
+  }
+
   /**
-   * Loest die Verbindung von stationId Richtung neighborId auf der
-   * angegebenen Linie -- alles, was von stationId aus GESEHEN VON neighborId
-   * WEITER WEG liegt (also neighborId selbst und alles dahinter), wird von
-   * der Linie abgetrennt und verworfen (bewusst kein automatisches
-   * Aufteilen in eine zweite Linie -- "Verbindung loesen", nicht "Linie
-   * teilen", siehe Nutzerwunsch).
+   * Entfernt eine Haltestelle KOMPLETT aus einer Linie -- der Rest bleibt
+   * eine einzige, zusammenhaengende Strecke (die bisherigen Nachbarn ruecken
+   * direkt zusammen), unabhaengig davon, ob die Haltestelle am Rand oder
+   * mitten in der Linie liegt bzw. an welchem Ende die Linie urspruenglich
+   * gezogen wurde. Bewusst KEIN Trennen/Verwerfen eines Teilstuecks -- auf
+   * ausdruecklichen Nutzerwunsch: "der Rest der Verbindung bleibt bestehen".
+   * Entfernt bei einer Ringlinie (siehe tryExtendActiveLine) vorsichtshalber
+   * ALLE Vorkommen dieser Haltestelle auf der Linie, nicht nur das erste --
+   * visuell gibt es ja nur einen Haltestellen-Punkt zum Antippen.
    */
-  function cutConnection(lineIndex: number, stationId: number, neighborId: number): void {
+  function removeStationFromLine(lineIndex: number, stationId: number): void {
     const line = lines[lineIndex];
     if (!line) return;
-    const idx = line.stationIds.indexOf(stationId);
-    const neighborIdx = line.stationIds.indexOf(neighborId);
-    if (idx < 0 || neighborIdx < 0) return;
-    if (neighborIdx < idx) {
-      const removedCount = idx;
-      line.stationIds = line.stationIds.slice(idx);
-      for (const t of line.trains) t.fromIdx = Math.max(0, t.fromIdx - removedCount);
-    } else {
-      line.stationIds = line.stationIds.slice(0, idx + 1);
+    let idx = line.stationIds.indexOf(stationId);
+    while (idx !== -1) {
+      if (idx === 0) {
+        line.stationIds.shift();
+        for (const t of line.trains) t.fromIdx = Math.max(0, t.fromIdx - 1);
+      } else if (idx === line.stationIds.length - 1) {
+        line.stationIds.pop();
+      } else {
+        reindexTrainsForSplice(line, idx);
+        line.stationIds.splice(idx, 1);
+      }
+      idx = line.stationIds.indexOf(stationId);
     }
     for (const t of line.trains) clampTrainIndex(line, t);
     if (line.stationIds.length < 2) line.trains = [];
     renderLineColumn();
+  }
+
+  // ------------------------------------------------------- Linien-Stummel (verlaengern)
+
+  /** Punkt etwas HINTER der Endstation (Richtung von deren Nachbar weg weiterverlaengert) -- siehe Datei-Kommentar bei LINE_STUB_LENGTH. */
+  function lineStubTip(line: Line, end: "start" | "end"): { x: number; y: number } | null {
+    if (line.stationIds.length < 2) return null;
+    const idx = end === "start" ? 0 : line.stationIds.length - 1;
+    const neighborIdx = end === "start" ? 1 : line.stationIds.length - 2;
+    const station = stationById(line.stationIds[idx]);
+    const neighbor = stationById(line.stationIds[neighborIdx]);
+    const dx = station.x - neighbor.x;
+    const dy = station.y - neighbor.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: station.x + (dx / len) * LINE_STUB_LENGTH, y: station.y + (dy / len) * LINE_STUB_LENGTH };
+  }
+
+  function findLineStubAt(x: number, y: number): { lineIndex: number; end: "start" | "end" } | null {
+    let best: { lineIndex: number; end: "start" | "end" } | null = null;
+    let bestDist = LINE_STUB_HIT_RADIUS;
+    lines.forEach((line, lineIndex) => {
+      if (!line || line.stationIds.length < 2) return;
+      (["start", "end"] as const).forEach((end) => {
+        const tip = lineStubTip(line, end);
+        if (!tip) return;
+        const d = Math.hypot(tip.x - x, tip.y - y);
+        if (d < bestDist) {
+          best = { lineIndex, end };
+          bestDist = d;
+        }
+      });
+    });
+    return best;
   }
 
   // -------------------------------------------------------------- Zug-Indizes
@@ -511,12 +626,48 @@ function createMiniMetroGame(): MinigameModule {
     train.fromIdx = Math.min(Math.max(train.fromIdx, 0), maxIdx);
   }
 
+  function currentTrainPos(line: Line, train: Train): { x: number; y: number } {
+    const from = stationById(line.stationIds[train.fromIdx]);
+    const toIdx = Math.min(Math.max(train.fromIdx + train.dir, 0), line.stationIds.length - 1);
+    const to = stationById(line.stationIds[toIdx]);
+    return { x: from.x + (to.x - from.x) * train.t, y: from.y + (to.y - from.y) * train.t };
+  }
+
+  /** Fuer das Anhaengen eines Waggons (siehe wagonArmed/handleDown) -- sucht den Zug, dessen AKTUELLE gezeichnete Position dem Tipp am naechsten ist. */
+  function trainAt(x: number, y: number): { line: Line; train: Train } | null {
+    let best: { line: Line; train: Train } | null = null;
+    let bestDist = 26;
+    for (const line of lines) {
+      if (!line || line.stationIds.length < 2) continue;
+      for (const train of line.trains) {
+        const pos = currentTrainPos(line, train);
+        const d = Math.hypot(pos.x - x, pos.y - y);
+        if (d < bestDist) {
+          best = { line, train };
+          bestDist = d;
+        }
+      }
+    }
+    return best;
+  }
+
   // ------------------------------------------------------------------- Zuege
 
   function stepTrain(line: Line, train: Train, dt: number): void {
     clampTrainIndex(line, train);
-    if (train.dwell > 0) {
-      train.dwell -= dt;
+    if (train.boardQueue.length > 0) {
+      train.boardTimer -= dt;
+      if (train.boardTimer <= 0) {
+        const p = train.boardQueue.shift()!;
+        const station = stationById(line.stationIds[train.fromIdx]);
+        const idx = station.waiting.findIndex((w) => w.id === p.id);
+        if (idx >= 0) station.waiting.splice(idx, 1);
+        train.carrying.push(p);
+        train.boardTimer = BOARD_STAGGER_S;
+      }
+    }
+    if (train.dwell > 0 || train.boardQueue.length > 0) {
+      if (train.dwell > 0) train.dwell -= dt;
       return;
     }
     const from = stationById(line.stationIds[train.fromIdx]);
@@ -538,6 +689,7 @@ function createMiniMetroGame(): MinigameModule {
 
   function arriveAtStation(line: Line, train: Train, station: Station): void {
     train.dwell = TRAIN_DWELL_S;
+    train.boardTimer = 0; // erster wartender Fahrgast darf sofort einsteigen
     // Erst abladen (Ziel des aktuellen Fahrtabschnitts erreicht), dann erst
     // einladen -- macht sofort wieder Platz frei fuer neue Fahrgaeste an
     // derselben Haltestelle.
@@ -558,22 +710,21 @@ function createMiniMetroGame(): MinigameModule {
     }
     train.carrying = staying;
 
+    // Einsteigende werden nur AUSGEWAEHLT, aber (anders als frueher) noch
+    // NICHT sofort aus station.waiting entfernt/in train.carrying verschoben
+    // -- das passiert gestaffelt in stepTrain (siehe BOARD_STAGGER_S), damit
+    // sie sichtbar nacheinander einsteigen statt alle im selben Frame.
     const adj = buildAdjacency();
-    const stillWaiting: Passenger[] = [];
+    const boarding: Passenger[] = [];
     for (const p of station.waiting) {
-      if (train.carrying.length >= train.capacity) {
-        stillWaiting.push(p);
-        continue;
-      }
+      if (train.carrying.length + boarding.length >= train.capacity) continue;
       const nextHop = findNextHop(adj, station.id, p.destShape);
       if (nextHop !== null && line.stationIds.includes(nextHop)) {
         p.nextStop = nextHop;
-        train.carrying.push(p);
-      } else {
-        stillWaiting.push(p);
+        boarding.push(p);
       }
     }
-    station.waiting = stillWaiting;
+    train.boardQueue = boarding;
     updateCounters();
   }
 
@@ -584,23 +735,30 @@ function createMiniMetroGame(): MinigameModule {
     weeklyModalOpen = true;
     openModal(
       (panel, close) => {
+        panel.classList.add("mm-week-modal");
+
+        const badge = document.createElement("div");
+        badge.className = "mm-week-modal__badge";
+        badge.innerHTML = icons.locomotive;
+        panel.appendChild(badge);
+
         const h2 = document.createElement("h2");
-        h2.textContent = `Woche geschafft! (Tag ${gameDay})`;
+        h2.className = "mm-week-modal__title";
+        h2.textContent = `Woche geschafft!`;
         panel.appendChild(h2);
+
         const p = document.createElement("p");
-        p.textContent = "Es gibt eine neue Lok gratis dazu -- und du darfst zusätzlich wählen:";
+        p.className = "mm-week-modal__text";
+        p.innerHTML = `Tag ${gameDay} erreicht — eine neue Lok gibt's gratis dazu. Wähle zusätzlich:`;
         panel.appendChild(p);
 
         const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.gap = "10px";
-        row.style.marginTop = "10px";
+        row.className = "mm-week-modal__row";
 
         const lineBtn = document.createElement("button");
         lineBtn.type = "button";
-        lineBtn.className = "btn btn--accent";
-        lineBtn.style.flex = "1";
-        lineBtn.textContent = "Neue Linie";
+        lineBtn.className = "mm-week-modal__btn";
+        lineBtn.innerHTML = `${icons.route}<span>Neue Linie</span>`;
         lineBtn.disabled = maxLines >= MAX_LINE_SLOTS;
         lineBtn.addEventListener("click", () => {
           maxLines = Math.min(MAX_LINE_SLOTS, maxLines + 1);
@@ -610,19 +768,17 @@ function createMiniMetroGame(): MinigameModule {
         });
         row.appendChild(lineBtn);
 
-        const wagonBtn = document.createElement("button");
-        wagonBtn.type = "button";
-        wagonBtn.className = "btn";
-        wagonBtn.style.flex = "1";
-        wagonBtn.textContent = "Waggon";
-        wagonBtn.disabled = activeLineCount() === 0;
-        wagonBtn.addEventListener("click", () => {
+        const wagonChoiceBtn = document.createElement("button");
+        wagonChoiceBtn.type = "button";
+        wagonChoiceBtn.className = "mm-week-modal__btn";
+        wagonChoiceBtn.innerHTML = `${icons.wagon}<span>Waggon</span>`;
+        wagonChoiceBtn.addEventListener("click", () => {
+          spareWagons += 1;
+          updateCounters();
           weeklyModalOpen = false;
-          awaitingWagonPick = true;
-          updateHint();
           close();
         });
-        row.appendChild(wagonBtn);
+        row.appendChild(wagonChoiceBtn);
 
         panel.appendChild(row);
       },
@@ -637,8 +793,8 @@ function createMiniMetroGame(): MinigameModule {
     if (sparelokArmed) {
       hintEl.textContent = "Tippe eine Linie rechts an, um ihr eine zusätzliche Lok zu geben.";
       hintEl.style.display = "block";
-    } else if (awaitingWagonPick) {
-      hintEl.textContent = "Tippe eine Linie rechts an, um ihr den Waggon zu geben.";
+    } else if (wagonArmed) {
+      hintEl.textContent = "Tippe einen fahrenden Zug an, um ihm einen Waggon anzuhängen.";
       hintEl.style.display = "block";
     } else {
       hintEl.style.display = "none";
@@ -650,6 +806,8 @@ function createMiniMetroGame(): MinigameModule {
     deliveredLabelEl.textContent = formatDelivered(delivered);
     sparelokBtn.querySelector(".mm-resource__count")!.textContent = String(spareLoks);
     sparelokBtn.disabled = spareLoks <= 0;
+    wagonBtn.querySelector(".mm-resource__count")!.textContent = String(spareWagons);
+    wagonBtn.disabled = spareWagons <= 0;
   }
 
   /**
@@ -667,6 +825,17 @@ function createMiniMetroGame(): MinigameModule {
     clockBadgeEl.innerHTML = isNight ? icons.moon : icons.sun;
   }
 
+  function updateSpeedButtons(): void {
+    pauseBtn.classList.toggle("mm-speed-btn--active", gameSpeed === 0);
+    playBtn.classList.toggle("mm-speed-btn--active", gameSpeed === 1);
+    ffBtn.classList.toggle("mm-speed-btn--active", gameSpeed === 2);
+  }
+
+  function setGameSpeed(v: 0 | 1 | 2): void {
+    gameSpeed = v;
+    updateSpeedButtons();
+  }
+
   function renderLineColumn(): void {
     lineColumnEl.innerHTML = "";
     lineCircles = [];
@@ -679,38 +848,29 @@ function createMiniMetroGame(): MinigameModule {
       const hasStations = !!line && line.stationIds.length > 0;
       btn.classList.toggle("mm-line-circle--empty", !hasStations);
       btn.classList.toggle("mm-line-circle--armed", armedDeleteIndex === i);
-      btn.innerHTML = armedDeleteIndex === i ? "✕" : hasStations ? String(line!.wagons > 0 ? `+${line!.wagons}` : "") : "";
+      btn.innerHTML = armedDeleteIndex === i ? "✕" : "";
       btn.addEventListener("click", () => onLineCircleTap(i));
       lineColumnEl.appendChild(btn);
       lineCircles.push(btn);
     }
   }
 
-  // Zwei Modi warten auf den naechsten Tipp auf eine Linien-Farbkugel:
-  // "eine Lok aus dem Vorrat zuweisen" (sparelokArmed) und "Waggon
-  // zuweisen" (awaitingWagonPick, siehe Wochenwahl). Beide schliessen sich
+  // "Eine Lok aus dem Vorrat zuweisen" (sparelokArmed, Ziel: Linie rechts)
+  // und "Waggon aus dem Vorrat zuweisen" (wagonArmed, Ziel: ein tatsaechlich
+  // fahrender Zug auf der Strecke, siehe trainAt/handleDown) schliessen sich
   // gegenseitig aus -- das Starten des einen bricht den anderen ab.
   let sparelokArmed = false;
+  let wagonArmed = false;
 
   function onLineCircleTap(index: number): void {
     const line = lines[index];
     if (sparelokArmed) {
       if (line && line.stationIds.length >= 2) {
         spareLoks -= 1;
-        line.trains.push({ fromIdx: 0, dir: 1, t: 0, dwell: 0, carrying: [], capacity: lineCapacity(line) });
+        line.trains.push(createTrain());
         sparelokArmed = false;
         updateHint();
         updateCounters();
-        renderLineColumn();
-      }
-      return;
-    }
-    if (awaitingWagonPick) {
-      if (line && line.stationIds.length >= 2) {
-        line.wagons += 1;
-        for (const t of line.trains) t.capacity = lineCapacity(line);
-        awaitingWagonPick = false;
-        updateHint();
         renderLineColumn();
       }
       return;
@@ -733,8 +893,15 @@ function createMiniMetroGame(): MinigameModule {
 
   function onSparelokTap(): void {
     if (spareLoks <= 0) return;
-    awaitingWagonPick = false;
+    wagonArmed = false;
     sparelokArmed = true;
+    updateHint();
+  }
+
+  function onWagonTap(): void {
+    if (spareWagons <= 0) return;
+    sparelokArmed = false;
+    wagonArmed = true;
     updateHint();
   }
 
@@ -811,20 +978,22 @@ function createMiniMetroGame(): MinigameModule {
     lines = new Array(MAX_LINE_SLOTS).fill(null);
     maxLines = INITIAL_LINE_SLOTS;
     spareLoks = 0;
+    spareWagons = 0;
     delivered = 0;
     gameDay = 1;
     dayTimerS = 0;
     passengerTimers = new Map();
     gameOver = false;
     weeklyModalOpen = false;
-    awaitingWagonPick = false;
     sparelokArmed = false;
+    wagonArmed = false;
     armedDeleteIndex = null;
     tutorialDismissed = false;
     tutorialPulseTimer = 0;
     zooming = false;
     zoomStation = null;
     zoomElapsedS = 0;
+    setGameSpeed(1);
     disarmStationDelete();
     gameOverPanel.style.display = "none";
     // Start = genau eine Haltestelle je Form (Nutzerwunsch) -- lastSize wird
@@ -921,7 +1090,7 @@ function createMiniMetroGame(): MinigameModule {
     lines.forEach((line, idx) => {
       if (!line || line.stationIds.length < 2) return;
       ctx.strokeStyle = line.color;
-      ctx.lineWidth = 5;
+      ctx.lineWidth = LINE_WIDTH;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       const offset = (idx - (maxLines - 1) / 2) * 4.5;
@@ -943,6 +1112,69 @@ function createMiniMetroGame(): MinigameModule {
     });
   }
 
+  /** Kurzes Streckenstueck, das ueber jede Endstation hinausragt -- Greifpunkt zum Verlaengern der BESTEHENDEN Linie, siehe findLineStubAt/handleDown. */
+  function drawLineStubs(ctx: CanvasRenderingContext2D): void {
+    lines.forEach((line) => {
+      if (!line || line.stationIds.length < 2) return;
+      (["start", "end"] as const).forEach((end) => {
+        const tip = lineStubTip(line, end);
+        if (!tip) return;
+        const stationIdx = end === "start" ? 0 : line.stationIds.length - 1;
+        const station = stationById(line.stationIds[stationIdx]);
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = LINE_WIDTH;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(station.x, station.y);
+        ctx.lineTo(tip.x, tip.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(tip.x, tip.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = line.color;
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    });
+  }
+
+  /** Lok: Rechteck mit angespitzter Front (Fahrtrichtung +x nach der Rotation) -- optisch klar von den (rechteckigen) Waggons unterscheidbar. */
+  function drawLoco(ctx: CanvasRenderingContext2D, cx: number, cy: number, angle: number, color: string): void {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    const w = TRAIN_W;
+    const h = TRAIN_H;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2);
+    ctx.lineTo(w / 2 - 6, -h / 2);
+    ctx.lineTo(w / 2, 0);
+    ctx.lineTo(w / 2 - 6, h / 2);
+    ctx.lineTo(-w / 2, h / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawWagon(ctx: CanvasRenderingContext2D, cx: number, cy: number, angle: number, color: string): void {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-TRAIN_W / 2, -TRAIN_H / 2, TRAIN_W, TRAIN_H, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawTrains(ctx: CanvasRenderingContext2D): void {
     for (const line of lines) {
       if (!line || line.stationIds.length < 2) continue;
@@ -954,18 +1186,14 @@ function createMiniMetroGame(): MinigameModule {
         const x = from.x + (to.x - from.x) * train.t;
         const y = from.y + (to.y - from.y) * train.t;
         const angle = Math.atan2(to.y - from.y, to.x - from.x);
+        const dirX = Math.cos(angle);
+        const dirY = Math.sin(angle);
 
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-        ctx.fillStyle = line.color;
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(-TRAIN_W / 2, -TRAIN_H / 2, TRAIN_W, TRAIN_H, 5);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+        drawLoco(ctx, x, y, angle, line.color);
+        for (let i = 1; i <= train.wagons; i++) {
+          const offset = TRAIN_W / 2 + WAGON_GAP + TRAIN_W / 2 + (i - 1) * (TRAIN_W + WAGON_GAP);
+          drawWagon(ctx, x - dirX * offset, y - dirY * offset, angle, line.color);
+        }
 
         // Formsymbole der Fahrgaeste ueber dem Zug -- bewusst NICHT
         // mitgedreht (sonst stehen sie bei senkrechter Fahrt auf dem Kopf)
@@ -1020,31 +1248,18 @@ function createMiniMetroGame(): MinigameModule {
     ctx.setLineDash([]);
   }
 
-  /** Dicker nachgezogene Verbindungen + Minus-Symbole an einer angetippten Haltestelle -- siehe cutConnection/toggleStationDeleteArm. */
-  function drawStationDeleteUI(ctx: CanvasRenderingContext2D): void {
+  /** Je betroffener Linie ein Symbol an einer angetippten Haltestelle, mit dem sich GENAU DIESE Haltestelle aus GENAU DIESER Linie nehmen laesst -- siehe removeStationFromLine. */
+  function drawStationRemoveUI(ctx: CanvasRenderingContext2D): void {
     if (armedDeleteStationId === null) return;
     const station = stations.find((s) => s.id === armedDeleteStationId);
     if (!station) {
       disarmStationDelete();
       return;
     }
-    const badges = getDeleteBadgePositions(armedDeleteStationId);
+    const badges = getRemoveBadgePositions(armedDeleteStationId);
     if (badges.length === 0) {
       disarmStationDelete();
       return;
-    }
-
-    for (const b of badges) {
-      const line = lines[b.lineIndex];
-      if (!line) continue;
-      const neighbor = stationById(b.neighborId);
-      ctx.strokeStyle = line.color;
-      ctx.lineWidth = 10;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(station.x, station.y);
-      ctx.lineTo(neighbor.x, neighbor.y);
-      ctx.stroke();
     }
 
     ctx.beginPath();
@@ -1057,18 +1272,34 @@ function createMiniMetroGame(): MinigameModule {
 
     for (const b of badges) {
       ctx.beginPath();
+      ctx.moveTo(station.x, station.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([2, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
       ctx.arc(b.x, b.y, DELETE_BADGE_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = theme.danger;
+      ctx.fillStyle = b.color;
       ctx.fill();
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(b.x - 5, b.y);
-      ctx.lineTo(b.x + 5, b.y);
+
+      // Kleines weisses Formsymbol der Haltestelle MIT Ausschluss-Strich --
+      // zeigt "genau DIESE Haltestelle (Form) wird aus dieser Linie
+      // (Badge-Farbe) entfernt", statt (wie zuvor, missverstaendlich) eine
+      // einzelne Verbindung zwischen zwei Stationen zu kappen.
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
+      ctx.lineWidth = 1.6;
+      drawShapeOutline(ctx, station.shape, b.x, b.y, DELETE_BADGE_RADIUS * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(b.x - DELETE_BADGE_RADIUS * 0.65, b.y - DELETE_BADGE_RADIUS * 0.65);
+      ctx.lineTo(b.x + DELETE_BADGE_RADIUS * 0.65, b.y + DELETE_BADGE_RADIUS * 0.65);
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
   }
@@ -1077,13 +1308,11 @@ function createMiniMetroGame(): MinigameModule {
     if (tutorialDismissed || stations.length === 0) return;
     const bounce = Math.sin(tutorialPulseTimer * 3.4) * 6;
     const cx = size.width / 2;
-    // Fest knapp unter dem oberen Rand des Spielfelds positioniert (nicht
-    // von den tatsaechlichen, zufaellig platzierten Start-Haltestellen
-    // abgeleitet) -- die drei Start-Haltestellen koennen ueberall im
-    // Spielfeld liegen, ein Pfeil, der nach unten in Richtung Spielfeld
-    // zeigt, bleibt so in jedem Fall sinnvoll UND kollidiert nie mit dem
-    // Ressourcen-/Tages-Panel oben.
-    const tipY = MARGIN_TOP - 22 + bounce;
+    // tipY nach unten gegen TUTORIAL_HEADER_CLEARANCE geclampt (siehe dort)
+    // -- bleibt dadurch auf JEDER Bildschirmhoehe unterhalb der Kopfzeile,
+    // statt (wie zuvor bei kurzen Bildschirmen) teilweise darunter zu
+    // verschwinden.
+    const tipY = Math.max(MARGIN_TOP - 22, TUTORIAL_HEADER_CLEARANCE + 64) + bounce;
     ctx.fillStyle = theme.accent;
     ctx.beginPath();
     ctx.moveTo(cx, tipY);
@@ -1149,19 +1378,45 @@ function createMiniMetroGame(): MinigameModule {
     lastPointer = { x, y };
     downStationId = null;
     dragMoved = false;
+    freshLineIndex = null;
     if (gameOver || weeklyModalOpen) return;
 
-    // Zuerst pruefen, ob gerade eine Haltestelle "scharf" fuer Loeschen ist
-    // und dieser Tipp eines ihrer Minus-Symbole trifft -- das geht der
-    // normalen Stations-/Zieh-Logik unten vor.
+    // Waggon-Zuweisung hat Vorrang und "verbraucht" den Tipp komplett --
+    // Ziel ist ein tatsaechlich fahrender Zug, keine Haltestelle/Linie.
+    if (wagonArmed) {
+      const hit = trainAt(x, y);
+      if (hit) {
+        hit.train.wagons += 1;
+        hit.train.capacity = BASE_CAPACITY + hit.train.wagons * WAGON_CAPACITY;
+        spareWagons -= 1;
+        wagonArmed = false;
+        updateHint();
+        updateCounters();
+      }
+      return;
+    }
+
+    // Danach pruefen, ob gerade eine Haltestelle "scharf" fuer Loeschen ist
+    // und dieser Tipp eines ihrer Symbole trifft -- das geht der normalen
+    // Stations-/Zieh-Logik unten vor.
     if (armedDeleteStationId !== null) {
-      const badges = getDeleteBadgePositions(armedDeleteStationId);
+      const badges = getRemoveBadgePositions(armedDeleteStationId);
       const hit = badges.find((b) => Math.hypot(b.x - x, b.y - y) <= DELETE_BADGE_RADIUS + 8);
       if (hit) {
-        cutConnection(hit.lineIndex, armedDeleteStationId, hit.neighborId);
+        removeStationFromLine(hit.lineIndex, armedDeleteStationId);
         disarmStationDelete();
         return;
       }
+    }
+
+    // Linien-Stummel hinter einer Endstation greifen -- verlaengert die
+    // BESTEHENDE Linie (siehe drawLineStubs). Hat Vorrang vor einem
+    // normalen Stations-Tipp, damit beide Gesten (Linie weiterziehen / neue
+    // Linie starten) nebeneinander moeglich sind, siehe Datei-Kommentar.
+    const stub = findLineStubAt(x, y);
+    if (stub) {
+      activeDrag = { lineIndex: stub.lineIndex, fromEnd: stub.end };
+      return;
     }
 
     const station = stationAt(x, y);
@@ -1171,16 +1426,16 @@ function createMiniMetroGame(): MinigameModule {
     }
     downStationId = station.id;
 
-    const existing = findLineIndexAtStation(station.id);
-    if (existing) {
-      activeDrag = { lineIndex: existing.lineIndex, fromEnd: existing.end };
-      return;
-    }
-    if (stationOnAnyLine(station.id)) return; // mittendrin, kein Branching in dieser Version
+    // Eine Haltestelle DIREKT (nicht ueber ihren Linien-Stummel) angetippt:
+    // startet IMMER eine neue Linie, auch wenn die Haltestelle schon
+    // Endstation einer anderen Linie ist -- die bestehende Linie laesst
+    // sich stattdessen ueber ihren Stummel weiterziehen (siehe oben).
+    if (isMiddleOfAnyLine(station.id)) return; // mittendrin, kein Branching in dieser Version
     const freeSlot = firstFreeLineSlot();
     if (freeSlot === null) return;
-    lines[freeSlot] = { color: LINE_COLORS[freeSlot], stationIds: [station.id], trains: [], wagons: 0 };
+    lines[freeSlot] = { color: LINE_COLORS[freeSlot], stationIds: [station.id], trains: [] };
     activeDrag = { lineIndex: freeSlot, fromEnd: "end" };
+    freshLineIndex = freeSlot;
     renderLineColumn();
   }
 
@@ -1198,7 +1453,9 @@ function createMiniMetroGame(): MinigameModule {
     if (station.id === edgeId) return;
     if (secondId !== null && station.id === secondId) {
       // Rueckwaerts ueber die vorletzte Station gezogen -- letzte Station
-      // wieder entfernen (einfache "Undo per Zurueckziehen"-Geste).
+      // wieder entfernen (einfache "Undo per Zurueckziehen"-Geste). Das
+      // funktioniert unveraendert auch, um einen frisch geschlossenen Ring
+      // (siehe unten) wieder zu oeffnen.
       if (atStart) {
         ids.shift();
         reindexTrainsForShift(line);
@@ -1212,7 +1469,25 @@ function createMiniMetroGame(): MinigameModule {
       renderLineColumn();
       return;
     }
-    if (ids.includes(station.id)) return;
+
+    // Ist die Linie bereits ein geschlossener Ring (erste == letzte
+    // Haltestelle), ist sie fertig -- keine weitere Verlaengerung moeglich.
+    if (ids.length >= 2 && ids[0] === ids[ids.length - 1]) return;
+
+    if (ids.includes(station.id)) {
+      // Ringlinie: die EINZIGE erlaubte Wiederholung ist das Schliessen des
+      // Rings zurueck zur ALLERERSTEN Haltestelle dieser Linie -- "einmal
+      // rein, einmal raus" gilt fuer jede andere Haltestelle (auf
+      // ausdruecklichen Nutzerwunsch, max. zweimal pro Haltestelle und nur
+      // als Ringschluss).
+      const canClose = !atStart && station.id === ids[0] && ids.length >= 3;
+      if (!canClose) return;
+      ids.push(station.id);
+      tutorialDismissed = true;
+      renderLineColumn();
+      return;
+    }
+
     if (atStart) {
       ids.unshift(station.id);
       reindexTrainsForUnshift(line);
@@ -1243,16 +1518,22 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function handleUp(): void {
-    // Ein reiner Tipp (kein Ziehen) auf eine bereits verbundene Haltestelle
-    // -- vorher wirkungslos, jetzt: Loeschen-Ansicht fuer diese Haltestelle
-    // umschalten (siehe Datei-Kommentar bei DELETE_BADGE_OFFSET). Gilt
-    // sowohl fuer Endstationen (dort setzt handleDown activeDrag, das ohne
-    // Bewegung aber folgenlos bleibt) als auch fuer Haltestellen MITTEN auf
-    // einer Linie (dort setzt handleDown gar kein activeDrag, siehe dort
-    // "mittendrin, kein Branching") -- deshalb hier bewusst NICHT von
-    // activeDrag abhaengig, nur von "kein Ziehen stattgefunden".
-    if (!dragMoved && downStationId !== null) {
-      if (getStationConnections(downStationId).length > 0) {
+    if (!dragMoved) {
+      // Ein reiner Tipp (kein Ziehen): eine dabei spekulativ angelegte NEUE
+      // (noch leere) Linie wieder verwerfen -- sie soll nie dauerhaft einen
+      // Linien-Slot belegen, wenn gar nicht wirklich gezogen wurde.
+      if (freshLineIndex !== null) {
+        const l = lines[freshLineIndex];
+        if (l && l.stationIds.length < 2) {
+          lines[freshLineIndex] = null;
+          renderLineColumn();
+        }
+      }
+      // Gilt sowohl fuer Endstationen (dort setzt handleDown activeDrag,
+      // das ohne Bewegung aber folgenlos bleibt) als auch fuer Haltestellen
+      // MITTEN auf einer Linie (dort setzt handleDown gar kein activeDrag)
+      // -- deshalb hier bewusst nicht von activeDrag abhaengig.
+      if (downStationId !== null && getLinesAtStation(downStationId).length > 0) {
         toggleStationDeleteArm(downStationId);
       }
     }
@@ -1260,6 +1541,7 @@ function createMiniMetroGame(): MinigameModule {
     lastPointer = null;
     downStationId = null;
     dragMoved = false;
+    freshLineIndex = null;
   }
 
   // ------------------------------------------------------------------- Loop
@@ -1330,16 +1612,23 @@ function createMiniMetroGame(): MinigameModule {
       for (const src of PASSENGER_SPRITES) getImage(src);
       lines = new Array(MAX_LINE_SLOTS).fill(null);
 
-      const topLeft = document.createElement("div");
-      topLeft.className = "mm-panel mm-panel--top-left";
+      // Ressourcen-Vorrat (Loks/Waggons) -- auf ausdruecklichen Wunsch links
+      // VERTIKAL MITTIG statt oben links.
+      const resourceCol = document.createElement("div");
+      resourceCol.className = "mm-panel mm-panel--left-mid";
       sparelokBtn = document.createElement("button");
       sparelokBtn.type = "button";
       sparelokBtn.className = "mm-resource";
       sparelokBtn.innerHTML = `<span class="mm-resource__icon">${icons.locomotive}</span><span class="mm-resource__count">0</span>`;
       sparelokBtn.addEventListener("click", () => onSparelokTap());
-      topLeft.appendChild(sparelokBtn);
-      resourceRowEl = topLeft;
-      env.overlay.appendChild(topLeft);
+      wagonBtn = document.createElement("button");
+      wagonBtn.type = "button";
+      wagonBtn.className = "mm-resource";
+      wagonBtn.innerHTML = `<span class="mm-resource__icon">${icons.wagon}</span><span class="mm-resource__count">0</span>`;
+      wagonBtn.addEventListener("click", () => onWagonTap());
+      resourceCol.append(sparelokBtn, wagonBtn);
+      resourceColEl = resourceCol;
+      env.overlay.appendChild(resourceCol);
 
       const topRight = document.createElement("div");
       topRight.className = "mm-panel mm-panel--top-right";
@@ -1368,6 +1657,29 @@ function createMiniMetroGame(): MinigameModule {
 
       env.overlay.appendChild(topRight);
 
+      // Geschwindigkeitsregler -- eigene Zeile UNTER dem Uhr-/Tage-Panel,
+      // rechts ausgerichtet wie die Vorlage.
+      speedRowEl = document.createElement("div");
+      speedRowEl.className = "mm-speed-row";
+      pauseBtn = document.createElement("button");
+      pauseBtn.type = "button";
+      pauseBtn.className = "mm-speed-btn";
+      pauseBtn.innerHTML = icons.pause;
+      pauseBtn.addEventListener("click", () => setGameSpeed(0));
+      playBtn = document.createElement("button");
+      playBtn.type = "button";
+      playBtn.className = "mm-speed-btn";
+      playBtn.innerHTML = icons.play;
+      playBtn.addEventListener("click", () => setGameSpeed(1));
+      ffBtn = document.createElement("button");
+      ffBtn.type = "button";
+      ffBtn.className = "mm-speed-btn";
+      ffBtn.innerHTML = icons.fastForward;
+      ffBtn.addEventListener("click", () => setGameSpeed(2));
+      speedRowEl.append(pauseBtn, playBtn, ffBtn);
+      env.overlay.appendChild(speedRowEl);
+      updateSpeedButtons();
+
       lineColumnEl = document.createElement("div");
       lineColumnEl.className = "mm-line-column";
       env.overlay.appendChild(lineColumnEl);
@@ -1391,7 +1703,7 @@ function createMiniMetroGame(): MinigameModule {
         title: "Hüpftier-Metro",
         description: [
           "Verbinde Haltestellen (Kreis/Quadrat/Dreieck) per Ziehen zu Linien",
-          "Auch mehrere Haltestellen in einem Zug -- oder eine Linie an ihrem Ende greifen und weiterziehen",
+          "Auch mehrere Haltestellen in einem Zug -- oder eine Linie an ihrem Stummel hinter der Endstation greifen und weiterziehen",
           "Hüpftiere sind die Passagiere -- das kleine Symbol zeigt ihr Fahrtziel, notfalls steigen sie unterwegs um",
           "Ist eine Haltestelle zu lange überfüllt (Ring läuft voll), ist die Runde vorbei",
           "Jede Woche gibt's eine neue Lok gratis, plus die Wahl: neue Linie oder Waggon",
@@ -1404,7 +1716,7 @@ function createMiniMetroGame(): MinigameModule {
     },
 
     update(dt: number, env: GameEnv) {
-      tick(dt, env.size);
+      tick(dt * gameSpeed, env.size);
     },
 
     render(env: GameEnv) {
@@ -1425,10 +1737,11 @@ function createMiniMetroGame(): MinigameModule {
         ctx.translate(-zoomStation.x, -zoomStation.y);
       }
       drawLines(ctx);
+      drawLineStubs(ctx);
       drawDraftLine(ctx);
       drawTrains(ctx);
       drawStations(ctx);
-      drawStationDeleteUI(ctx);
+      drawStationRemoveUI(ctx);
       drawTutorialArrow(ctx, size);
       ctx.restore();
     },
@@ -1455,7 +1768,8 @@ function createMiniMetroGame(): MinigameModule {
       if (armedStationDeleteTimer) clearTimeout(armedStationDeleteTimer);
       armedStationDeleteTimer = null;
       highscoreBanner?.destroy();
-      resourceRowEl?.remove();
+      resourceColEl?.remove();
+      speedRowEl?.remove();
       lineColumnEl?.remove();
       hintEl?.remove();
       gameOverPanel?.remove();

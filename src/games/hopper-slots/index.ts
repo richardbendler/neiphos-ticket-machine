@@ -389,16 +389,21 @@ function createHopperSlotsGame(): MinigameModule {
     menuBtn.style.justifyContent = "center";
     card.appendChild(menuBtn);
 
-    const outcome = getHighscoreOutcome(GAME_ID, peakBalance, "higher-better");
+    // Highscore-Metrik ist der ENDSTAND am Rundenende, nicht der
+    // zwischenzeitliche Hoechststand (peakBalance dient weiterhin nur der
+    // Info-Zeile oben in der Detail-Meldung) -- auf ausdruecklichen Wunsch:
+    // ein Zwischenhoch, das man wieder verspielt hat, soll nicht als
+    // Bestleistung zaehlen.
+    const outcome = getHighscoreOutcome(GAME_ID, balance, "higher-better");
     if (outcome !== "none") {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatPoints(peakBalance)} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          message: `${formatPoints(balance)} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
-            highscoreBanner.update(recordHighscore(GAME_ID, name, peakBalance, "higher-better"));
+            highscoreBanner.update(recordHighscore(GAME_ID, name, balance, "higher-better"));
           },
         });
       }, 900);
@@ -412,7 +417,7 @@ function createHopperSlotsGame(): MinigameModule {
     for (const opt of INVEST_OPTIONS) {
       const units = investUnits[opt.id];
       investEffectEls[opt.id].textContent = opt.describe(units);
-      investSpentEls[opt.id].textContent = units > 0 ? `${formatCredits(units * opt.costPerUnit)} investiert` : "noch nichts investiert";
+      investSpentEls[opt.id].textContent = units > 0 ? formatCredits(units * opt.costPerUnit) : "–";
       const btns = investButtonEls[opt.id];
       const canAfford = investRemaining >= opt.costPerUnit && units < opt.maxUnits;
       btns.minus5.disabled = units <= 0;
@@ -587,10 +592,15 @@ function createHopperSlotsGame(): MinigameModule {
         label.textContent = opt.label;
         const effect = document.createElement("div");
         effect.className = "hs-invest__effect";
+        info.append(label, effect);
+        investEffectEls[opt.id] = effect;
+
+        // Bewusst AUSSERHALB von "info" und direkt vor den Buttons -- auf
+        // ausdruecklichen Wunsch soll man auf einen Blick sehen, wie viel
+        // man in eine Kategorie gesteckt hat, direkt neben den Knoepfen, mit
+        // denen man das aendert.
         const spent = document.createElement("div");
         spent.className = "hs-invest__spent";
-        info.append(label, effect, spent);
-        investEffectEls[opt.id] = effect;
         investSpentEls[opt.id] = spent;
 
         const controls = document.createElement("div");
@@ -610,7 +620,7 @@ function createHopperSlotsGame(): MinigameModule {
         const plus5 = makeBtn("+5", 5);
         investButtonEls[opt.id] = { minus5, minus1, plus1, plus5 };
 
-        row.append(info, controls);
+        row.append(info, spent, controls);
         investList.appendChild(row);
       }
       investPanel.appendChild(investList);

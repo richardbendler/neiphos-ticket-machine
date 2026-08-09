@@ -25,6 +25,31 @@ import {
 // vorgemerkt, siehe README-Abschnitt "Bekannte Grenzen".
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
+/**
+ * Gegen Mitlesen ueber die Schulter am Kiosk-Automaten (ausdruecklicher
+ * Nutzerwunsch): gueltig ist nicht mehr nur das reine Passwort, sondern
+ * IMMER das Passwort PLUS die aktuelle Minutenzahl (zweistellig, z. B. um
+ * 12:17 Uhr "17") als Suffix -- wer beim Eintippen zuschaut, kennt zwar das
+ * Grundpasswort, aber nicht diese sich staendig aendernde Endung, ohne
+ * selbst auf die Uhr zu schauen. Bewusst KEIN Hinweis dazu in der UI (siehe
+ * Nutzerwunsch: "soll niemand checken ausser mir").
+ *
+ * Akzeptiert zusaetzlich die VORHERIGE Minute als Kulanz-Fenster: die
+ * Eingabe ueber die Bildschirmtastatur dauert ein paar Sekunden, ohne das
+ * wuerde ein Minutenwechsel WAEHREND des Tippens zu einer scheinbar
+ * falschen Passworteingabe fuehren, obwohl alles korrekt eingetippt wurde.
+ */
+function currentPasswordSuffixes(): string[] {
+  const now = new Date();
+  const mm = now.getMinutes();
+  const prevMm = (mm + 59) % 60;
+  return [String(mm).padStart(2, "0"), String(prevMm).padStart(2, "0")];
+}
+
+function isValidAdminPassword(value: string): boolean {
+  return currentPasswordSuffixes().some((suffix) => value === `${ADMIN_PASSWORD}${suffix}`);
+}
+
 function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
   const h = Math.floor(totalSeconds / 3600);
@@ -356,7 +381,7 @@ function confirmWithPassword(warningText: string, onConfirmed: () => void): void
       caseToggle: true,
       symbolsToggle: true,
       onSubmit: (value) => {
-        if (value === ADMIN_PASSWORD) {
+        if (isValidAdminPassword(value)) {
           close();
           onConfirmed();
         } else {
@@ -441,11 +466,15 @@ export function openAdminPanel(onClose?: () => void): void {
       caseToggle: true,
       symbolsToggle: true,
       onSubmit: (value) => {
-        if (value === ADMIN_PASSWORD) {
+        if (isValidAdminPassword(value)) {
           // Muss VOR renderAdminHome gesetzt werden -- die dortigen
           // Server-Abgleiche (Statistik/Highscore-Reset) haengen fuer die
           // admin-geschuetzten Endpunkte davon ab, siehe core/adminSession.ts.
-          setAdminSession(value);
+          // WICHTIG: hier bewusst das REINE ADMIN_PASSWORD speichern, nicht
+          // den eingetippten Wert (value) -- der enthaelt noch das
+          // Minuten-Suffix (siehe isValidAdminPassword), das der Server bei
+          // X-Admin-Password nicht kennt und zurueckweisen wuerde.
+          setAdminSession(ADMIN_PASSWORD);
           renderAdminHome(panel, close);
         } else {
           error.textContent = "Falsches Passwort.";

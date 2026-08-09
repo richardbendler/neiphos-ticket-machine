@@ -9,6 +9,7 @@ import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, r
 import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
+import { playHighscoreOpenSound } from "../core/sound";
 import {
   isScreensaverEnabled,
   setScreensaverEnabled,
@@ -131,14 +132,29 @@ function codeBlock(text: string): HTMLDivElement {
  * Kiosk-Anleitung) neu angehaengt werden, da der jeweils vorherige dabei
  * mit geleert wird.
  */
+/**
+ * Der X-Button muss bei langen, scrollbaren Panels (z. B. Admin-Bereich)
+ * dauerhaft sichtbar bleiben, auch wenn man schon nach unten gescrollt hat
+ * -- eine reine position:absolute-Positionierung (fruehere Fassung) scrollt
+ * mit dem Inhalt mit, weil .modal-panel selbst der scrollende Container ist.
+ * Deshalb ein eigener position:sticky-Wrapper OHNE eigene Hoehe (siehe CSS),
+ * der Button selbst bleibt absolut IN DIESEM Wrapper positioniert -- so
+ * nimmt er keinen Platz im normalen Textfluss weg, bleibt aber beim Scrollen
+ * oben in der Ecke stehen. Muss dafuer als ERSTES Kind eingefuegt werden
+ * (alle Aufrufstellen rufen addCloseCorner bereits vor dem restlichen
+ * Inhalt auf).
+ */
 function addCloseCorner(panel: HTMLDivElement, close: () => void): void {
+  const stickyWrap = document.createElement("div");
+  stickyWrap.className = "modal-panel__close-wrap";
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "modal-panel__close";
   btn.setAttribute("aria-label", "Schließen");
   btn.textContent = "✕";
   btn.addEventListener("click", close);
-  panel.appendChild(btn);
+  stickyWrap.appendChild(btn);
+  panel.appendChild(stickyWrap);
 }
 
 function sectionHeading(text: string): HTMLHeadingElement {
@@ -733,6 +749,18 @@ function renderAudioOutputControl(): HTMLDivElement {
   status.style.color = "var(--text-faint)";
   status.style.margin = "4px 0 0";
   wrap.appendChild(status);
+
+  // Direkt unter der Audioausgabe-Auswahl -- spielt denselben Sample-Clip
+  // wie beim Highscore-Oeffnen (siehe core/sound.ts), damit sich unmittelbar
+  // pruefen laesst, ob die gerade gewaehlte Ausgabe wirklich Ton liefert.
+  const testSoundBtn = document.createElement("button");
+  testSoundBtn.type = "button";
+  testSoundBtn.className = "btn btn--ghost";
+  testSoundBtn.style.marginTop = "10px";
+  testSoundBtn.style.fontSize = "0.82rem";
+  testSoundBtn.textContent = "🔊 Testsound abspielen";
+  guardedClick(testSoundBtn, () => playHighscoreOpenSound(), 500);
+  wrap.appendChild(testSoundBtn);
 
   function renderOutputs(outputs: Array<{ id: number; name: string; active: boolean }>): void {
     list.innerHTML = "";

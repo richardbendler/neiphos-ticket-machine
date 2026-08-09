@@ -970,7 +970,19 @@ button {
 
 /* Zusaetzlicher Schliessen-Button oben rechts, ergaenzend zum Button unten
    im Inhalt -- bei langen, scrollbaren Panels (z. B. Admin-Bereich) muss
-   man sonst erst ganz nach unten scrollen, um schliessen zu koennen. */
+   man sonst erst ganz nach unten scrollen, um schliessen zu koennen.
+   Sticky-Wrapper OHNE eigene Hoehe (siehe admin/AdminPanel.ts#addCloseCorner)
+   -- dadurch bleibt der Button beim Scrollen innerhalb des Panels dauerhaft
+   sichtbar oben in der Ecke, statt (wie bei reinem position:absolute) mit
+   dem Inhalt mitzuscrollen. */
+.modal-panel__close-wrap {
+  position: sticky;
+  top: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 6;
+}
+
 .modal-panel__close {
   position: absolute;
   top: 8px;
@@ -2542,7 +2554,32 @@ button {
   color: #c9d9ea;
   font-size: 0.95rem;
   line-height: 1.4;
-  margin: 0 0 16px;
+  margin: 0 0 10px;
+}
+
+/* Bewusst klein und in Gruen statt wie die beiden Wahl-Buttons unten --
+   signalisiert "die hast du schon sicher, nichts zum Anklicken" (auf
+   ausdruecklichen Wunsch, war vorher nicht klar von den Buttons
+   unterscheidbar). */
+.mm-week-modal .mm-week-modal__grant {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 14px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(111, 198, 120, 0.16);
+  border: 1px solid rgba(111, 198, 120, 0.55);
+  color: #8be29a;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.mm-week-modal .mm-week-modal__grant svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .mm-week-modal__row {

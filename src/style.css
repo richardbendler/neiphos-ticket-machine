@@ -2268,13 +2268,26 @@ button {
   gap: 10px;
 }
 
+/* Uhr/Tage-Zeile UND Geschwindigkeitsregler sind zwei uebereinander
+   gestapelte Zeilen IM SELBEN Panel (siehe games/mini-metro/index.ts) --
+   dadurch bleibt die zweite Zeile immer unterhalb der ersten, egal wie hoch
+   deren Inhalt tatsaechlich wird (z. B. bei umbrechendem Text auf schmalen
+   Bildschirmen). Ein fester Pixel-Versatz fuer die zweite Zeile ueberlappte
+   sich vorher teils mit der ersten (gemeldeter Bug). */
 .mm-panel--top-right {
   top: calc(var(--header-h) + 10px);
   right: 10px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+.mm-panel__header-row {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 14px;
-  padding: 10px 16px;
 }
 
 .mm-panel__text-col {
@@ -2365,13 +2378,11 @@ button {
   height: 100%;
 }
 
-/* Geschwindigkeitsregler (Pause/Play/2x) unter dem Uhr-/Tage-Panel, rechts
-   ausgerichtet -- Play zeigt die normale, ffBtn die doppelte Geschwindigkeit
-   (siehe games/mini-metro/index.ts#setGameSpeed). */
+/* Geschwindigkeitsregler (Pause/Play/2x) -- zweite Zeile IM .mm-panel--top-right
+   (siehe dort), kein eigenes position:absolute mehr noetig/gewuenscht.
+   Play zeigt die normale, ffBtn die doppelte Geschwindigkeit (siehe
+   games/mini-metro/index.ts#setGameSpeed). */
 .mm-speed-row {
-  position: absolute;
-  top: calc(var(--header-h) + 10px + 74px);
-  right: 10px;
   display: flex;
   gap: 6px;
 }
@@ -2853,15 +2864,27 @@ button {
   width: 100%;
 }
 
-.hs-invest__remaining {
-  max-width: 260px;
+/* Nur fuer die Investitionsphase etwas groesser als die normale
+   Leuchtreklame-Ueberschrift (.hs-marquee__title bleibt fuer den
+   eigentlichen Automaten unveraendert) -- auf ausdruecklichen Wunsch. */
+.hs-invest__header .hs-marquee__title {
+  font-size: clamp(1.4rem, 4.8vw, 2.3rem);
 }
 
+.hs-invest__remaining {
+  max-width: 320px;
+  font-size: clamp(1.3rem, 4.8vh, 2.3rem);
+}
+
+/* Auf ausdruecklichen Wunsch bewusst NICHT die volle Breite -- die fuenf
+   Investitionszeilen wirkten sonst unnoetig auseinandergezogen. Bleibt
+   ueber die parent-Ausrichtung (.hs-cabinet, align-items:center)
+   automatisch zentriert. */
 .hs-invest__list {
   display: flex;
   flex-direction: column;
   gap: clamp(6px, 1.2vh, 12px);
-  width: 100%;
+  width: 60%;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -2875,10 +2898,9 @@ button {
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 204, 51, 0.25);
   border-radius: var(--radius-md);
-  /* Deutlich mehr Innenabstand als zuvor -- auf ausdruecklichen Wunsch soll
-     die Zeile die verfuegbare Hoehe besser ausfuellen statt viel Leerraum
-     zu lassen. */
-  padding: clamp(14px, 3.2vh, 26px) clamp(14px, 2.4vw, 24px);
+  /* Etwas niedriger als zuvor -- passt so besser zur schmaleren Breite der
+     Liste (siehe .hs-invest__list), ohne dass es gedrungen wirkt. */
+  padding: clamp(8px, 2vh, 16px) clamp(14px, 2.4vw, 24px);
 }
 
 .hs-invest__info {

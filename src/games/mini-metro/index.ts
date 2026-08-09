@@ -95,13 +95,25 @@ const ARMED_STATION_TIMEOUT_MS = 4000;
 const LINE_STUB_LENGTH = 22;
 const LINE_STUB_HIT_RADIUS = 18;
 
+// Eine Linie MITTEN zwischen zwei Haltestellen greifen, um dort eine neue
+// Haltestelle einzufuegen (siehe midDrag/findLineSegmentAt) -- auf
+// ausdruecklichen Wunsch: "irgendwo in der Mitte der Linie anfassen, dann
+// einen Knick ziehen und an eine neue Station ranziehen".
+const LINE_SEGMENT_HIT_RADIUS = 16;
+
 // Kamera-Zoom auf die ueberlastete Haltestelle, BEVOR das (unveraenderte)
-// Game-Over-Panel erscheint -- auf ausdruecklichen Wunsch. Erst nach Ablauf
-// dieser Zeitspanne wird triggerGameOver() aufgerufen, das seinerseits wie
-// gehabt den Highscore-Dialog um weitere 900ms verzoegert.
+// Game-Over-Panel erscheint -- auf ausdruecklichen Wunsch. Nach Erreichen
+// des vollen Zooms bleibt die Ansicht noch GAMEOVER_ZOOM_HOLD_MS lang genau
+// dort stehen (nicht sofort das Ergebnis zeigen), ERST danach wird
+// triggerGameOver() aufgerufen, das seinerseits wie gehabt den
+// Highscore-Dialog um weitere 900ms verzoegert -- der Timer fuer den
+// Highscore-Dialog startet also automatisch erst, wenn wirklich fertig
+// rangezoomt UND kurz gehalten wurde.
 const GAMEOVER_ZOOM_MS = 900;
 const GAMEOVER_ZOOM_S = GAMEOVER_ZOOM_MS / 1000;
-const GAMEOVER_ZOOM_SCALE = 2.4;
+const GAMEOVER_ZOOM_HOLD_MS = 600;
+const GAMEOVER_ZOOM_HOLD_S = GAMEOVER_ZOOM_HOLD_MS / 1000;
+const GAMEOVER_ZOOM_SCALE = 3.4;
 
 const TRAIN_SPEED_PX_S = 130;
 const TRAIN_DWELL_S = 0.55;
@@ -151,6 +163,10 @@ const MARGIN_RIGHT = 90;
 const MARGIN_LEFT = 24;
 const MARGIN_BOTTOM = 100;
 const MIN_STATION_DIST = STATION_RADIUS * 4.2;
+// Die drei Start-Haltestellen sollen sichtbar in der Bildschirmmitte
+// beginnen (auf ausdruecklichen Wunsch), statt gleich zu Rundenbeginn ueber
+// die ganze Flaeche verstreut zu sein -- siehe resetGame/randomStationPosition.
+const INITIAL_CLUSTER_RADIUS = 150;
 
 // Persistenter, extrem langsamer Rauszoom-Effekt: je mehr Haltestellen es
 // gibt, desto weiter zoomt die Kamera (kaum wahrnehmbar) heraus -- auf
@@ -295,6 +311,13 @@ function createMiniMetroGame(): MinigameModule {
   // freigegeben, statt dauerhaft einen Linien-Slot zu belegen.
   let freshLineIndex: number | null = null;
 
+  // Eine Linie MITTEN zwischen zwei Haltestellen greifen, um dort per Zug
+  // eine neue Haltestelle einzufuegen (siehe findLineSegmentAt/handleUp) --
+  // afterIdx = Index der Haltestelle VOR der Einfuegestelle in
+  // line.stationIds, d. h. das betroffene Segment liegt zwischen afterIdx
+  // und afterIdx+1.
+  let midDrag: { lineIndex: number; afterIdx: number } | null = null;
+
   // Game-Over-Zoom (siehe GAMEOVER_ZOOM_S): waehrend "zooming" true ist, laeuft
   // keine normale Spiellogik mehr (siehe tick()), nur die Zoom-Animation.
   let zooming = false;
@@ -368,7 +391,16 @@ function createMiniMetroGame(): MinigameModule {
 
   // ------------------------------------------------------------- Haltestellen
 
-  function randomStationPosition(size: { width: number; height: number }): { x: number; y: number } | null {
+  /**
+   * clusterRadius (optional): statt im GESAMTEN (durch worldZoom evtl.
+   * bereits vergroesserten) Weltbereich zu wuerfeln, wird der Kandidat auf
+   * einen Kreis mit diesem Radius um den Kamera-Drehpunkt beschraenkt -- auf
+   * ausdruecklichen Wunsch fuer die drei Start-Haltestellen (siehe
+   * INITIAL_CLUSTER_RADIUS/resetGame), damit die Runde sichtbar in der
+   * Bildschirmmitte beginnt und das Netz von dort aus nach aussen waechst,
+   * statt von Anfang an ueber die ganze Flaeche verstreut zu sein.
+   */
+  function randomStationPosition(size: { width: number; height: number }, clusterRadius?: number): { x: number; y: number } | null {
     // Durch worldZoom geteilt -- je weiter herausgezoomt (kleinerer Wert),
     // desto groesser der Weltbereich, in dem neue Haltestellen entstehen
     // koennen (siehe Datei-Kommentar bei WORLD_ZOOM_MIN).
@@ -379,8 +411,17 @@ function createMiniMetroGame(): MinigameModule {
     const left = pivot.x - w / 2;
     const top = pivot.y - h / 2;
     for (let attempt = 0; attempt < 30; attempt++) {
-      const x = left + Math.random() * w;
-      const y = top + Math.random() * h;
+      let x: number;
+      let y: number;
+      if (clusterRadius !== undefined) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * clusterRadius;
+        x = pivot.x + Math.cos(angle) * r;
+        y = pivot.y + Math.sin(angle) * r;
+      } else {
+        x = left + Math.random() * w;
+        y = top + Math.random() * h;
+      }
       if (stations.every((s) => Math.hypot(s.x - x, s.y - y) >= MIN_STATION_DIST)) {
         return { x, y };
       }
@@ -388,9 +429,9 @@ function createMiniMetroGame(): MinigameModule {
     return null;
   }
 
-  function spawnStation(size: { width: number; height: number }, shape?: StationShape): void {
+  function spawnStation(size: { width: number; height: number }, shape?: StationShape, clusterRadius?: number): void {
     if (stations.length >= MAX_STATIONS) return;
-    const pos = randomStationPosition(size);
+    const pos = randomStationPosition(size, clusterRadius);
     if (!pos) return;
     const s: Station = {
       id: nextId(),
@@ -476,14 +517,6 @@ function createMiniMetroGame(): MinigameModule {
     if (line.trains.length === 0 && line.stationIds.length >= 2) {
       line.trains.push(createTrain());
     }
-  }
-
-  function isMiddleOfAnyLine(stationId: number): boolean {
-    return lines.some((line) => {
-      if (!line) return false;
-      const idx = line.stationIds.indexOf(stationId);
-      return idx > 0 && idx < line.stationIds.length - 1;
-    });
   }
 
   function firstFreeLineSlot(): number | null {
@@ -574,6 +607,13 @@ function createMiniMetroGame(): MinigameModule {
     for (const t of line.trains) {
       if (t.fromIdx > removedIdx) t.fromIdx -= 1;
       else if (t.fromIdx === removedIdx) t.fromIdx = Math.max(0, removedIdx - 1);
+    }
+  }
+
+  /** Gegenstueck zu reindexTrainsForSplice -- eine neue Haltestelle wird direkt NACH afterIdx eingefuegt, alles danach rueckt um eins nach hinten. */
+  function reindexTrainsForInsert(line: Line, afterIdx: number): void {
+    for (const t of line.trains) {
+      if (t.fromIdx > afterIdx) t.fromIdx += 1;
     }
   }
 
@@ -1072,12 +1112,13 @@ function createMiniMetroGame(): MinigameModule {
     zoomElapsedS = 0;
     worldZoom = 1;
     worldZoomTarget = 1;
+    midDrag = null;
     setGameSpeed(1);
     disarmStationDelete();
     gameOverPanel.style.display = "none";
     // Start = genau eine Haltestelle je Form (Nutzerwunsch) -- lastSize wird
     // in tick() laufend aktualisiert, siehe dort.
-    for (const shape of SHAPES) spawnStation(lastSize, shape);
+    for (const shape of SHAPES) spawnStation(lastSize, shape, INITIAL_CLUSTER_RADIUS);
     highscoreBanner.update(getHighscoreBoard(GAME_ID));
     renderLineColumn();
     updateHint();
@@ -1327,6 +1368,24 @@ function createMiniMetroGame(): MinigameModule {
     ctx.setLineDash([]);
   }
 
+  /** Waehrend eine Linie mitten zwischen zwei Haltestellen gegriffen wird (siehe midDrag/findLineSegmentAt): gestrichelter Knick von der Haltestelle davor ueber den Zeiger zur Haltestelle danach. */
+  function drawMidDragKink(ctx: CanvasRenderingContext2D): void {
+    if (!midDrag || !lastPointer) return;
+    const line = lines[midDrag.lineIndex];
+    if (!line) return;
+    const a = stationById(line.stationIds[midDrag.afterIdx]);
+    const b = stationById(line.stationIds[midDrag.afterIdx + 1]);
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(lastPointer.x, lastPointer.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   /** Je betroffener Linie ein Symbol an einer angetippten Haltestelle, mit dem sich GENAU DIESE Haltestelle aus GENAU DIESER Linie nehmen laesst -- siehe removeStationFromLine. */
   function drawStationRemoveUI(ctx: CanvasRenderingContext2D): void {
     if (armedDeleteStationId === null) return;
@@ -1428,6 +1487,34 @@ function createMiniMetroGame(): MinigameModule {
     return best;
   }
 
+  function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+  }
+
+  /** Trifft ein Tipp die Strecke MITTEN zwischen zwei aufeinanderfolgenden Haltestellen einer Linie (nicht in Stationsnaehe, dafuer ist stationAt zustaendig) -- siehe Datei-Kommentar bei midDrag. */
+  function findLineSegmentAt(x: number, y: number): { lineIndex: number; afterIdx: number } | null {
+    let best: { lineIndex: number; afterIdx: number } | null = null;
+    let bestDist = LINE_SEGMENT_HIT_RADIUS;
+    lines.forEach((line, lineIndex) => {
+      if (!line || line.stationIds.length < 2) return;
+      for (let i = 0; i < line.stationIds.length - 1; i++) {
+        const a = stationById(line.stationIds[i]);
+        const b = stationById(line.stationIds[i + 1]);
+        const d = distToSegment(x, y, a.x, a.y, b.x, b.y);
+        if (d < bestDist) {
+          best = { lineIndex, afterIdx: i };
+          bestDist = d;
+        }
+      }
+    });
+    return best;
+  }
+
   /**
    * Alle Haltestellen, deren Umkreis von der Strecke zwischen p0 und p1
    * geschnitten wird -- sortiert in der Reihenfolge, in der sie auf dieser
@@ -1500,16 +1587,28 @@ function createMiniMetroGame(): MinigameModule {
 
     const station = stationAt(x, y);
     if (!station) {
+      // Keine Haltestelle getroffen -- pruefen, ob mitten auf einer Linie
+      // (zwischen zwei Haltestellen) gegriffen wurde. Damit laesst sich ein
+      // "Knick" herausziehen und an einer neuen Haltestelle ablegen, um
+      // diese in die Linie einzufuegen (siehe handleUp/drawMidDragKink).
+      const seg = findLineSegmentAt(x, y);
+      if (seg) {
+        midDrag = seg;
+        return;
+      }
       disarmStationDelete();
       return;
     }
     downStationId = station.id;
 
     // Eine Haltestelle DIREKT (nicht ueber ihren Linien-Stummel) angetippt:
-    // startet IMMER eine neue Linie, auch wenn die Haltestelle schon
-    // Endstation einer anderen Linie ist -- die bestehende Linie laesst
-    // sich stattdessen ueber ihren Stummel weiterziehen (siehe oben).
-    if (isMiddleOfAnyLine(station.id)) return; // mittendrin, kein Branching in dieser Version
+    // startet IMMER eine neue Linie -- auch wenn sie schon Endstation ODER
+    // mittendrin auf einer ANDEREN Linie liegt (Umsteige-Haltestellen mit
+    // beliebig vielen kreuzenden Linien sind ausdruecklich erwuenscht). Die
+    // bestehende(n) Linie(n) lassen sich stattdessen ueber ihren jeweiligen
+    // Stummel weiterziehen (siehe oben). Die einzige Grenze gilt PRO LINIE
+    // (max. zweimal, nur als Ringschluss), nicht global -- siehe
+    // tryExtendActiveLine.
     const freeSlot = firstFreeLineSlot();
     if (freeSlot === null) return;
     lines[freeSlot] = { color: LINE_COLORS[freeSlot], stationIds: [station.id], trains: [] };
@@ -1579,6 +1678,13 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function handleMove(x: number, y: number): void {
+    if (midDrag) {
+      // Die eigentliche Visualisierung des Knicks liest lastPointer direkt
+      // (siehe drawMidDragKink) -- hier ist sonst nichts zu tun, bis
+      // losgelassen wird (siehe handleUp).
+      lastPointer = { x, y };
+      return;
+    }
     if (!activeDrag) {
       lastPointer = { x, y };
       return;
@@ -1596,18 +1702,49 @@ function createMiniMetroGame(): MinigameModule {
     lastPointer = { x, y };
   }
 
-  function handleUp(): void {
-    if (!dragMoved) {
-      // Ein reiner Tipp (kein Ziehen): eine dabei spekulativ angelegte NEUE
-      // (noch leere) Linie wieder verwerfen -- sie soll nie dauerhaft einen
-      // Linien-Slot belegen, wenn gar nicht wirklich gezogen wurde.
-      if (freshLineIndex !== null) {
-        const l = lines[freshLineIndex];
-        if (l && l.stationIds.length < 2) {
-          lines[freshLineIndex] = null;
+  function handleUp(x: number, y: number): void {
+    if (midDrag) {
+      // Losgelassen ueber einer Haltestelle, die noch nicht auf dieser
+      // Linie vorkommt (und nicht einer der beiden direkten Nachbarn
+      // selbst ist) -- fuegt sie genau an der gegriffenen Stelle ein, der
+      // Rest der Linie bleibt unveraendert bestehen. Ueber leerem Bereich
+      // oder einer ungueltigen Haltestelle losgelassen: nichts passiert,
+      // die Linie bleibt wie sie war.
+      const { lineIndex, afterIdx } = midDrag;
+      const line = lines[lineIndex];
+      const target = stationAt(x, y);
+      if (line && target) {
+        const beforeId = line.stationIds[afterIdx];
+        const afterId = line.stationIds[afterIdx + 1];
+        if (target.id !== beforeId && target.id !== afterId && !line.stationIds.includes(target.id)) {
+          reindexTrainsForInsert(line, afterIdx);
+          line.stationIds.splice(afterIdx + 1, 0, target.id);
+          for (const t of line.trains) clampTrainIndex(line, t);
+          tutorialDismissed = true;
           renderLineColumn();
         }
       }
+      midDrag = null;
+      lastPointer = null;
+      return;
+    }
+
+    // Eine dabei spekulativ angelegte NEUE Linie, die es nie auf zwei
+    // Haltestellen gebracht hat, wieder verwerfen -- sie soll nie dauerhaft
+    // einen Linien-Slot belegen. Bewusst UNABHAENGIG von dragMoved: auch ein
+    // Ziehen, das nie eine zweite (andere) Haltestelle erreicht hat (z. B.
+    // nur ein kurzes Zittern auf der Stelle, oder zurueck zur Ausgangsstation
+    // gezogen), darf keine "unsichtbare", nicht mehr nutzbare Linie
+    // hinterlassen (gemeldeter Bug: eine Linie liess sich nicht mehr
+    // verwenden, obwohl auf der Karte nichts von ihr zu sehen war).
+    if (freshLineIndex !== null) {
+      const l = lines[freshLineIndex];
+      if (l && l.stationIds.length < 2) {
+        lines[freshLineIndex] = null;
+        renderLineColumn();
+      }
+    }
+    if (!dragMoved) {
       // Gilt sowohl fuer Endstationen (dort setzt handleDown activeDrag,
       // das ohne Bewegung aber folgenlos bleibt) als auch fuer Haltestellen
       // MITTEN auf einer Linie (dort setzt handleDown gar kein activeDrag)
@@ -1629,7 +1766,7 @@ function createMiniMetroGame(): MinigameModule {
     lastSize = size;
     if (zooming) {
       zoomElapsedS += dt;
-      if (zoomElapsedS >= GAMEOVER_ZOOM_S) {
+      if (zoomElapsedS >= GAMEOVER_ZOOM_S + GAMEOVER_ZOOM_HOLD_S) {
         zooming = false;
         triggerGameOver();
       }
@@ -1719,8 +1856,19 @@ function createMiniMetroGame(): MinigameModule {
       resourceColEl = resourceCol;
       env.overlay.appendChild(resourceCol);
 
+      // Uhr/Tage-Zeile UND Geschwindigkeitsregler sitzen bewusst als ZWEI
+      // ZEILEN IM SELBEN Panel (nicht als zwei unabhaengig positionierte
+      // Elemente) -- nur so bleibt die zweite Zeile garantiert unterhalb der
+      // ersten, egal wie hoch deren Inhalt (Uhr + Text) tatsaechlich wird
+      // (gemeldeter Bug: bei umbrechendem Text ueberlappten sich beide
+      // Zeilen, weil die Geschwindigkeitszeile einen fest geratenen
+      // Pixel-Versatz von oben hatte statt sich am tatsaechlichen
+      // Panel-Inhalt zu orientieren).
       const topRight = document.createElement("div");
       topRight.className = "mm-panel mm-panel--top-right";
+
+      const headerRow = document.createElement("div");
+      headerRow.className = "mm-panel__header-row";
 
       clockWrapEl = document.createElement("div");
       clockWrapEl.className = "mm-clock";
@@ -1733,7 +1881,7 @@ function createMiniMetroGame(): MinigameModule {
       clockBadgeEl.className = "mm-clock__badge";
       clockBadgeEl.innerHTML = icons.sun;
       clockWrapEl.append(clockFaceEl, clockBadgeEl);
-      topRight.appendChild(clockWrapEl);
+      headerRow.appendChild(clockWrapEl);
 
       const textCol = document.createElement("div");
       textCol.className = "mm-panel__text-col";
@@ -1742,12 +1890,10 @@ function createMiniMetroGame(): MinigameModule {
       deliveredLabelEl = document.createElement("div");
       deliveredLabelEl.className = "mm-panel__delivered";
       textCol.append(dayLabelEl, deliveredLabelEl);
-      topRight.appendChild(textCol);
+      headerRow.appendChild(textCol);
 
-      env.overlay.appendChild(topRight);
+      topRight.appendChild(headerRow);
 
-      // Geschwindigkeitsregler -- eigene Zeile UNTER dem Uhr-/Tage-Panel,
-      // rechts ausgerichtet wie die Vorlage.
       speedRowEl = document.createElement("div");
       speedRowEl.className = "mm-speed-row";
       pauseBtn = document.createElement("button");
@@ -1766,7 +1912,9 @@ function createMiniMetroGame(): MinigameModule {
       ffBtn.innerHTML = icons.fastForward;
       ffBtn.addEventListener("click", () => setGameSpeed(2));
       speedRowEl.append(pauseBtn, playBtn, ffBtn);
-      env.overlay.appendChild(speedRowEl);
+      topRight.appendChild(speedRowEl);
+
+      env.overlay.appendChild(topRight);
       updateSpeedButtons();
 
       lineColumnEl = document.createElement("div");
@@ -1838,6 +1986,7 @@ function createMiniMetroGame(): MinigameModule {
       drawLines(ctx);
       drawLineStubs(ctx);
       drawDraftLine(ctx);
+      drawMidDragKink(ctx);
       drawTrains(ctx);
       drawStations(ctx);
       drawStationRemoveUI(ctx);
@@ -1856,8 +2005,9 @@ function createMiniMetroGame(): MinigameModule {
       const w = screenToWorld(p.x, p.y);
       handleMove(w.x, w.y);
     },
-    onPointerUp() {
-      handleUp();
+    onPointerUp(p: PointerPoint) {
+      const w = screenToWorld(p.x, p.y);
+      handleUp(w.x, w.y);
     },
 
     cleanup() {

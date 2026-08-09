@@ -207,8 +207,13 @@ const PASSENGER_SPRITES = hopperAnimalCards.slice(0, 8).map((c) => c.image);
 // DANEBEN statt DARueBERLIEGEND -- vorher verdeckte der Kreis-Chip einen
 // Teil des Huepftier-Sprites.
 const PASSENGER_SPRITE_SIZE = 20;
-const PASSENGER_BADGE_GAP = 3;
-const PASSENGER_ITEM_GAP = 5;
+// Auf ausdruecklichen Wunsch: der Abstand INNERHALB eines Paares (Tier +
+// sein Formsymbol) ist jetzt deutlich kleiner als der Abstand ZWISCHEN zwei
+// verschiedenen Paaren -- vorher waren beide Abstaende (3px/5px) zu aehnlich,
+// bei mehreren wartenden Huepftieren war dadurch nicht klar erkennbar,
+// welches Formsymbol zu welchem Tier gehoert.
+const PASSENGER_BADGE_GAP = 1;
+const PASSENGER_ITEM_GAP = 12;
 const SHAPE_BADGE_RADIUS = 6;
 
 let idSeq = 1;
@@ -274,6 +279,10 @@ function createMiniMetroGame(): MinigameModule {
   let delivered = 0;
   let gameDay = 1;
   let dayTimerS = 0;
+  // Eigener, von dayTimerS UNABHAENGIGER Timer fuer neue Haltestellen -- auf
+  // ausdruecklichen Wunsch alle 12 Spielstunden (DAY_HALF_S, siehe
+  // updateClock) statt nur einmal pro vollem Tag, siehe tick().
+  let stationSpawnTimerS = 0;
   let passengerTimers = new Map<number, number>();
   let gameOver = false;
   let started = false;
@@ -866,8 +875,21 @@ function createMiniMetroGame(): MinigameModule {
 
         const p = document.createElement("p");
         p.className = "mm-week-modal__text";
-        p.innerHTML = `Tag ${gameDay} erreicht — eine neue Lok gibt's gratis dazu. Wähle zusätzlich:`;
+        p.innerHTML = `Tag ${gameDay} erreicht!`;
         panel.appendChild(p);
+
+        // Eigenes, kleineres Element in Gruen -- auf ausdruecklichen Wunsch
+        // klar erkennbar ANDERS als die beiden Wahl-Buttons unten: die Lok
+        // ist bereits sicher, dafuer muss nichts angeklickt werden.
+        const grant = document.createElement("div");
+        grant.className = "mm-week-modal__grant";
+        grant.innerHTML = `${icons.locomotive}<span>+1 Lok -- bekommst du automatisch</span>`;
+        panel.appendChild(grant);
+
+        const chooseText = document.createElement("p");
+        chooseText.className = "mm-week-modal__text";
+        chooseText.textContent = "Wähle zusätzlich:";
+        panel.appendChild(chooseText);
 
         const row = document.createElement("div");
         row.className = "mm-week-modal__row";
@@ -1099,6 +1121,7 @@ function createMiniMetroGame(): MinigameModule {
     delivered = 0;
     gameDay = 1;
     dayTimerS = 0;
+    stationSpawnTimerS = 0;
     passengerTimers = new Map();
     gameOver = false;
     weeklyModalOpen = false;
@@ -1654,13 +1677,25 @@ function createMiniMetroGame(): MinigameModule {
 
     if (ids.includes(station.id)) {
       // Ringlinie: die EINZIGE erlaubte Wiederholung ist das Schliessen des
-      // Rings zurueck zur ALLERERSTEN Haltestelle dieser Linie -- "einmal
-      // rein, einmal raus" gilt fuer jede andere Haltestelle (auf
-      // ausdruecklichen Nutzerwunsch, max. zweimal pro Haltestelle und nur
-      // als Ringschluss).
-      const canClose = !atStart && station.id === ids[0] && ids.length >= 3;
+      // Rings zurueck zum jeweils ANDEREN Ende dieser Linie -- "einmal rein,
+      // einmal raus" gilt fuer jede andere Haltestelle (auf ausdruecklichen
+      // Nutzerwunsch, max. zweimal pro Haltestelle und nur als Ringschluss).
+      // Bewusst SYMMETRISCH fuer beide Enden: zieht man von "end", schliesst
+      // man zurueck zur ersten Haltestelle (ids[0]); zieht man von "start",
+      // spiegelbildlich zurueck zur letzten (ids[length-1]). Nur EINE Seite
+      // zu erlauben (frueherer Stand) fuehrte dazu, dass sich z. B. eine
+      // ZWEITE Ringlinie ueber dieselben Haltestellen scheinbar "nicht
+      // schliessen liess", wenn man zufaellig vom anderen Ende aus zog
+      // (gemeldeter Bug).
+      const closeTargetId = atStart ? ids[ids.length - 1] : ids[0];
+      const canClose = station.id === closeTargetId && ids.length >= 3;
       if (!canClose) return;
-      ids.push(station.id);
+      if (atStart) {
+        ids.unshift(station.id);
+        reindexTrainsForUnshift(line);
+      } else {
+        ids.push(station.id);
+      }
       tutorialDismissed = true;
       renderLineColumn();
       return;
@@ -1786,15 +1821,23 @@ function createMiniMetroGame(): MinigameModule {
     worldZoomTarget = 1 - zoomProgress * (1 - WORLD_ZOOM_MIN);
     worldZoom += (worldZoomTarget - worldZoom) * dt * WORLD_ZOOM_LERP_RATE;
 
+    // Neue Haltestelle alle 12 Spielstunden (DAY_HALF_S) -- auf
+    // ausdruecklichen Wunsch bewusst UNABHAENGIG vom Tag-/Wochen-Timer
+    // unten, damit es sich konstant und vorhersehbar anfuehlt (vorher nur
+    // einmal pro vollem Tag, wirkte dadurch gemeldet wie "es passiert
+    // tagelang nichts"). "-= DAY_HALF_S" statt "= 0", damit bei grossen
+    // dt-Werten (z. B. 2x Geschwindigkeit) kein Rest verloren geht.
+    stationSpawnTimerS += dt;
+    if (stationSpawnTimerS >= DAY_HALF_S) {
+      stationSpawnTimerS -= DAY_HALF_S;
+      spawnStation(size);
+    }
+
     dayTimerS += dt;
     updateClock();
     if (dayTimerS >= DAY_MS / 1000) {
       dayTimerS = 0;
       gameDay += 1;
-      // Auf ausdruecklichen Wunsch schwieriger: jeden Tag kommt automatisch
-      // eine neue Haltestelle dazu (vorher ein davon unabhaengiges, festes
-      // Intervall).
-      spawnStation(size);
       if ((gameDay - 1) % DAYS_PER_WEEK === 0) {
         triggerWeekChange();
       }

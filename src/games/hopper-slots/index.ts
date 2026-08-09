@@ -102,7 +102,9 @@ interface InvestOption {
   id: "spins" | "luck" | "pair" | "jackpot" | "safety";
   label: string;
   costPerUnit: number;
-  maxUnits: number;
+  // Obergrenze in CREDITS (nicht Einheiten) -- entspricht der fruehreren
+  // maxUnits * costPerUnit, siehe Datei-Kommentar bei adjustInvest.
+  maxCredits: number;
   describe: (units: number) => string;
 }
 
@@ -111,35 +113,35 @@ const INVEST_OPTIONS: InvestOption[] = [
     id: "spins",
     label: "Mehr Drehs",
     costPerUnit: 5,
-    maxUnits: 20,
+    maxCredits: 100,
     describe: (u) => (u === 0 ? `${BASE_SPINS} Drehs` : `${BASE_SPINS + u} Drehs (+${u})`),
   },
   {
     id: "luck",
     label: "Glücksstufe",
     costPerUnit: 3,
-    maxUnits: 10,
+    maxCredits: 30,
     describe: (u) => (u === 0 ? "Seltene Tiere: normal häufig" : `Stufe ${u}/10 -- seltene Tiere häufiger`),
   },
   {
     id: "pair",
     label: "Trostgewinn",
     costPerUnit: 10,
-    maxUnits: 5,
+    maxCredits: 50,
     describe: (u) => `${PAIR_PAYOUT_BASE + u} Punkte bei zwei Gleichen`,
   },
   {
     id: "jackpot",
     label: "Jackpot-Bonus",
     costPerUnit: 15,
-    maxUnits: 5,
+    maxCredits: 75,
     describe: (u) => (u === 0 ? "Normale Jackpot-Gewinne" : `+${u * 20}% auf alle Drei-Gleiche-Gewinne`),
   },
   {
     id: "safety",
     label: "Sicherheitsnetz",
     costPerUnit: 8,
-    maxUnits: 10,
+    maxCredits: 80,
     describe: (u) => (u === 0 ? "Kein Trost bei einer Niete" : `${u}× „+1 Punkt“ bei einer Niete`),
   },
 ];
@@ -154,8 +156,12 @@ function formatCredits(value: number): string {
 
 function createHopperSlotsGame(): MinigameModule {
   // -------- Investitionsphase-Zustand (vor jeder Runde neu, siehe startInvestPhase)
+  // In CREDITS gefuehrt (nicht Einheiten!) -- siehe Datei-Kommentar bei
+  // adjustInvest, warum das wichtig ist. Die tatsaechliche Wirkung
+  // (Einheiten) wird erst beim Rundenstart aus den investierten Credits
+  // berechnet (siehe confirmInvestAndStart).
   let investRemaining = INVEST_BUDGET;
-  const investUnits: Record<InvestOption["id"], number> = { spins: 0, luck: 0, pair: 0, jackpot: 0, safety: 0 };
+  const investCredits: Record<InvestOption["id"], number> = { spins: 0, luck: 0, pair: 0, jackpot: 0, safety: 0 };
 
   // -------- Aus der Investitionsphase abgeleitete, fuer die Runde feste Werte
   let roundTotalSpins = BASE_SPINS;
@@ -192,7 +198,7 @@ function createHopperSlotsGame(): MinigameModule {
   let investRemainingEl: HTMLDivElement;
   const investEffectEls = {} as Record<InvestOption["id"], HTMLDivElement>;
   const investSpentEls = {} as Record<InvestOption["id"], HTMLDivElement>;
-  const investButtonEls = {} as Record<InvestOption["id"], { minus5: HTMLButtonElement; minus1: HTMLButtonElement; plus1: HTMLButtonElement; plus5: HTMLButtonElement }>;
+  const investButtonEls = {} as Record<InvestOption["id"], { minus10: HTMLButtonElement; minus5: HTMLButtonElement; plus5: HTMLButtonElement; plus10: HTMLButtonElement }>;
 
   function effectiveWeight(symbolIndex: number): number {
     return Math.max(1, SYMBOLS[symbolIndex].weight + RARITY_BONUS_PER_LEVEL[symbolIndex] * roundLuckLevel);
@@ -415,30 +421,39 @@ function createHopperSlotsGame(): MinigameModule {
   function updateInvestUI(): void {
     investRemainingEl.textContent = `${formatCredits(investRemaining)} übrig`;
     for (const opt of INVEST_OPTIONS) {
-      const units = investUnits[opt.id];
+      const credits = investCredits[opt.id];
+      const units = Math.floor(credits / opt.costPerUnit);
       investEffectEls[opt.id].textContent = opt.describe(units);
-      investSpentEls[opt.id].textContent = units > 0 ? formatCredits(units * opt.costPerUnit) : "–";
+      investSpentEls[opt.id].textContent = credits > 0 ? formatCredits(credits) : "–";
       const btns = investButtonEls[opt.id];
-      const canAfford = investRemaining >= opt.costPerUnit && units < opt.maxUnits;
-      btns.minus5.disabled = units <= 0;
-      btns.minus1.disabled = units <= 0;
-      btns.plus1.disabled = !canAfford;
+      const canAfford = investRemaining > 0 && credits < opt.maxCredits;
+      btns.minus10.disabled = credits <= 0;
+      btns.minus5.disabled = credits <= 0;
       btns.plus5.disabled = !canAfford;
+      btns.plus10.disabled = !canAfford;
     }
   }
 
-  /** Kauft/verkauft so viele Einheiten wie moeglich in Richtung delta -- bei knappem Budget lieber teilweise ausfuehren als komplett zu verweigern (z. B. "+5" bei nur noch 12 von 15 noetigen Credits kauft dann eben 4). */
-  function adjustInvest(id: InvestOption["id"], delta: number): void {
+  /**
+   * Investiert/entzieht GENAU die angegebene Credit-Zahl (nicht Einheiten!)
+   * -- vorherige Fassung nahm den Button-Wert faelschlich als Einheiten-Delta
+   * und multiplizierte ihn zusaetzlich mit costPerUnit, wodurch z. B. ein
+   * Klick auf "+5" bei "Mehr Drehs" (5 Credits/Einheit) satte 25 Credits
+   * abzog statt der versprochenen 5 (gemeldeter Bug). Bei knappem
+   * Budget/Kategorie-Limit wird lieber teilweise investiert/entzogen als
+   * komplett verweigert (z. B. "+10" bei nur noch 4 uebrigen Credits
+   * investiert dann eben nur 4).
+   */
+  function adjustInvest(id: InvestOption["id"], creditDelta: number): void {
     const opt = INVEST_OPTIONS.find((o) => o.id === id)!;
-    const current = investUnits[id];
-    let next = Math.max(0, Math.min(opt.maxUnits, current + delta));
+    const current = investCredits[id];
+    let next = Math.max(0, Math.min(opt.maxCredits, current + creditDelta));
     if (next > current) {
-      const affordableUnits = Math.floor(investRemaining / opt.costPerUnit);
-      next = Math.min(next, current + affordableUnits);
+      next = Math.min(next, current + investRemaining);
     }
     if (next === current) return;
-    investRemaining -= (next - current) * opt.costPerUnit;
-    investUnits[id] = next;
+    investRemaining -= next - current;
+    investCredits[id] = next;
     updateInvestUI();
   }
 
@@ -448,7 +463,7 @@ function createHopperSlotsGame(): MinigameModule {
     if (glowTimer) clearTimeout(glowTimer);
     glowTimer = null;
     investRemaining = INVEST_BUDGET;
-    for (const opt of INVEST_OPTIONS) investUnits[opt.id] = 0;
+    for (const opt of INVEST_OPTIONS) investCredits[opt.id] = 0;
     gameOver = false;
     gameOverPanel.style.display = "none";
     cabinet.style.display = "none";
@@ -456,12 +471,18 @@ function createHopperSlotsGame(): MinigameModule {
     updateInvestUI();
   }
 
+  /** Rechnet die investierten CREDITS je Kategorie in die tatsaechliche Wirkung (Einheiten) fuer die Runde um -- siehe adjustInvest/Datei-Kommentar dort. */
+  function investedUnits(id: InvestOption["id"]): number {
+    const opt = INVEST_OPTIONS.find((o) => o.id === id)!;
+    return Math.floor(investCredits[id] / opt.costPerUnit);
+  }
+
   function confirmInvestAndStart(): void {
-    roundTotalSpins = BASE_SPINS + investUnits.spins;
-    roundLuckLevel = investUnits.luck;
-    roundPairPayout = PAIR_PAYOUT_BASE + investUnits.pair;
-    roundJackpotMultiplier = 1 + investUnits.jackpot * 0.2;
-    safetyNetCharges = investUnits.safety;
+    roundTotalSpins = BASE_SPINS + investedUnits("spins");
+    roundLuckLevel = investedUnits("luck");
+    roundPairPayout = PAIR_PAYOUT_BASE + investedUnits("pair");
+    roundJackpotMultiplier = 1 + investedUnits("jackpot") * 0.2;
+    safetyNetCharges = investedUnits("safety");
 
     balance = STARTING_POINTS;
     peakBalance = STARTING_POINTS;
@@ -614,11 +635,11 @@ function createHopperSlotsGame(): MinigameModule {
           controls.appendChild(btn);
           return btn;
         };
+        const minus10 = makeBtn("−10", -10);
         const minus5 = makeBtn("−5", -5);
-        const minus1 = makeBtn("−1", -1);
-        const plus1 = makeBtn("+1", 1);
         const plus5 = makeBtn("+5", 5);
-        investButtonEls[opt.id] = { minus5, minus1, plus1, plus5 };
+        const plus10 = makeBtn("+10", 10);
+        investButtonEls[opt.id] = { minus10, minus5, plus5, plus10 };
 
         row.append(info, spent, controls);
         investList.appendChild(row);

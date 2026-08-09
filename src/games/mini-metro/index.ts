@@ -339,6 +339,14 @@ function createMiniMetroGame(): MinigameModule {
   let worldZoom = 1;
   let worldZoomTarget = 1;
 
+  // Ein bereits fahrender Zug wird direkt gegriffen (siehe trainAt/handleDown,
+  // nur ausserhalb einer Haltestelle -- dwell > 0 zaehlt nicht) und beim
+  // Loslassen auf DERSELBEN Linie an der naechstgelegenen Stelle wieder
+  // abgesetzt (siehe placeTrainAtSegment/handleUp). Waehrend des Ziehens
+  // folgt die Lok direkt dem Zeiger (siehe drawTrains), auf ausdruecklichen
+  // Wunsch statt des bisherigen "erst rechts die Linie antippen"-Umwegs.
+  let trainDrag: { line: Line; train: Train } | null = null;
+
   let activeDrag: { lineIndex: number; fromEnd: "start" | "end" } | null = null;
   // Letzte Zeigerposition waehrend eines aktiven Drags -- ermoeglicht das
   // "Aufsammeln" mehrerer Haltestellen in einer einzigen, zuegigen
@@ -359,6 +367,18 @@ function createMiniMetroGame(): MinigameModule {
   let resourceColEl: HTMLDivElement;
   let sparelokBtn: HTMLButtonElement;
   let wagonBtn: HTMLButtonElement;
+  // Fuers Umrechnen von Client- in Canvas-/Weltkoordinaten beim Ziehen eines
+  // Vorrats-Icons (siehe wireResourceDrag) -- die Icons selbst sind normale
+  // DOM-Buttons ausserhalb des Canvas, das Ziel (Linien-Kreis rechts bzw.
+  // fahrender Zug auf der Strecke) muss aber ueber echte Pointer-Events
+  // (nicht die Spiel-eigene onPointerDown/Move/Up-Pipeline) verfolgt werden,
+  // damit der Ziehvorgang unabhaengig vom Canvas ueber den ganzen Bildschirm
+  // hinweg funktioniert.
+  let canvasEl: HTMLCanvasElement | null = null;
+  // Bricht einen evtl. noch aktiven Vorrats-Ziehvorgang (siehe
+  // wireResourceDrag) beim Verlassen des Spiels sauber ab, damit dessen
+  // window-Pointer-Listener nicht ueber das Spielende hinaus haengen bleiben.
+  let cancelActiveResourceDrag: (() => void) | null = null;
   let lineColumnEl: HTMLDivElement;
   let lineCircles: HTMLButtonElement[] = [];
   let hintEl: HTMLDivElement;
@@ -774,6 +794,58 @@ function createMiniMetroGame(): MinigameModule {
     return best;
   }
 
+  /**
+   * Naechster Punkt auf dem tatsaechlichen Streckenverlauf einer Linie zu
+   * einer gegebenen Weltposition -- fuer das Wiederabsetzen eines gegriffenen
+   * Zuges (siehe trainDrag/handleUp). segIdx bezeichnet das Segment
+   * stationIds[segIdx] -> stationIds[segIdx+1], ratio (0..1) die Position
+   * darauf. Funktioniert unveraendert auch fuer Ringlinien: deren
+   * geschlossenes Segment (letzter -> erster Eintrag) ist bereits regulaerer
+   * Teil von stationIds (siehe isRingLine-Kommentar), keine Sonderbehandlung
+   * noetig.
+   */
+  function nearestPointOnLinePath(line: Line, x: number, y: number): { segIdx: number; ratio: number } | null {
+    let best: { segIdx: number; ratio: number; dist: number } | null = null;
+    for (let i = 0; i < line.stationIds.length - 1; i++) {
+      const a = stationById(line.stationIds[i]);
+      const b = stationById(line.stationIds[i + 1]);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const lenSq = dx * dx + dy * dy || 1;
+      const ratio = Math.min(1, Math.max(0, ((x - a.x) * dx + (y - a.y) * dy) / lenSq));
+      const px = a.x + dx * ratio;
+      const py = a.y + dy * ratio;
+      const dist = Math.hypot(px - x, py - y);
+      if (!best || dist < best.dist) best = { segIdx: i, ratio, dist };
+    }
+    return best;
+  }
+
+  /**
+   * Setzt einen gegriffenen Zug an einer Stelle seiner eigenen Linie ab --
+   * schaut dabei auf ausdruecklichen Wunsch immer zu der der Ablegeposition
+   * NAEHEREN der beiden Nachbar-Haltestellen (nicht in "normaler"
+   * Fahrtrichtung weiter): bei ratio < 0.5 (naeher an der Startseite des
+   * Segments) zeigt die Lok zurueck zu dieser Station (dir=-1), sonst zur
+   * Zielseite (dir=1). Die normale Fahrsimulation (stepTrain) laeuft ab da
+   * unveraendert weiter, der Zug faehrt also ganz regulaer erst zur nun
+   * naeheren Station und von dort aus normal weiter.
+   */
+  function placeTrainAtSegment(train: Train, segIdx: number, ratio: number): void {
+    if (ratio < 0.5) {
+      train.fromIdx = segIdx + 1;
+      train.dir = -1;
+      train.t = 1 - ratio;
+    } else {
+      train.fromIdx = segIdx;
+      train.dir = 1;
+      train.t = ratio;
+    }
+    train.dwell = 0;
+    train.boardQueue = [];
+    train.boardTimer = 0;
+  }
+
   // ------------------------------------------------------------------- Zuege
 
   function stepTrain(line: Line, train: Train, dt: number): void {
@@ -1042,6 +1114,115 @@ function createMiniMetroGame(): MinigameModule {
     sparelokArmed = false;
     wagonArmed = true;
     updateHint();
+  }
+
+  /** Direktes Ziehziel fuer eine Lok aus dem Vorrat (siehe wireResourceDrag): ein Linien-Kreis rechts unter dem Zeiger, dieselbe Wirkung wie der bisherige sparelokArmed-Weg ueber onLineCircleTap. */
+  function tryAttachLocoAt(clientX: number, clientY: number): boolean {
+    const el = document.elementFromPoint(clientX, clientY);
+    const circleBtn = el?.closest(".mm-line-circle") as HTMLElement | null;
+    if (!circleBtn) return false;
+    const index = lineCircles.indexOf(circleBtn as HTMLButtonElement);
+    if (index < 0) return false;
+    const line = lines[index];
+    if (!line || line.stationIds.length < 2) return false;
+    spareLoks -= 1;
+    line.trains.push(createTrain());
+    updateCounters();
+    renderLineColumn();
+    return true;
+  }
+
+  /** Direktes Ziehziel fuer einen Waggon aus dem Vorrat (siehe wireResourceDrag): ein fahrender Zug auf dem Canvas unter dem Zeiger, dieselbe Wirkung wie der bisherige wagonArmed-Weg ueber handleDown/trainAt. */
+  function tryAttachWagonAt(clientX: number, clientY: number): boolean {
+    if (!canvasEl) return false;
+    const rect = canvasEl.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return false;
+    const world = screenToWorld(clientX - rect.left, clientY - rect.top);
+    const hit = trainAt(world.x, world.y);
+    if (!hit) return false;
+    hit.train.wagons += 1;
+    hit.train.capacity = BASE_CAPACITY + hit.train.wagons * WAGON_CAPACITY;
+    spareWagons -= 1;
+    updateCounters();
+    return true;
+  }
+
+  /**
+   * Verkabelt ein Vorrats-Icon (Lok/Waggon links) mit einer echten
+   * Ziehen-und-Ablegen-Geste ZUSAETZLICH zum bisherigen "antippen zum
+   * Scharfstellen, dann Ziel separat antippen"-Weg (onSparelokTap/
+   * onWagonTap bleiben unveraendert als Ein-Finger-Fallback bei einem
+   * reinen Tipp ohne Bewegung). Auf ausdruecklichen Nutzerwunsch: das Icon
+   * soll sich direkt auf sein Ziel ziehen lassen. Nutzt echte Pointer-Events
+   * auf window (statt der Canvas-eigenen onPointerDown/Move/Up-Pipeline),
+   * weil der Ziehweg ueber DOM-Elemente ausserhalb des Canvas (Linien-Kreise)
+   * fuehren kann.
+   */
+  function wireResourceDrag(btn: HTMLButtonElement, kind: "loco" | "wagon"): void {
+    let dragging = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let ghost: HTMLDivElement | null = null;
+
+    function cleanup(): void {
+      dragging = false;
+      moved = false;
+      if (ghost) {
+        ghost.remove();
+        ghost = null;
+      }
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      if (cancelActiveResourceDrag === onCancel) cancelActiveResourceDrag = null;
+    }
+
+    function onMove(e: PointerEvent): void {
+      if (!dragging) return;
+      if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) > 6) {
+        moved = true;
+        ghost = document.createElement("div");
+        ghost.className = "mm-resource-drag-ghost";
+        ghost.innerHTML = kind === "loco" ? icons.locomotive : icons.wagon;
+        document.body.appendChild(ghost);
+      }
+      if (ghost) {
+        ghost.style.left = `${e.clientX}px`;
+        ghost.style.top = `${e.clientY}px`;
+      }
+    }
+
+    function onUp(e: PointerEvent): void {
+      const wasMoved = moved;
+      cleanup();
+      if (!wasMoved) {
+        if (kind === "loco") onSparelokTap();
+        else onWagonTap();
+        return;
+      }
+      // Ausserhalb eines gueltigen Ziels losgelassen: einfach abbrechen,
+      // der Vorrat bleibt unangetastet -- kein Fehlerhinweis noetig, das
+      // Icon ist ja sichtbar zur Ausgangsposition zurueckgesprungen.
+      if (kind === "loco") tryAttachLocoAt(e.clientX, e.clientY);
+      else tryAttachWagonAt(e.clientX, e.clientY);
+    }
+
+    function onCancel(): void {
+      cleanup();
+    }
+
+    btn.addEventListener("pointerdown", (e) => {
+      if (btn.disabled) return;
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onCancel);
+      cancelActiveResourceDrag = onCancel;
+    });
   }
 
   /** Startet den Kamera-Zoom auf die ueberlastete Haltestelle -- triggerGameOver() (unveraendert, inkl. Text und Highscore-Delay) folgt erst nach GAMEOVER_ZOOM_S, siehe tick(). */
@@ -1322,6 +1503,19 @@ function createMiniMetroGame(): MinigameModule {
     for (const line of lines) {
       if (!line || line.stationIds.length < 2) continue;
       for (const train of line.trains) {
+        // Gerade gegriffener Zug (siehe trainDrag): folgt bis zum Loslassen
+        // direkt dem Zeiger statt der normalen Streckenposition, halbtrans-
+        // parent als Griff-Feedback, ohne Waggons/Fahrgast-Symbole (die
+        // haengen erst wieder dran, sobald der Zug abgesetzt ist).
+        if (trainDrag && trainDrag.train === train) {
+          if (lastPointer) {
+            ctx.save();
+            ctx.globalAlpha = 0.55;
+            drawLoco(ctx, lastPointer.x, lastPointer.y, 0, line.color);
+            ctx.restore();
+          }
+          continue;
+        }
         clampTrainIndex(line, train);
         const from = stationById(line.stationIds[train.fromIdx]);
         const toIdx = nextTrainIdx(line, train.fromIdx, train.dir);
@@ -1585,6 +1779,20 @@ function createMiniMetroGame(): MinigameModule {
       return;
     }
 
+    // Einen bereits fahrenden Zug (nicht gerade an einer Haltestelle
+    // stehend, siehe Datei-Kommentar bei trainDrag) direkt greifen -- geht
+    // dem Linien-Stummel-Griff/Stations-Tipp vor, damit sich ein Zug ZWISCHEN
+    // zwei Haltestellen ueberhaupt fassen laesst, ohne stattdessen eine neue
+    // Linie zu starten. Bewusst NICHT waehrend sparelokArmed/wagonArmed
+    // (dort hat die Vorrats-Zuweisung Vorrang, siehe oben).
+    if (!sparelokArmed && !wagonArmed) {
+      const hit = trainAt(x, y);
+      if (hit && hit.train.dwell <= 0 && hit.train.boardQueue.length === 0) {
+        trainDrag = hit;
+        return;
+      }
+    }
+
     // Danach pruefen, ob gerade eine Haltestelle "scharf" fuer Loeschen ist
     // und dieser Tipp eines ihrer Symbole trifft -- das geht der normalen
     // Stations-/Zieh-Logik unten vor.
@@ -1713,6 +1921,12 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function handleMove(x: number, y: number): void {
+    if (trainDrag) {
+      // Die Lok folgt beim Zeichnen direkt lastPointer (siehe drawTrains) --
+      // hier ist bis zum Loslassen sonst nichts zu tun.
+      lastPointer = { x, y };
+      return;
+    }
     if (midDrag) {
       // Die eigentliche Visualisierung des Knicks liest lastPointer direkt
       // (siehe drawMidDragKink) -- hier ist sonst nichts zu tun, bis
@@ -1738,6 +1952,14 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function handleUp(x: number, y: number): void {
+    if (trainDrag) {
+      const { line, train } = trainDrag;
+      const nearest = nearestPointOnLinePath(line, x, y);
+      if (nearest) placeTrainAtSegment(train, nearest.segIdx, nearest.ratio);
+      trainDrag = null;
+      lastPointer = null;
+      return;
+    }
     if (midDrag) {
       // Losgelassen ueber einer Haltestelle, die noch nicht auf dieser
       // Linie vorkommt (und nicht einer der beiden direkten Nachbarn
@@ -1878,6 +2100,7 @@ function createMiniMetroGame(): MinigameModule {
     init(env: GameEnv) {
       exitGame = env.exit;
       lastSize = env.size;
+      canvasEl = env.canvas;
       for (const src of PASSENGER_SPRITES) getImage(src);
       lines = new Array(MAX_LINE_SLOTS).fill(null);
 
@@ -1889,12 +2112,12 @@ function createMiniMetroGame(): MinigameModule {
       sparelokBtn.type = "button";
       sparelokBtn.className = "mm-resource";
       sparelokBtn.innerHTML = `<span class="mm-resource__icon">${icons.locomotive}</span><span class="mm-resource__count">0</span>`;
-      sparelokBtn.addEventListener("click", () => onSparelokTap());
+      wireResourceDrag(sparelokBtn, "loco");
       wagonBtn = document.createElement("button");
       wagonBtn.type = "button";
       wagonBtn.className = "mm-resource";
       wagonBtn.innerHTML = `<span class="mm-resource__icon">${icons.wagon}</span><span class="mm-resource__count">0</span>`;
-      wagonBtn.addEventListener("click", () => onWagonTap());
+      wireResourceDrag(wagonBtn, "wagon");
       resourceCol.append(sparelokBtn, wagonBtn);
       resourceColEl = resourceCol;
       env.overlay.appendChild(resourceCol);
@@ -2054,6 +2277,7 @@ function createMiniMetroGame(): MinigameModule {
     },
 
     cleanup() {
+      cancelActiveResourceDrag?.();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;
       closeHighscoreModal?.();

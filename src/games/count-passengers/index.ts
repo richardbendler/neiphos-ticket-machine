@@ -526,7 +526,7 @@ function createCountPassengersGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Passagiere zählen",
-  subtitle: "Zähle, wie viele Hüpftiere mit dem Zug fahren",
+  subtitle: "Wie viele Hüpftiere fahren mit?",
   icon: "trainWindow",
   badge: "PZ",
   accent: "#0a545c",

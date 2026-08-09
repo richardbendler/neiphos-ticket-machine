@@ -2674,9 +2674,10 @@ button {
 }
 
 .hs-message {
-  min-height: 1.4em;
-  font-weight: 700;
-  font-size: clamp(1rem, 3.2vh, 1.5rem);
+  min-height: 1.6em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.3rem, 4.6vh, 2.2rem);
   color: #e8e6e0;
   text-align: center;
 }
@@ -2704,5 +2705,103 @@ button {
 
 .hs-spin-btn:disabled {
   opacity: 0.5;
+  box-shadow: none;
+}
+
+/* ------------------------------- Investitionsbildschirm (vor jeder Runde) */
+
+.hs-invest {
+  justify-content: flex-start;
+}
+
+.hs-invest__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.hs-invest__remaining {
+  max-width: 260px;
+}
+
+.hs-invest__list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vh, 12px);
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hs-invest__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(8px, 1.6vw, 16px);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 204, 51, 0.25);
+  border-radius: var(--radius-md);
+  padding: clamp(8px, 1.6vh, 16px) clamp(10px, 2vw, 20px);
+}
+
+.hs-invest__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hs-invest__label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.95rem, 2.6vh, 1.35rem);
+  color: #ffcc33;
+}
+
+.hs-invest__effect {
+  font-size: clamp(0.75rem, 1.9vh, 1.05rem);
+  color: #d8d5cd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hs-invest__spent {
+  font-size: clamp(0.65rem, 1.6vh, 0.9rem);
+  color: #ffcc33;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hs-invest__controls {
+  display: flex;
+  gap: clamp(4px, 1vw, 8px);
+  flex-shrink: 0;
+}
+
+.hs-invest__btn {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.85rem, 2vh, 1.15rem);
+  width: clamp(36px, 5.5vw, 56px);
+  height: clamp(36px, 5.5vh, 56px);
+  border-radius: var(--radius-sm);
+  border: 2px solid #050505;
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
+  color: var(--text);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.hs-invest__btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.hs-invest__btn:disabled {
+  opacity: 0.35;
   box-shadow: none;
 }

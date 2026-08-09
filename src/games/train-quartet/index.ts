@@ -940,7 +940,7 @@ function createTrainQuartetGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Zug-Quartett",
-  subtitle: "Top-Trumps mit 20 echten Zügen",
+  subtitle: "Vergleiche Werte mit 20 echten Zügen",
   icon: "cards",
   badge: "ZQ",
   accent: "#7e5330",

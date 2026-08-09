@@ -2505,6 +2505,36 @@ button {
   height: 100%;
 }
 
+/* Schwebendes Icon waehrend eine Lok/ein Waggon aus dem Vorrat links direkt
+   auf ihr Ziel gezogen wird (siehe games/mini-metro/index.ts#wireResourceDrag)
+   -- folgt per Pointer-Events dem Finger ueber den GESAMTEN Bildschirm
+   hinweg, deshalb an document.body statt an den Spiel-Overlay gehaengt und
+   mit fixed positioniert (Client-, nicht Canvas-/Weltkoordinaten). */
+.mm-resource-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 2000;
+}
+
+.mm-resource-drag-ghost svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* Vertikale Spalte der Linienfarb-Kreise rechts, wie in der Skizze
    gewuenscht -- gleichzeitig Legende (welche Farbe ist welche Linie) und
    Loesch-Bedienelement (zweimal antippen zum Loeschen, siehe

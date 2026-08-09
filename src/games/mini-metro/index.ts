@@ -152,6 +152,19 @@ const MARGIN_LEFT = 24;
 const MARGIN_BOTTOM = 100;
 const MIN_STATION_DIST = STATION_RADIUS * 4.2;
 
+// Persistenter, extrem langsamer Rauszoom-Effekt: je mehr Haltestellen es
+// gibt, desto weiter zoomt die Kamera (kaum wahrnehmbar) heraus -- auf
+// ausdruecklichen Wunsch, damit neue Haltestellen NICHT zwischen die
+// bestehenden gequetscht werden muessen, sondern das Streckennetz insgesamt
+// einfach groesser wird (neue Haltestellen entstehen im dadurch neu
+// verfuegbaren Weltbereich, siehe randomStationPosition/getCameraPivot).
+// worldZoom naehert sich seinem Ziel (worldZoomTarget, siehe tick()) nur
+// sehr langsam an (WORLD_ZOOM_LERP_RATE) statt bei jeder neuen Haltestelle
+// zu springen -- das macht die Bewegung ueber die gesamte Rundendauer
+// verteilt praktisch unsichtbar.
+const WORLD_ZOOM_MIN = 0.62;
+const WORLD_ZOOM_LERP_RATE = 0.12;
+
 // Sicherheitsabstand des Tutorial-Pfeils zur Kopfzeile (86px hoch, siehe
 // --header-h in style.css): der oberste gezeichnete Text lag beim frueheren
 // festen Versatz (MARGIN_TOP - 22) teils nur ~3px unterhalb der Kopfzeile
@@ -288,6 +301,12 @@ function createMiniMetroGame(): MinigameModule {
   let zoomStation: Station | null = null;
   let zoomElapsedS = 0;
 
+  // Persistenter Rauszoom-Effekt (siehe WORLD_ZOOM_MIN) -- worldZoom ist der
+  // tatsaechlich gezeichnete/fuer Eingaben verwendete Wert, worldZoomTarget
+  // das aktuelle Ziel je nach Haltestellenzahl (siehe tick()).
+  let worldZoom = 1;
+  let worldZoomTarget = 1;
+
   let activeDrag: { lineIndex: number; fromEnd: "start" | "end" } | null = null;
   // Letzte Zeigerposition waehrend eines aktiven Drags -- ermoeglicht das
   // "Aufsammeln" mehrerer Haltestellen in einer einzigen, zuegigen
@@ -325,15 +344,43 @@ function createMiniMetroGame(): MinigameModule {
     return stations.find((s) => s.id === id)!;
   }
 
+  /**
+   * Fester Drehpunkt fuer den Welt-Zoom -- die Mitte des urspruenglichen
+   * (margin-begrenzten) Spielfelds bei worldZoom=1. Wird sowohl beim
+   * Platzieren neuer Haltestellen (randomStationPosition) als auch beim
+   * Zeichnen (render) und beim Umrechnen von Bildschirm- in Welt-Koordinaten
+   * (screenToWorld) verwendet -- nur wenn ueberall derselbe Drehpunkt gilt,
+   * bildet ein vergroesserter Weltbereich bei jedem Zoom-Stand wieder exakt
+   * auf denselben Bildschirmbereich ab (bei worldZoom=1 identisch zum
+   * bisherigen Verhalten).
+   */
+  function getCameraPivot(size: { width: number; height: number }): { x: number; y: number } {
+    return {
+      x: MARGIN_LEFT + (size.width - MARGIN_LEFT - MARGIN_RIGHT) / 2,
+      y: MARGIN_TOP + (size.height - MARGIN_TOP - MARGIN_BOTTOM) / 2,
+    };
+  }
+
+  function screenToWorld(x: number, y: number): { x: number; y: number } {
+    const pivot = getCameraPivot(lastSize);
+    return { x: pivot.x + (x - pivot.x) / worldZoom, y: pivot.y + (y - pivot.y) / worldZoom };
+  }
+
   // ------------------------------------------------------------- Haltestellen
 
   function randomStationPosition(size: { width: number; height: number }): { x: number; y: number } | null {
-    const w = size.width - MARGIN_LEFT - MARGIN_RIGHT;
-    const h = size.height - MARGIN_TOP - MARGIN_BOTTOM;
+    // Durch worldZoom geteilt -- je weiter herausgezoomt (kleinerer Wert),
+    // desto groesser der Weltbereich, in dem neue Haltestellen entstehen
+    // koennen (siehe Datei-Kommentar bei WORLD_ZOOM_MIN).
+    const w = (size.width - MARGIN_LEFT - MARGIN_RIGHT) / worldZoom;
+    const h = (size.height - MARGIN_TOP - MARGIN_BOTTOM) / worldZoom;
     if (w < 40 || h < 40) return null;
+    const pivot = getCameraPivot(size);
+    const left = pivot.x - w / 2;
+    const top = pivot.y - h / 2;
     for (let attempt = 0; attempt < 30; attempt++) {
-      const x = MARGIN_LEFT + Math.random() * w;
-      const y = MARGIN_TOP + Math.random() * h;
+      const x = left + Math.random() * w;
+      const y = top + Math.random() * h;
       if (stations.every((s) => Math.hypot(s.x - x, s.y - y) >= MIN_STATION_DIST)) {
         return { x, y };
       }
@@ -626,9 +673,36 @@ function createMiniMetroGame(): MinigameModule {
     train.fromIdx = Math.min(Math.max(train.fromIdx, 0), maxIdx);
   }
 
+  /** Ringlinie = erste und letzte Haltestelle sind identisch (siehe tryExtendActiveLine) -- mindestens drei Eintraege, sonst waeren "erste" und "letzte" dieselbe einzelne Haltestelle. */
+  function isRingLine(line: Line): boolean {
+    const lastIdx = line.stationIds.length - 1;
+    return lastIdx >= 2 && line.stationIds[0] === line.stationIds[lastIdx];
+  }
+
+  /**
+   * Naechster Index in Fahrtrichtung -- bei einer Ringlinie faehrt der Zug
+   * tatsaechlich RUNDHERUM statt an den Array-Enden umzudrehen (auf
+   * ausdruecklichen Wunsch): ueber die doppelt gezaehlte Schluss-Haltestelle
+   * hinaus geht's direkt beim naechsten "echten" Nachbarn weiter (Index 1
+   * bzw. laenge-2). Bei einer normalen (nicht geschlossenen) Linie bleibt
+   * es beim bisherigen Clamping (die Umkehr-Entscheidung selbst trifft
+   * weiterhin stepTrain). Wird sowohl von stepTrain als auch von den rein
+   * visuellen Stellen (drawTrains/currentTrainPos) verwendet, damit der Zug
+   * am Ringschluss nicht sichtbar "haengenbleibt".
+   */
+  function nextTrainIdx(line: Line, fromIdx: number, dir: 1 | -1): number {
+    const lastIdx = line.stationIds.length - 1;
+    const toIdx = fromIdx + dir;
+    if (isRingLine(line)) {
+      if (toIdx > lastIdx) return 1;
+      if (toIdx < 0) return lastIdx - 1;
+    }
+    return Math.min(Math.max(toIdx, 0), lastIdx);
+  }
+
   function currentTrainPos(line: Line, train: Train): { x: number; y: number } {
     const from = stationById(line.stationIds[train.fromIdx]);
-    const toIdx = Math.min(Math.max(train.fromIdx + train.dir, 0), line.stationIds.length - 1);
+    const toIdx = nextTrainIdx(line, train.fromIdx, train.dir);
     const to = stationById(line.stationIds[toIdx]);
     return { x: from.x + (to.x - from.x) * train.t, y: from.y + (to.y - from.y) * train.t };
   }
@@ -671,12 +745,15 @@ function createMiniMetroGame(): MinigameModule {
       return;
     }
     const from = stationById(line.stationIds[train.fromIdx]);
-    const toIdx = train.fromIdx + train.dir;
-    if (toIdx < 0 || toIdx >= line.stationIds.length) {
-      // Endstation erreicht -- umdrehen.
+    const rawToIdx = train.fromIdx + train.dir;
+    if (!isRingLine(line) && (rawToIdx < 0 || rawToIdx >= line.stationIds.length)) {
+      // Endstation einer normalen (nicht geschlossenen) Linie erreicht --
+      // umdrehen. Bei einer Ringlinie faehrt der Zug stattdessen einfach
+      // weiter rundherum, siehe nextTrainIdx.
       train.dir = (train.dir * -1) as 1 | -1;
       return;
     }
+    const toIdx = nextTrainIdx(line, train.fromIdx, train.dir);
     const to = stationById(line.stationIds[toIdx]);
     const dist = Math.hypot(to.x - from.x, to.y - from.y) || 1;
     train.t += (TRAIN_SPEED_PX_S * dt) / dist;
@@ -993,6 +1070,8 @@ function createMiniMetroGame(): MinigameModule {
     zooming = false;
     zoomStation = null;
     zoomElapsedS = 0;
+    worldZoom = 1;
+    worldZoomTarget = 1;
     setGameSpeed(1);
     disarmStationDelete();
     gameOverPanel.style.display = "none";
@@ -1181,7 +1260,7 @@ function createMiniMetroGame(): MinigameModule {
       for (const train of line.trains) {
         clampTrainIndex(line, train);
         const from = stationById(line.stationIds[train.fromIdx]);
-        const toIdx = Math.min(Math.max(train.fromIdx + train.dir, 0), line.stationIds.length - 1);
+        const toIdx = nextTrainIdx(line, train.fromIdx, train.dir);
         const to = stationById(line.stationIds[toIdx]);
         const x = from.x + (to.x - from.x) * train.t;
         const y = from.y + (to.y - from.y) * train.t;
@@ -1560,6 +1639,16 @@ function createMiniMetroGame(): MinigameModule {
 
     tutorialPulseTimer += dt;
 
+    // Zielwert haengt nur von der aktuellen Haltestellenzahl ab, die
+    // tatsaechliche Annaeherung ist bewusst sehr traege (siehe
+    // WORLD_ZOOM_LERP_RATE) -- dadurch verschwimmt jeder einzelne Schritt zu
+    // einer ueber die ganze Runde verteilten, kaum wahrnehmbaren Bewegung.
+    const zoomStartCount = SHAPES.length;
+    const zoomSpan = Math.max(1, MAX_STATIONS - zoomStartCount);
+    const zoomProgress = Math.max(0, Math.min(1, (stations.length - zoomStartCount) / zoomSpan));
+    worldZoomTarget = 1 - zoomProgress * (1 - WORLD_ZOOM_MIN);
+    worldZoom += (worldZoomTarget - worldZoom) * dt * WORLD_ZOOM_LERP_RATE;
+
     dayTimerS += dt;
     updateClock();
     if (dayTimerS >= DAY_MS / 1000) {
@@ -1725,10 +1814,20 @@ function createMiniMetroGame(): MinigameModule {
       ctx.fillRect(0, 0, size.width, size.height);
       if (!started) return;
 
+      const pivot = getCameraPivot(size);
       ctx.save();
+      // Persistenter Rauszoom (siehe WORLD_ZOOM_MIN) -- IMMER aktiv, auch
+      // ganz am Rundenanfang (dort aber worldZoom praktisch 1, siehe
+      // resetGame/tick, also visuell unveraendert).
+      ctx.translate(pivot.x, pivot.y);
+      ctx.scale(worldZoom, worldZoom);
+      ctx.translate(-pivot.x, -pivot.y);
+
       if (zooming && zoomStation) {
         // Ease-out: schnell reinzoomen, gegen Ende sanft abbremsen -- wirkt
-        // dynamischer als ein linearer Zoom.
+        // dynamischer als ein linearer Zoom. Setzt auf dem bereits aktiven
+        // Welt-Zoom oben ON TOP auf (beide Transformationen verwenden
+        // Weltkoordinaten, lassen sich also einfach verschachteln).
         const progress = Math.min(1, zoomElapsedS / GAMEOVER_ZOOM_S);
         const eased = 1 - Math.pow(1 - progress, 3);
         const zoom = 1 + (GAMEOVER_ZOOM_SCALE - 1) * eased;
@@ -1742,15 +1841,20 @@ function createMiniMetroGame(): MinigameModule {
       drawTrains(ctx);
       drawStations(ctx);
       drawStationRemoveUI(ctx);
-      drawTutorialArrow(ctx, size);
       ctx.restore();
+      // Bewusst AUSSERHALB des Welt-Zooms -- der Tutorial-Pfeil ist ein
+      // fester Bildschirm-Hinweis, kein Weltobjekt, und soll unabhaengig
+      // vom aktuellen Zoom-Stand immer gleich gross/gleich positioniert sein.
+      drawTutorialArrow(ctx, size);
     },
 
     onPointerDown(p: PointerPoint) {
-      handleDown(p.x, p.y);
+      const w = screenToWorld(p.x, p.y);
+      handleDown(w.x, w.y);
     },
     onPointerMove(p: PointerPoint) {
-      handleMove(p.x, p.y);
+      const w = screenToWorld(p.x, p.y);
+      handleMove(w.x, w.y);
     },
     onPointerUp() {
       handleUp();

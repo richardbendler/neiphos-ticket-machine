@@ -112,6 +112,25 @@ export const icons = {
      <path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7 5.6 5.6"/>`,
   ),
   moon: svg(`<path d="M15.5 3.5A8.5 8.5 0 1 0 20.5 16 6.8 6.8 0 0 1 15.5 3.5Z" fill="currentColor" stroke="none"/>`),
+  // Geschwindigkeitsregler (games/mini-metro): Pause/Play/Vorspulen.
+  pause: svg(
+    `<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/>
+     <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/>`,
+  ),
+  play: svg(`<path d="M7 4 L20 12 L7 20 Z" fill="currentColor" stroke="none"/>`),
+  fastForward: svg(
+    `<path d="M2 5 L11 12 L2 19 Z" fill="currentColor" stroke="none"/>
+     <path d="M12 5 L21 12 L12 19 Z" fill="currentColor" stroke="none"/>`,
+  ),
+  // Waggon-Vorrat (games/mini-metro) -- eigenes Icon statt einer Wiederverwendung
+  // von "locomotive", damit Lok- und Waggon-Vorratsanzeige auf einen Blick
+  // unterscheidbar sind.
+  wagon: svg(
+    `<rect x="4" y="7" width="16" height="10" rx="1.5"/>
+     <line x1="4" y1="12" x2="20" y2="12"/>
+     <circle cx="8" cy="19" r="2"/>
+     <circle cx="16" cy="19" r="2"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

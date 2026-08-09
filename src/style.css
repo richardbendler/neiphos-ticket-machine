@@ -2440,27 +2440,30 @@ button {
 
 /* -------------------------- Hüpftier-Glücksspiel (games/hopper-slots) -- */
 
-/* Gleiches Positionierungsschema wie .stage-center-panel (siehe dortiger
-   Kommentar) -- symmetrisch zur echten Bildschirmmitte, unabhaengig von
-   der unterschiedlichen Kopf-/Fusszeilenhoehe. Dunkler "Geraetegehaeuse"-
-   Rahmen (statt vorher direkt freistehender Walzen) -- auf ausdruecklichen
-   Wunsch soll das Ganze wie ein echter Spielautomat wirken, nicht wie drei
-   lose Kaestchen auf dem Hintergrund. */
+/* Auf ausdruecklichen Wunsch fuellt das Gehaeuse jetzt WIRKLICH den
+   kompletten verfuegbaren Bereich aus (alles ausser Kopf-/Fusszeile),
+   statt nur eine zentrierte, spuerbar kleinere Box zu sein -- nur ein
+   kleiner Sicherheitsabstand zu den Bildschirmraendern bleibt. Vorher:
+   "margin: auto 0" (vertauschte Kurzschreibweise TOP/BOTTOM statt LINKS/
+   RECHTS) gab der Box gar keine horizontale Zentrierung, sie klebte links
+   am Rand fest (gemeldeter Bug) -- UND ein harter 480px-Breitendeckel
+   liess sie selbst zentriert winzig wirken. Beides jetzt behoben: keine
+   Breitenbegrenzung mehr, volle Hoehe zwischen Kopf-/Fusszeile. */
 .hs-cabinet {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-top));
-  bottom: calc((var(--header-h) + var(--footer-h)) / 2 + 20px + var(--safe-bottom));
+  left: 10px;
+  right: 10px;
+  top: calc(var(--header-h) + 10px + var(--safe-top));
+  bottom: calc(var(--footer-h) + 10px + var(--safe-bottom));
   z-index: 15;
-  margin: auto 0;
-  width: min(94vw, 480px);
-  max-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(8px, 1.6vh, 14px);
-  padding: clamp(10px, 2vh, 18px);
+  /* Verteilt Leuchtreklame/Walzen/Gewinntabelle/Anzeigen/Knopf gleichmaessig
+     ueber die jetzt volle Gehaeusehoehe, statt oben zusammengeklumpt mit
+     leerem Platz darunter zu stehen. */
+  justify-content: space-evenly;
+  padding: clamp(12px, 2.4vh, 26px) clamp(12px, 3vw, 32px);
   background: linear-gradient(165deg, #4a4d55, #24262b);
   border: 3px solid #17181b;
   border-radius: var(--radius-lg);
@@ -2528,7 +2531,7 @@ button {
 .hs-marquee__title {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1rem, 3.4vw, 1.4rem);
+  font-size: clamp(1.2rem, 4.2vw, 2rem);
   letter-spacing: 0.04em;
   color: #ffcc33;
   text-shadow: 0 0 8px rgba(255, 204, 51, 0.6), 0 2px 0 rgba(0, 0, 0, 0.4);
@@ -2543,21 +2546,37 @@ button {
 
 .hs-reels {
   display: flex;
-  gap: clamp(6px, 1.4vw, 14px);
+  gap: clamp(8px, 1.8vw, 18px);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   border: clamp(3px, 0.6vw, 6px) solid var(--text);
   border-radius: var(--radius-lg);
-  padding: clamp(8px, 1.6vh, 14px);
+  padding: clamp(10px, 2vh, 18px);
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .hs-reel-window {
-  width: clamp(58px, 10vw, 100px);
-  height: clamp(58px, 10vw, 100px);
+  position: relative;
+  /* Skaliert mit der kleineren der beiden Bildschirmdimensionen (min()
+     aus vw/vh) -- so werden die Walzen auf dem jetzt fast bildschirm-
+     fuellenden Gehaeuse (siehe .hs-cabinet) weder auf sehr breiten NOCH
+     auf sehr hohen (Hochformat-Kiosk) Bildschirmen unverhaeltnismaessig. */
+  width: clamp(90px, min(15vw, 30vh), 320px);
+  height: clamp(90px, min(15vw, 30vh), 320px);
   overflow: hidden;
   background: var(--panel);
   border: 2px solid var(--panel-border-light);
   border-radius: var(--radius-sm);
+}
+
+/* Diagonaler Glanzstreifen ueber dem Walzenfenster -- rein dekorativ
+   (Glas-/Plexiglas-Eindruck), auf ausdruecklichen Wunsch nach mehr
+   "schick" beim Gesamtlook. */
+.hs-reel-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 22%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, 0.25) 100%);
+  pointer-events: none;
 }
 
 .hs-reel-strip {
@@ -2566,8 +2585,10 @@ button {
 }
 
 .hs-symbol {
-  width: clamp(58px, 10vw, 100px);
-  height: clamp(58px, 10vw, 100px);
+  /* Muss exakt mit .hs-reel-window uebereinstimmen -- sonst passt die
+     Symbolgroesse nicht mehr zum Fenster, das sie ausschneidet. */
+  width: clamp(90px, min(15vw, 30vh), 320px);
+  height: clamp(90px, min(15vw, 30vh), 320px);
   object-fit: contain;
   flex-shrink: 0;
   display: block;
@@ -2578,8 +2599,10 @@ button {
    Signal "das hier ist die Reihe, die zaehlt". */
 .hs-payline {
   position: absolute;
-  left: calc(clamp(3px, 0.6vw, 6px) + clamp(8px, 1.6vw, 14px));
-  right: calc(clamp(3px, 0.6vw, 6px) + clamp(8px, 1.6vw, 14px));
+  /* Muss der Rand- + Innenabstand-Summe von .hs-reels entsprechen, sonst
+     verläuft die Linie nicht mehr exakt durch die Fenstermitte-Kante. */
+  left: calc(clamp(3px, 0.6vw, 6px) + clamp(10px, 2vh, 18px));
+  right: calc(clamp(3px, 0.6vw, 6px) + clamp(10px, 2vh, 18px));
   top: 50%;
   height: 2px;
   transform: translateY(-50%);
@@ -2590,41 +2613,45 @@ button {
 
 /* Kompakte Gewinntabelle -- zeigt, was drei Gleiche je Tier bringen (echte
    Automaten haben dafuer immer eine sichtbare Paytable, kein Blackbox-
-   Gefuehl). */
+   Gefuehl). Eigene gerahmte "Glasplakette" statt lose schwebender Chips --
+   wirkt dadurch wie ein fest am Gehaeuse angebrachtes Schild. */
 .hs-paytable {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px 8px;
+  gap: clamp(4px, 1vh, 8px) clamp(6px, 1.4vw, 14px);
   width: 100%;
-  padding: 4px 2px;
+  padding: clamp(8px, 1.6vh, 14px) clamp(8px, 1.6vw, 16px);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 204, 51, 0.25);
+  border-radius: var(--radius-md);
 }
 
 .hs-paytable__item {
   display: flex;
   align-items: center;
-  gap: 3px;
-  background: rgba(0, 0, 0, 0.25);
+  gap: clamp(3px, 0.6vw, 6px);
+  background: rgba(0, 0, 0, 0.3);
   border-radius: 999px;
-  padding: 2px 8px 2px 3px;
+  padding: clamp(2px, 0.6vh, 5px) clamp(8px, 1.4vw, 14px) clamp(2px, 0.6vh, 5px) clamp(3px, 0.6vw, 5px);
 }
 
 .hs-paytable__item img {
-  width: clamp(16px, 3.4vw, 22px);
-  height: clamp(16px, 3.4vw, 22px);
+  width: clamp(22px, 4.4vw, 40px);
+  height: clamp(22px, 4.4vw, 40px);
   object-fit: contain;
 }
 
 .hs-paytable__item span {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.62rem, 1.6vw, 0.78rem);
+  font-size: clamp(0.75rem, 2vw, 1.05rem);
   color: #f4d9a0;
 }
 
 .hs-panel {
   display: flex;
-  gap: clamp(8px, 2vw, 16px);
+  gap: clamp(10px, 2.4vw, 22px);
   width: 100%;
   justify-content: center;
 }
@@ -2632,16 +2659,16 @@ button {
 /* Digitale Anzeige im LCD-Look (Punktestand/verbleibende Drehs). */
 .hs-readout {
   flex: 1;
-  max-width: 160px;
+  max-width: 260px;
   text-align: center;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.95rem, 3vh, 1.3rem);
+  font-size: clamp(1.1rem, 4.2vh, 2rem);
   color: #ffcc33;
   background: #1a1c1f;
   border: 2px solid #050505;
   border-radius: var(--radius-sm);
-  padding: clamp(4px, 1vh, 8px) 6px;
+  padding: clamp(6px, 1.6vh, 14px) 10px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
   text-shadow: 0 0 6px rgba(255, 204, 51, 0.55);
 }
@@ -2649,7 +2676,7 @@ button {
 .hs-message {
   min-height: 1.4em;
   font-weight: 700;
-  font-size: clamp(0.85rem, 2.2vh, 1.05rem);
+  font-size: clamp(1rem, 3.2vh, 1.5rem);
   color: #e8e6e0;
   text-align: center;
 }
@@ -2661,8 +2688,8 @@ button {
 .hs-spin-btn {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.1rem, 3vh, 1.5rem);
-  padding: clamp(10px, 2vh, 18px) clamp(28px, 6vw, 56px);
+  font-size: clamp(1.3rem, 4.4vh, 2.1rem);
+  padding: clamp(14px, 3vh, 26px) clamp(36px, 7vw, 76px);
   border-radius: 999px;
   border: 2px solid var(--danger);
   background: linear-gradient(180deg, #e04b4b, var(--danger));

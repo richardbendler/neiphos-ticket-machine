@@ -11,7 +11,7 @@ import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { registerGame } from "../registry";
 
 /**
- * "Hüpftier Metro" (ursprünglich als "Mini Metro" eingefuehrt, siehe
+ * "Hüpftier-Metro" (ursprünglich als "Mini Metro" eingefuehrt, siehe
  * Ordnername/GAME_ID -- rein interne Bezeichner bleiben unveraendert, um
  * bestehende Highscores nicht zu verwaisen) -- eigenstaendige Neuentwicklung
  * nach dem Vorbild des Handyspiels Mini Metro (Haltestellen per Linien
@@ -1148,7 +1148,7 @@ function createMiniMetroGame(): MinigameModule {
       resetGame();
 
       closeIntro = showGameIntro({
-        title: "Hüpftier Metro",
+        title: "Hüpftier-Metro",
         description: [
           "Verbinde Haltestellen (Kreis/Quadrat/Dreieck) per Ziehen zu Linien",
           "Auch mehrere Haltestellen in einem Zug -- oder eine Linie an ihrem Ende greifen und weiterziehen",
@@ -1209,7 +1209,7 @@ function createMiniMetroGame(): MinigameModule {
 
 registerGame({
   id: GAME_ID,
-  title: "Hüpftier Metro",
+  title: "Hüpftier-Metro",
   subtitle: "Bringe Hüpftiere von A nach B",
   icon: "metroMap",
   badge: "MM",

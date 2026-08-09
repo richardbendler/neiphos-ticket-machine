@@ -411,7 +411,7 @@ function createHopperSlotsGame(): MinigameModule {
       resetGame();
 
       closeIntro = showGameIntro({
-        title: "Hüpftier-Glücksspiel",
+        title: "Hüpftier-Glück",
         description: [
           `${TOTAL_SPINS} Drehs pro Runde, jeder kostet 1 Punkt -- schaffe einen möglichst hohen Höchststand`,
           "Zeigen die ersten beiden Walzen dasselbe Tier: kleiner Trostgewinn",
@@ -453,7 +453,7 @@ function createHopperSlotsGame(): MinigameModule {
 
 registerGame({
   id: GAME_ID,
-  title: "Hüpftier-Glücksspiel",
+  title: "Hüpftier-Glück",
   subtitle: "Hüpft dir dein Glück?",
   icon: "hopper",
   badge: "GS",

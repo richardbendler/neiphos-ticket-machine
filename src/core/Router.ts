@@ -36,7 +36,8 @@ function formatClock(date: Date): string {
  */
 export class Router {
   private readonly root: HTMLElement;
-  private readonly chromeTitle: HTMLElement;
+  private readonly chromeClock: HTMLElement;
+  private readonly chromeGameTitle: HTMLElement;
   private readonly menuBtn: HTMLButtonElement;
   private readonly highscoreBtn: HTMLButtonElement;
   private screenEl: HTMLElement | null = null;
@@ -52,7 +53,8 @@ export class Router {
   constructor(root: HTMLElement) {
     this.root = root;
     const chromeBar = this.buildChromeBar();
-    this.chromeTitle = chromeBar.querySelector(".chrome-bar__title")!;
+    this.chromeClock = chromeBar.querySelector(".chrome-bar__clock")!;
+    this.chromeGameTitle = chromeBar.querySelector(".chrome-bar__game-title")!;
     this.menuBtn = chromeBar.querySelector(".chrome-menu-btn")!;
     this.highscoreBtn = chromeBar.querySelector(".chrome-highscore-btn")!;
     // Bewusst an document.body gehaengt statt an #app: #app ist selbst
@@ -110,6 +112,11 @@ export class Router {
 
     const title = document.createElement("div");
     title.className = "chrome-bar__title";
+    const clock = document.createElement("div");
+    clock.className = "chrome-bar__clock";
+    const gameTitle = document.createElement("div");
+    gameTitle.className = "chrome-bar__game-title";
+    title.append(clock, gameTitle);
 
     const brand = document.createElement("div");
     brand.className = "chrome-bar__brand";
@@ -215,7 +222,7 @@ export class Router {
   private startClock(): void {
     if (this.clockInterval !== null) return;
     const tick = () => {
-      this.chromeTitle.textContent = formatClock(new Date());
+      this.chromeClock.textContent = formatClock(new Date());
     };
     tick();
     this.clockInterval = window.setInterval(tick, 1000);
@@ -226,6 +233,7 @@ export class Router {
       window.clearInterval(this.clockInterval);
       this.clockInterval = null;
     }
+    this.chromeClock.textContent = "";
   }
 
   private clearScreen(): void {
@@ -253,6 +261,7 @@ export class Router {
     this.teardownActiveGame();
     this.clearScreen();
     this.setNavMode("menu-screen");
+    this.chromeGameTitle.textContent = "";
     this.startClock();
     // Im Admin-Panel deaktivierte Spiele werden im Hauptmenue nicht
     // aufgelistet (bleiben aber ueber ihre ID technisch weiterhin normal
@@ -281,7 +290,7 @@ export class Router {
     this.teardownActiveGame();
     this.clearScreen();
     this.stopClock();
-    this.chromeTitle.textContent = "Highscores";
+    this.chromeGameTitle.textContent = "Highscores";
     this.setNavMode("elsewhere");
     const element = renderHighscoreBoard();
     this.root.appendChild(element);
@@ -297,8 +306,8 @@ export class Router {
     }
 
     this.clearScreen();
-    this.stopClock();
-    this.chromeTitle.textContent = meta.title;
+    this.startClock();
+    this.chromeGameTitle.textContent = meta.title;
     this.setNavMode("elsewhere");
 
     const stage = document.createElement("div");

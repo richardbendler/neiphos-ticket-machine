@@ -234,23 +234,55 @@ button {
      titel immer exakt mittig auf dem Bildschirm, unabhaengig davon, wie
      breit die Buttons links/rechts gerade sind. Breite UND Schrift skalieren
      zusaetzlich mit der Viewport-Breite (clamp/vw), damit auf schmalen
-     Bildschirmen kein Platzkonflikt mit den seitlichen Elementen entsteht. */
+     Bildschirmen kein Platzkonflikt mit den seitlichen Elementen entsteht.
+     Zwei uebereinander gestapelte Zeilen (Uhr + Spieltitel) -- ist die
+     Titelzeile leer (Hauptmenue), bleibt durch :empty nur die Uhrzeile
+     uebrig und die Position sieht exakt wie vorher (eine Zeile) aus. Laeuft
+     ein Spiel, ruecken beide Zeilen dadurch automatisch mittig zusammen,
+     die Uhr wandert dabei ein Stueck nach oben, der Titel erscheint darunter. */
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, calc(-50% + var(--safe-top) / 2));
   max-width: min(38%, 320px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   text-align: center;
+  pointer-events: none;
+}
+
+.chrome-bar__clock {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: clamp(0.62rem, 2.6vw, 0.9rem);
   letter-spacing: 0.03em;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
+}
+
+.chrome-bar__clock:empty {
+  display: none;
+}
+
+.chrome-bar__game-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(0.85rem, 3.6vw, 1.18rem);
+  color: var(--text);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chrome-bar__game-title:empty {
+  display: none;
 }
 
 .chrome-bar__brand {
@@ -659,9 +691,17 @@ button {
   min-height: 0;
   overflow-y: auto;
   touch-action: pan-y;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  /* Vorher eine einzelne, ueber die volle Breite laufende Spalte -- dadurch
+     wurde die Liste bei vielen Spielen sehr lang (viel Scrollen) und breite
+     Karten mit nur kurzen Zeileninhalten wirkten unnoetig ausgestaucht.
+     Grid mit auto-fill/minmax laesst so viele Spalten nebeneinander zu, wie
+     auf den jeweiligen Bildschirm passen (faellt auf schmalen Kiosk-Breiten
+     automatisch auf 1 Spalte zurueck), align-items:start verhindert, dass
+     kurze Karten auf die Hoehe der laengsten Nachbarkarte gestreckt werden. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-items: start;
+  gap: 14px;
   padding-right: 4px;
 }
 
@@ -697,7 +737,7 @@ button {
 
 .highscore-board__row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   padding: 7px 12px;
@@ -723,8 +763,16 @@ button {
 }
 
 .highscore-board__value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   text-align: right;
   color: var(--text);
+  max-width: 100%;
+}
+
+.highscore-board__value-main {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -733,6 +781,12 @@ button {
 .highscore-board__value strong {
   font-family: var(--font-display);
   color: var(--accent-dark);
+}
+
+.highscore-board__value-time {
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .highscore-board__value--empty {

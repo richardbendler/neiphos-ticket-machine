@@ -1,6 +1,15 @@
 import { gameRegistry } from "../games/registry";
 import { getHighscoreBoard } from "../core/storage";
 
+function formatAchievedAt(iso: string): string {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}.${mm}. · ${hh}:${min}`;
+}
+
 /**
  * Statische Uebersichtsseite ueber alle Highscores jedes Spiels (inkl.
  * Varianten wie Spielfeldgroesse oder Geschwindigkeitsstufe). Rein lesend,
@@ -55,7 +64,10 @@ export function renderHighscoreBoard(): HTMLElement {
         for (const entry of board.entries) {
           const value = document.createElement("span");
           value.className = "highscore-board__value";
-          value.innerHTML = `<strong>${category.formatValue(board.value)}</strong> — ${entry.name}`;
+          value.innerHTML = `
+            <span class="highscore-board__value-main"><strong>${category.formatValue(board.value)}</strong> — ${entry.name}</span>
+            <span class="highscore-board__value-time">${formatAchievedAt(entry.achievedAt)}</span>
+          `;
           valueWrap.appendChild(value);
         }
         row.appendChild(valueWrap);

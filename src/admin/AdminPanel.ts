@@ -956,6 +956,8 @@ function connectWifi(ssid: string, password: string, status: HTMLElement, onDone
         status.style.color = "var(--danger)";
         return;
       }
+      status.textContent = `✅ Verbunden mit „${ssid}“`;
+      status.style.color = "var(--success)";
       onDone();
     })
     .catch(() => {

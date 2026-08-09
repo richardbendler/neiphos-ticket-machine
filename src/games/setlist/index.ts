@@ -19,7 +19,7 @@ function createSetlistPlaceholder(): MinigameModule {
     init(env: GameEnv) {
       closeDialog = openModal((panel, close) => {
         const h2 = document.createElement("h2");
-        h2.textContent = "Setlist";
+        h2.textContent = "Setlist-Puzzle";
         panel.appendChild(h2);
 
         const text = document.createElement("p");
@@ -52,8 +52,8 @@ function createSetlistPlaceholder(): MinigameModule {
 
 registerGame({
   id: GAME_ID,
-  title: "Setlist",
-  subtitle: "Welche Artists heute noch performen",
+  title: "Setlist-Puzzle",
+  subtitle: "Puzzle die Setlist richtig zusammen",
   icon: "musicNote",
   badge: "SL",
   accent: "#6a3fb5",

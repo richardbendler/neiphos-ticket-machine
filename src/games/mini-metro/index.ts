@@ -63,6 +63,23 @@ const OVERLOAD_FILL_S = 20;
 const OVERLOAD_DRAIN_S = 10;
 const OVERLOAD_RING_RADIUS = STATION_RADIUS + 10;
 
+// Verbindung-loesen-UI: nach einem Tipp (ohne Ziehen) auf eine verbundene
+// Haltestelle erscheint je angeschlossener Linienrichtung ein Minus-Symbol
+// in diesem Abstand vom Haltestellen-Mittelpunkt -- deutlich ausserhalb des
+// eigentlichen Haltestellen-Kreises, damit es sich nicht mit dem normalen
+// Antipp-Bereich (siehe stationAt) ueberschneidet.
+const DELETE_BADGE_OFFSET = STATION_RADIUS + 24;
+const DELETE_BADGE_RADIUS = 13;
+const ARMED_STATION_TIMEOUT_MS = 4000;
+
+// Kamera-Zoom auf die ueberlastete Haltestelle, BEVOR das (unveraenderte)
+// Game-Over-Panel erscheint -- auf ausdruecklichen Wunsch. Erst nach Ablauf
+// dieser Zeitspanne wird triggerGameOver() aufgerufen, das seinerseits wie
+// gehabt den Highscore-Dialog um weitere 900ms verzoegert.
+const GAMEOVER_ZOOM_MS = 900;
+const GAMEOVER_ZOOM_S = GAMEOVER_ZOOM_MS / 1000;
+const GAMEOVER_ZOOM_SCALE = 2.4;
+
 const TRAIN_SPEED_PX_S = 130;
 const TRAIN_DWELL_S = 0.55;
 const BASE_CAPACITY = 6; // "Loks koennen immer genau sechs Passagiere greifen"
@@ -198,6 +215,26 @@ function createMiniMetroGame(): MinigameModule {
   let awaitingWagonPick = false;
   let armedDeleteIndex: number | null = null;
   let armedDeleteTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Verbindung-an-einer-Haltestelle-loesen (siehe Datei-Kommentar oben bei
+  // DELETE_BADGE_OFFSET): getrennt von armedDeleteIndex oben, das loescht
+  // eine KOMPLETTE Linie ueber die Farbkugel-Spalte rechts -- hier geht es
+  // um das gezielte Loesen EINER einzelnen Verbindung an EINER Haltestelle.
+  let armedDeleteStationId: number | null = null;
+  let armedStationDeleteTimer: ReturnType<typeof setTimeout> | null = null;
+  // Tap- vs. Zieh-Erkennung: handleDown merkt sich die angetippte Haltestelle,
+  // handleMove setzt dragMoved sobald sich der Zeiger tatsaechlich bewegt --
+  // erst wenn handleUp OHNE Bewegung auf derselben (verbundenen) Haltestelle
+  // landet, gilt das als "Haltestelle fuer Loeschen antippen" statt als (im
+  // Ergebnis wirkungsloser) Linien-Zieh-Versuch.
+  let downStationId: number | null = null;
+  let dragMoved = false;
+
+  // Game-Over-Zoom (siehe GAMEOVER_ZOOM_S): waehrend "zooming" true ist, laeuft
+  // keine normale Spiellogik mehr (siehe tick()), nur die Zoom-Animation.
+  let zooming = false;
+  let zoomStation: Station | null = null;
+  let zoomElapsedS = 0;
 
   let activeDrag: { lineIndex: number; fromEnd: "start" | "end" } | null = null;
   // Letzte Zeigerposition waehrend eines aktiven Drags -- ermoeglicht das
@@ -368,6 +405,78 @@ function createMiniMetroGame(): MinigameModule {
 
   function deleteLine(index: number): void {
     lines[index] = null;
+    renderLineColumn();
+  }
+
+  // ---------------------------------------- Einzelne Verbindung loesen (Tap)
+
+  /** Alle Linienrichtungen, die an dieser Haltestelle haengen -- je Nachbar-Haltestelle auf einer Linie ein Eintrag. */
+  function getStationConnections(stationId: number): Array<{ lineIndex: number; neighborId: number }> {
+    const result: Array<{ lineIndex: number; neighborId: number }> = [];
+    lines.forEach((line, lineIndex) => {
+      if (!line) return;
+      const idx = line.stationIds.indexOf(stationId);
+      if (idx < 0) return;
+      if (idx > 0) result.push({ lineIndex, neighborId: line.stationIds[idx - 1] });
+      if (idx < line.stationIds.length - 1) result.push({ lineIndex, neighborId: line.stationIds[idx + 1] });
+    });
+    return result;
+  }
+
+  function getDeleteBadgePositions(stationId: number): Array<{ lineIndex: number; neighborId: number; x: number; y: number }> {
+    const station = stationById(stationId);
+    return getStationConnections(stationId).map((c) => {
+      const neighbor = stationById(c.neighborId);
+      const dx = neighbor.x - station.x;
+      const dy = neighbor.y - station.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { ...c, x: station.x + (dx / len) * DELETE_BADGE_OFFSET, y: station.y + (dy / len) * DELETE_BADGE_OFFSET };
+    });
+  }
+
+  function disarmStationDelete(): void {
+    armedDeleteStationId = null;
+    if (armedStationDeleteTimer) clearTimeout(armedStationDeleteTimer);
+    armedStationDeleteTimer = null;
+  }
+
+  function armStationDelete(stationId: number): void {
+    armedDeleteStationId = stationId;
+    if (armedStationDeleteTimer) clearTimeout(armedStationDeleteTimer);
+    armedStationDeleteTimer = setTimeout(() => {
+      armedDeleteStationId = null;
+      armedStationDeleteTimer = null;
+    }, ARMED_STATION_TIMEOUT_MS);
+  }
+
+  function toggleStationDeleteArm(stationId: number): void {
+    if (armedDeleteStationId === stationId) disarmStationDelete();
+    else armStationDelete(stationId);
+  }
+
+  /**
+   * Loest die Verbindung von stationId Richtung neighborId auf der
+   * angegebenen Linie -- alles, was von stationId aus GESEHEN VON neighborId
+   * WEITER WEG liegt (also neighborId selbst und alles dahinter), wird von
+   * der Linie abgetrennt und verworfen (bewusst kein automatisches
+   * Aufteilen in eine zweite Linie -- "Verbindung loesen", nicht "Linie
+   * teilen", siehe Nutzerwunsch).
+   */
+  function cutConnection(lineIndex: number, stationId: number, neighborId: number): void {
+    const line = lines[lineIndex];
+    if (!line) return;
+    const idx = line.stationIds.indexOf(stationId);
+    const neighborIdx = line.stationIds.indexOf(neighborId);
+    if (idx < 0 || neighborIdx < 0) return;
+    if (neighborIdx < idx) {
+      const removedCount = idx;
+      line.stationIds = line.stationIds.slice(idx);
+      for (const t of line.trains) t.fromIdx = Math.max(0, t.fromIdx - removedCount);
+    } else {
+      line.stationIds = line.stationIds.slice(0, idx + 1);
+    }
+    for (const t of line.trains) clampTrainIndex(line, t);
+    if (line.stationIds.length < 2) line.trains = [];
     renderLineColumn();
   }
 
@@ -629,6 +738,14 @@ function createMiniMetroGame(): MinigameModule {
     updateHint();
   }
 
+  /** Startet den Kamera-Zoom auf die ueberlastete Haltestelle -- triggerGameOver() (unveraendert, inkl. Text und Highscore-Delay) folgt erst nach GAMEOVER_ZOOM_S, siehe tick(). */
+  function beginGameOverZoom(station: Station): void {
+    if (gameOver || zooming) return;
+    zooming = true;
+    zoomStation = station;
+    zoomElapsedS = 0;
+  }
+
   function triggerGameOver(): void {
     if (gameOver) return;
     gameOver = true;
@@ -705,6 +822,10 @@ function createMiniMetroGame(): MinigameModule {
     armedDeleteIndex = null;
     tutorialDismissed = false;
     tutorialPulseTimer = 0;
+    zooming = false;
+    zoomStation = null;
+    zoomElapsedS = 0;
+    disarmStationDelete();
     gameOverPanel.style.display = "none";
     // Start = genau eine Haltestelle je Form (Nutzerwunsch) -- lastSize wird
     // in tick() laufend aktualisiert, siehe dort.
@@ -878,8 +999,78 @@ function createMiniMetroGame(): MinigameModule {
       if (i === 0) ctx.moveTo(st.x, st.y);
       else ctx.lineTo(st.x, st.y);
     }
+    // Zusaetzliches Stueck bis zum aktuellen Zeiger -- auf ausdruecklichen
+    // Wunsch soll die Linie schon WAEHREND des Ziehens sichtbar zwischen der
+    // Start-Haltestelle und dem Finger gespannt sein, nicht erst wenn eine
+    // weitere Haltestelle erreicht ist. Bei fromEnd "start" haengt die
+    // gezogene Seite am ERSTEN Eintrag des Arrays (siehe tryExtendActiveLine,
+    // dort wird bei "start" per unshift vorne eingefuegt), deshalb dort ein
+    // eigenes Teilstueck ab Station 0 statt einfach ans Ende des bisherigen
+    // Pfads anzuhaengen.
+    if (lastPointer) {
+      if (activeDrag.fromEnd === "end") {
+        ctx.lineTo(lastPointer.x, lastPointer.y);
+      } else {
+        const first = stationById(line.stationIds[0]);
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(lastPointer.x, lastPointer.y);
+      }
+    }
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  /** Dicker nachgezogene Verbindungen + Minus-Symbole an einer angetippten Haltestelle -- siehe cutConnection/toggleStationDeleteArm. */
+  function drawStationDeleteUI(ctx: CanvasRenderingContext2D): void {
+    if (armedDeleteStationId === null) return;
+    const station = stations.find((s) => s.id === armedDeleteStationId);
+    if (!station) {
+      disarmStationDelete();
+      return;
+    }
+    const badges = getDeleteBadgePositions(armedDeleteStationId);
+    if (badges.length === 0) {
+      disarmStationDelete();
+      return;
+    }
+
+    for (const b of badges) {
+      const line = lines[b.lineIndex];
+      if (!line) continue;
+      const neighbor = stationById(b.neighborId);
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 10;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(station.x, station.y);
+      ctx.lineTo(neighbor.x, neighbor.y);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.arc(station.x, station.y, STATION_RADIUS + 6, 0, Math.PI * 2);
+    ctx.strokeStyle = theme.text;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    for (const b of badges) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, DELETE_BADGE_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = theme.danger;
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(b.x - 5, b.y);
+      ctx.lineTo(b.x + 5, b.y);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
   }
 
   function drawTutorialArrow(ctx: CanvasRenderingContext2D, size: { width: number; height: number }): void {
@@ -956,9 +1147,29 @@ function createMiniMetroGame(): MinigameModule {
 
   function handleDown(x: number, y: number): void {
     lastPointer = { x, y };
+    downStationId = null;
+    dragMoved = false;
     if (gameOver || weeklyModalOpen) return;
+
+    // Zuerst pruefen, ob gerade eine Haltestelle "scharf" fuer Loeschen ist
+    // und dieser Tipp eines ihrer Minus-Symbole trifft -- das geht der
+    // normalen Stations-/Zieh-Logik unten vor.
+    if (armedDeleteStationId !== null) {
+      const badges = getDeleteBadgePositions(armedDeleteStationId);
+      const hit = badges.find((b) => Math.hypot(b.x - x, b.y - y) <= DELETE_BADGE_RADIUS + 8);
+      if (hit) {
+        cutConnection(hit.lineIndex, armedDeleteStationId, hit.neighborId);
+        disarmStationDelete();
+        return;
+      }
+    }
+
     const station = stationAt(x, y);
-    if (!station) return;
+    if (!station) {
+      disarmStationDelete();
+      return;
+    }
+    downStationId = station.id;
 
     const existing = findLineIndexAtStation(station.id);
     if (existing) {
@@ -1019,6 +1230,12 @@ function createMiniMetroGame(): MinigameModule {
       return;
     }
     const prev = lastPointer ?? { x, y };
+    if (!dragMoved && Math.hypot(x - prev.x, y - prev.y) > 3) {
+      // Sobald wirklich gezogen wird, hat eine evtl. noch offene
+      // Loeschen-Ansicht einer anderen Haltestelle keine Bedeutung mehr.
+      dragMoved = true;
+      disarmStationDelete();
+    }
     for (const station of stationsAlongSegment(prev, { x, y })) {
       tryExtendActiveLine(station);
     }
@@ -1026,14 +1243,37 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function handleUp(): void {
+    // Ein reiner Tipp (kein Ziehen) auf eine bereits verbundene Haltestelle
+    // -- vorher wirkungslos, jetzt: Loeschen-Ansicht fuer diese Haltestelle
+    // umschalten (siehe Datei-Kommentar bei DELETE_BADGE_OFFSET). Gilt
+    // sowohl fuer Endstationen (dort setzt handleDown activeDrag, das ohne
+    // Bewegung aber folgenlos bleibt) als auch fuer Haltestellen MITTEN auf
+    // einer Linie (dort setzt handleDown gar kein activeDrag, siehe dort
+    // "mittendrin, kein Branching") -- deshalb hier bewusst NICHT von
+    // activeDrag abhaengig, nur von "kein Ziehen stattgefunden".
+    if (!dragMoved && downStationId !== null) {
+      if (getStationConnections(downStationId).length > 0) {
+        toggleStationDeleteArm(downStationId);
+      }
+    }
     activeDrag = null;
     lastPointer = null;
+    downStationId = null;
+    dragMoved = false;
   }
 
   // ------------------------------------------------------------------- Loop
 
   function tick(dt: number, size: { width: number; height: number }): void {
     lastSize = size;
+    if (zooming) {
+      zoomElapsedS += dt;
+      if (zoomElapsedS >= GAMEOVER_ZOOM_S) {
+        zooming = false;
+        triggerGameOver();
+      }
+      return; // waehrend des Zooms laeuft keine normale Spiellogik mehr
+    }
     if (!started || gameOver || weeklyModalOpen) return;
 
     tutorialPulseTimer += dt;
@@ -1067,7 +1307,7 @@ function createMiniMetroGame(): MinigameModule {
       if (s.waiting.length >= OVERLOAD_TRIGGER) {
         s.overloadT = Math.min(1, s.overloadT + dt / OVERLOAD_FILL_S);
         if (s.overloadT >= 1) {
-          triggerGameOver();
+          beginGameOverZoom(s);
           return;
         }
       } else if (s.waiting.length <= OVERLOAD_TRIGGER - 1) {
@@ -1172,11 +1412,25 @@ function createMiniMetroGame(): MinigameModule {
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
       if (!started) return;
+
+      ctx.save();
+      if (zooming && zoomStation) {
+        // Ease-out: schnell reinzoomen, gegen Ende sanft abbremsen -- wirkt
+        // dynamischer als ein linearer Zoom.
+        const progress = Math.min(1, zoomElapsedS / GAMEOVER_ZOOM_S);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const zoom = 1 + (GAMEOVER_ZOOM_SCALE - 1) * eased;
+        ctx.translate(zoomStation.x, zoomStation.y);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-zoomStation.x, -zoomStation.y);
+      }
       drawLines(ctx);
       drawDraftLine(ctx);
       drawTrains(ctx);
       drawStations(ctx);
+      drawStationDeleteUI(ctx);
       drawTutorialArrow(ctx, size);
+      ctx.restore();
     },
 
     onPointerDown(p: PointerPoint) {
@@ -1198,6 +1452,8 @@ function createMiniMetroGame(): MinigameModule {
       closeIntro = null;
       if (armedDeleteTimer) clearTimeout(armedDeleteTimer);
       armedDeleteTimer = null;
+      if (armedStationDeleteTimer) clearTimeout(armedStationDeleteTimer);
+      armedStationDeleteTimer = null;
       highscoreBanner?.destroy();
       resourceRowEl?.remove();
       lineColumnEl?.remove();

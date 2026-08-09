@@ -454,7 +454,7 @@ function createHopperSlotsGame(): MinigameModule {
 registerGame({
   id: GAME_ID,
   title: "Hüpftier-Glück",
-  subtitle: "Hüpft dir dein Glück?",
+  subtitle: "Hüpft dir dein Glück",
   icon: "hopper",
   badge: "GS",
   accent: "#a53a97",

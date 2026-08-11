@@ -470,7 +470,12 @@ button {
   align-items: center;
   gap: 1px;
   max-width: min(58%, 640px);
-  color: var(--bezel-dark);
+  /* War var(--bezel-dark) (helles Grau) -- auf dem jetzt transparenten,
+     ebenfalls grauen Fusszeilen-Hintergrund (siehe .chrome-footer-bar) kaum
+     lesbar (gemeldet: "hellgrau auf hellgrau"). Jetzt einheitlich dieselbe
+     dunklere Farbe wie vorher nur "DJ Flipper" (siehe ehemals .chrome-
+     footer-credit strong, jetzt hier zusammengefuehrt). */
+  color: #4a4e51;
   letter-spacing: 0.02em;
   pointer-events: none;
 }
@@ -483,7 +488,6 @@ button {
 }
 
 .chrome-footer-credit strong {
-  color: #4a4e51;
   font-weight: 700;
 }
 
@@ -550,13 +554,14 @@ button {
      das gewuenschte Verhalten. */
   z-index: 0;
   width: 100%;
-  /* Vorher 1200px -- auf breiten Bildschirmen blieb die Karte dadurch
-     spuerbar schmaler als der verfuegbare Platz und wirkte fast quadratisch
-     eingesperrt. 1900px deckt die tatsaechliche JS-seitige Obergrenze ab
-     (3 Spalten x MAX_TILE_WIDTH 620px + Luecken, siehe MainMenu.ts) --
-     darueber hinaus wuerden die Kacheln ohnehin nicht weiter wachsen, ein
-     hoeherer Wert haette also keinen Effekt mehr. */
-  max-width: 1900px;
+  /* Deckt die tatsaechliche JS-seitige Obergrenze ab: 3 Saeulen x
+     MAX_TILE_WIDTH (840px) + 2 Saeulen-Luecken (bei maximaler Kachelbreite
+     bis zu ca. 428px, siehe MainMenu.ts#clusterGapForTileHeight) -- darueber
+     hinaus wuerden die Kacheln ohnehin nicht weiter wachsen, ein hoeherer
+     Wert haette also keinen Effekt mehr. War 1900px (fuer die alte, deutlich
+     niedrigere MAX_TILE_WIDTH von 620px), auf sehr breiten Bildschirmen blieb
+     die Karte dadurch spuerbar schmaler als der verfuegbare Platz. */
+  max-width: 3400px;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -591,33 +596,32 @@ button {
 }
 
 .menu-grid {
-  /* War selbst ein CSS-Grid -- jetzt nur noch der AEUSSERE Stapel der
-     Kachel-"Cluster" (siehe .menu-cluster, MainMenu.ts#TILE_CLUSTERS): eine
-     Spalte aus Cluster-Bloecken, mit einer deutlich groesseren Luecke
-     ZWISCHEN den Bloecken als INNERHALB eines Blocks (dort greift das
-     kleinere Gap von .menu-cluster) -- auf ausdruecklichen Wunsch, angelehnt
-     an die VBB-Vorlage, wo thematisch zusammengehoerige Tasten dicht
-     beieinander stehen. */
+  /* AEUSSERSTE Ebene: mehrere Saeulen NEBENEINANDER (siehe .menu-column) --
+     jede Saeule enthaelt ganze Kachel-"Cluster" (siehe .menu-cluster,
+     MainMenu.ts#TILE_CLUSTERS) UNTEREINANDER gestapelt, auf ausdruecklichen
+     Wunsch angelehnt an die VBB-Vorlage (dort stehen z. B. "Berlin AB/BC/
+     ABC" senkrecht uebereinander in einer Spalte, nicht nebeneinander in
+     einer Zeile). */
   display: flex;
-  flex-direction: column;
-  /* "safe center": zentriert wie gewohnt, solange alles reinpasst, faellt
-     aber auf Start-Ausrichtung zurueck statt Inhalt zu ueberlaufen, wenn der
-     Inhalt hoeher/breiter als der Container ist. Ohne "safe" wird bei
-     Ueberlauf mit reinem "center" das erste Element oben abgeschnitten UND
-     ist nicht mehr dorthin scrollbar (bekannte CSS-Falle bei
-     overflow:auto + align/justify-content:center). */
-  align-items: safe center;
+  flex-direction: row;
+  /* Saeulen oben buendig (nicht zentriert) -- auf ausdruecklichen Wunsch wie
+     in der VBB-Vorlage: der oberste Button jeder Saeule "haengt" oben direkt
+     unter der Ueberschrift, unterschiedlich lange Saeulen haben ihren
+     Leerraum dadurch unten, nicht oben+unten verteilt. */
+  align-items: flex-start;
+  /* "safe center": horizontal weiterhin zentriert, faellt aber auf
+     Start-Ausrichtung zurueck statt zu ueberlaufen, wenn der Inhalt breiter
+     als der Container ist (bekannte CSS-Falle bei reinem "center"). */
   justify-content: safe center;
   /* Nur ein Platzhalter bis zum ersten ResizeObserver-Callback -- der
-     tatsaechliche, an die Bildschirmbreite gekoppelte Gap-Wert (Luecke
-     ZWISCHEN Clustern) wird von MainMenu.ts#clusterGapForContainer
-     gesetzt. */
+     tatsaechliche Gap-Wert (Luecke ZWISCHEN den Saeulen) wird von
+     MainMenu.ts#applyLayout gesetzt. */
   gap: 40px;
   width: 100%;
   flex: 1;
   min-height: 0;
   /* Auf ausdruecklichen Wunsch NIE scrollbar -- MainMenu.ts#applyLayout
-     skaliert Kachelbreite/-hoehe so, dass alle Zeilen immer ohne Scrollen
+     skaliert Kachelbreite/-hoehe so, dass alle Saeulen immer ohne Scrollen
      in die verfuegbare Hoehe passen, ein Scrollbalken sollte also nie noetig
      werden. overflow bleibt trotzdem hidden statt visible, als Absicherung
      falls ein extremer Seitenverhaeltnis-/MIN_TILE_WIDTH-Randfall die
@@ -625,19 +629,24 @@ button {
   overflow: hidden;
 }
 
-/* Ein einzelner Kachel-"Cluster" (siehe .menu-grid-Kommentar) -- ganz normales
-   3-Spalten-Kachelraster wie vorher direkt in .menu-grid, nur jetzt je
-   Cluster ein eigener Block mit eigenem (kleinen) internen Gap. */
+/* Eine einzelne Saeule (siehe .menu-grid-Kommentar) -- staeckt die ihr
+   zugewiesenen Kachel-Cluster (siehe .menu-cluster) UNTEREINANDER, mit dem
+   groesseren Zwischen-Cluster-Abstand dazwischen (gleicher Gap-Wert wie
+   .menu-grid selbst, siehe MainMenu.ts#applyLayout). */
+.menu-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+/* Ein einzelner Kachel-"Cluster" innerhalb einer Saeule (siehe
+   .menu-column) -- die Kacheln stehen UNTEREINANDER (nicht mehr
+   nebeneinander), mit dem kleineren Innerhalb-Cluster-Abstand. */
 .menu-cluster {
-  display: grid;
-  /* Spaltenzahl + Kachelbreite werden per JS anhand der tatsaechlich
-     verfuegbaren Breite UND Hoehe berechnet (siehe menu/MainMenu.ts,
-     computeGridLayout) und hier als konkrete px-Werte gesetzt -- reines
-     CSS-Grid kennt keine verfuegbare Hoehe, das reicht nicht, wenn die
-     Kacheln den Bildschirm wirklich ausfuellen sollen. Der Wert hier ist
-     nur ein Platzhalter, bis der erste ResizeObserver-Callback feuert. */
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  justify-content: safe center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 16px;
 }
 

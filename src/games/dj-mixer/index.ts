@@ -2,7 +2,6 @@ import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { SOUND_DEFS, speakPhrase, stopSpeech, preloadSamples } from "./sounds";
 import { showGameIntro } from "../../core/gameIntro";
-import { registerGame } from "../registry";
 
 const GAME_ID = "dj-mixer";
 // Ein "Takt" (im Sinn dieses Reglers) entspricht einer Gruppe von 4
@@ -47,7 +46,7 @@ function buildDefaultGrid(stepCount: number): boolean[][] {
   });
 }
 
-function createDjMixerGame(): MinigameModule {
+export function createDjMixerGame(): MinigameModule {
   let audioCtx: AudioContext | null = null;
   let closeIntro: (() => void) | null = null;
   let masterGain: GainNode | null = null;
@@ -448,12 +447,3 @@ function createDjMixerGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "DJ-Mischer",
-  subtitle: "Baue einen Beat aus Zuggeräuschen",
-  icon: "sliders",
-  badge: "DJ",
-  accent: "#f3791d",
-  create: createDjMixerGame,
-});

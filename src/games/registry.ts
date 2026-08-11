@@ -22,8 +22,15 @@ export interface GameMeta {
   badge: string;
   /** Akzentfarbe der Menu-Kachel (CSS-Farbwert). */
   accent: string;
-  /** Factory statt Singleton -- jedes Spiel bekommt bei jedem Start eine frische Instanz ohne Altzustand. */
-  create: () => MinigameModule;
+  /**
+   * Factory statt Singleton -- jedes Spiel bekommt bei jedem Start eine
+   * frische Instanz ohne Altzustand. Darf ein Promise liefern: die meisten
+   * Spiele laden ihre (teils sehr umfangreiche) Implementierung erst per
+   * dynamischem import() nach, wenn sie wirklich geoeffnet werden (siehe
+   * games/index.ts) -- nur die hier auf dieser Seite stehenden, leichten
+   * Metadaten sind von Anfang an geladen (fuers Hauptmenue).
+   */
+  create: () => MinigameModule | Promise<MinigameModule>;
   /** Fuer das globale Highscore-Board (Hauptmenue): leer/weggelassen bei Spielen ohne Highscore (z. B. Zug-Quartett, DJ-Mischer). */
   highscoreCategories?: HighscoreCategory[];
 }

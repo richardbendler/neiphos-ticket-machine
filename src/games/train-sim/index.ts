@@ -7,7 +7,6 @@ import { promptHighscoreName } from "../../core/highscorePrompt";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { startTrainChug, stopTrainChug, preloadTrainChug, playPartyShuttleJingle } from "../../core/sound";
-import { registerGame } from "../registry";
 import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "train-sim";
@@ -142,7 +141,7 @@ function fitCamera(ids: string[], rect: MapRect): Camera {
   };
 }
 
-function createTrainSimGame(): MinigameModule {
+export function createTrainSimGame(): MinigameModule {
   let started = false;
   let phase: Phase = "choosing";
   let currentCityId = randomStartCity(FESTIVAL_CITY_ID);
@@ -974,13 +973,3 @@ function createTrainSimGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Zugsimulator",
-  subtitle: "Finde den Weg zum Neiphos Festival",
-  icon: "locomotive",
-  badge: "ZG",
-  accent: "#1f6f43",
-  create: createTrainSimGame,
-  highscoreCategories: [{ board: BOARD, label: "Wenigste Züge", direction: "lower-better", formatValue: formatLegCount }],
-});

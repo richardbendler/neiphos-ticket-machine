@@ -316,7 +316,43 @@ function createTrainPhotoGame(): MinigameModule {
     sheet.appendChild(menuBtn);
   }
 
+  /**
+   * Cache fuer die fertig gezeichnete Zug-Sprite (siehe drawTrain) -- die
+   * Zugoptik (Fenster/Huepftier-Gesichter) aendert sich waehrend einer
+   * laufenden Runde nicht, nur die X-Position (reine Verschiebung). Vorher
+   * lief die komplette Zeichnung (mehrere Fenster, je mit eigenem
+   * save/clip/drawImage/restore fuer das rund ausgeschnittene Huepftier-
+   * Gesicht) jeden einzelnen Frame neu, waehrend der Zug sichtbar war --
+   * auf schwacher Hardware spuerbar ruckelig (gemeldeter Bug: "wenn der Zug
+   * durchfaehrt"). Jetzt einmalig in ein exakt zugbreites Offscreen-Canvas
+   * vorgerendert, danach pro Frame nur noch ein einzelnes billiges
+   * drawImage(). Cache-Schluessel enthaelt sowohl die Huepftier-Belegung
+   * (aendert sich pro Runde, siehe generateWindowHoppers) als auch den
+   * Lade-Status jedes Bilds (ein noch nicht fertig geladenes Bild soll nach
+   * dem Laden sichtbar nachtraeglich erscheinen, nicht dauerhaft fehlen).
+   */
+  let trainSpriteCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+
+  function getTrainSprite(): HTMLCanvasElement {
+    const key = windowHoppers.map((src) => (src ? `${getImage(src).complete ? "1" : "0"}:${src}` : "-")).join(",");
+    if (trainSpriteCache?.key !== key) {
+      const off = document.createElement("canvas");
+      off.width = TRAIN_WIDTH;
+      off.height = TRAIN_HEIGHT;
+      const offCtx = off.getContext("2d", { alpha: true })!;
+      drawTrainBody(offCtx, 0, TRAIN_HEIGHT);
+      trainSpriteCache = { key, canvas: off };
+    }
+    return trainSpriteCache.canvas;
+  }
+
+  /** Zeichnet den Zug per gecachter Sprite (siehe getTrainSprite) -- nur noch ein drawImage() pro Frame statt der vollen Zeichnung. */
   function drawTrain(ctx: CanvasRenderingContext2D, offsetX: number, y: number): void {
+    ctx.drawImage(getTrainSprite(), offsetX, y - TRAIN_HEIGHT);
+  }
+
+  /** Die eigentliche (teure) Zug-Zeichnung -- laeuft nur noch einmal pro Sprite-Cache-Aufbau, siehe getTrainSprite/drawTrain. */
+  function drawTrainBody(ctx: CanvasRenderingContext2D, offsetX: number, y: number): void {
     const bodyY = y - TRAIN_HEIGHT;
     ctx.fillStyle = theme.primary;
     ctx.beginPath();

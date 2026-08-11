@@ -12,7 +12,6 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { showGameIntro } from "../../core/gameIntro";
 import { fitSquareToContainer } from "../../core/squareFit";
 import { icons } from "../../core/icons";
-import { registerGame } from "../registry";
 import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "train-spotter";
@@ -77,7 +76,7 @@ function formatTime(seconds: number): string {
   return `${seconds.toFixed(2)} s`;
 }
 
-function createTrainSpotterGame(): MinigameModule {
+export function createTrainSpotterGame(): MinigameModule {
   let phase: Phase = "theme-select";
   let contentTheme: ContentTheme = "trains";
   let elapsed = 0;
@@ -401,17 +400,3 @@ function createTrainSpotterGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Zug-Spotter",
-  subtitle: "Finde alle Züge im Raster",
-  note: "auch mit Hüpftieren spielbar",
-  icon: "searchGrid",
-  badge: "ZS",
-  accent: "#0059a4",
-  create: createTrainSpotterGame,
-  highscoreCategories: [
-    { board: "default", label: "Bestzeit", direction: "lower-better", formatValue: formatTime },
-    { board: "hopper", label: "Hüpftiere Bestzeit", direction: "lower-better", formatValue: formatTime },
-  ],
-});

@@ -225,3 +225,19 @@ export function playPartyShuttleJingle(): void {
 export function playHighscoreOpenSound(): void {
   playSampleOnce(dbAnkuendigungUrl, 0.8);
 }
+
+// ------------------------------------------------------ Huepftier-Metro
+
+/** Ganz kurzer, unaufdringlicher "Plopp" -- laeuft jedes Mal, wenn eine neue Haltestelle spawnt (siehe games/mini-metro/index.ts#spawnStation). Bewusst leise/kurz, da das mehrfach pro Runde passiert. */
+export function playStationPopSound(): void {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(520, now);
+  osc.frequency.exponentialRampToValueAtTime(880, now + 0.09);
+  const gain = envGain(ctx, now, 0.005, 0.11, 0.14);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.14);
+}

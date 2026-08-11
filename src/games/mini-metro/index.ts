@@ -7,6 +7,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { buildMenuButton } from "../../core/menuButton";
+import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound } from "../../core/sound";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { registerGame } from "../registry";
 
@@ -44,8 +45,38 @@ import { registerGame } from "../registry";
 
 const GAME_ID = "mini-metro";
 
-type StationShape = "circle" | "square" | "triangle";
+// String statt strikter 3er-Union, damit die generierten Sondersymbole
+// (siehe SPECIAL_SHAPE_DEFS/SPECIAL_SHAPES) sich einfach dazugesellen
+// koennen -- ueberall im Code wird die Form ohnehin nur per Gleichheit
+// verglichen (Ziel-Formsymbol == Haltestellen-Form), nie exhaustiv
+// gematcht, ein reiner String-Typ ist hier also unproblematisch.
+type StationShape = string;
 const SHAPES: StationShape[] = ["circle", "square", "triangle"];
+
+// Sondersymbol-Haltestellen (auf ausdruecklichen Wunsch: ein Pool von rund
+// 20 verschiedenen geometrischen Formen, jedes zehnte Symbol, das spawnt,
+// ist eins davon, siehe SPECIAL_STATION_INTERVAL/spawnStation) -- generisch
+// aus regelmaessigen Vielecken/Sternen erzeugt statt 20 einzeln von Hand
+// gezeichneter Icons: bleibt dadurch beliebig erweiterbar und jede Form ist
+// allein durch ihre Ecken-/Zackenzahl klar von allen anderen (auch den drei
+// normalen Formen) unterscheidbar.
+type SpecialShapeDef = { kind: "polygon"; n: number } | { kind: "star"; n: number };
+const SPECIAL_SHAPE_DEFS: Record<string, SpecialShapeDef> = {};
+for (const n of [5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) SPECIAL_SHAPE_DEFS[`poly${n}`] = { kind: "polygon", n };
+for (const n of [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) SPECIAL_SHAPE_DEFS[`star${n}`] = { kind: "star", n };
+const SPECIAL_SHAPES: StationShape[] = Object.keys(SPECIAL_SHAPE_DEFS);
+
+function isSpecialShape(shape: StationShape): boolean {
+  return !SHAPES.includes(shape);
+}
+
+// Jede zehnte gespawnte Haltestelle ist eine Sondersymbol-Haltestelle, siehe
+// spawnStation. MAX_STATIONS musste dafuer von vorher 9 auf 12 angehoben
+// werden -- mit 9 waere die zehnte Haltestelle in einer Runde nie erreicht
+// worden (bei 9-Sekunden-Spawnabstand, siehe DAY_HALF_S, liegt sie aber
+// bequem innerhalb einer normalen Runde bei ca. einer guten Minute
+// Spielzeit).
+const SPECIAL_STATION_INTERVAL = 10;
 
 // Sechs klar unterscheidbare Linienfarben aus der bestehenden Palette
 // (core/theme.ts) -- mehr braucht dieses kleine Kartenformat nicht, echtes
@@ -57,7 +88,7 @@ const MAX_LINE_SLOTS = LINE_COLORS.length;
 // Auf ausdruecklichen Wunsch 30% dicker (war 5).
 const LINE_WIDTH = 6.5;
 
-const MAX_STATIONS = 9;
+const MAX_STATIONS = 12;
 const STATION_RADIUS = 15;
 const PASSENGER_SPAWN_INTERVAL_S = 15;
 
@@ -458,13 +489,34 @@ function createMiniMetroGame(): MinigameModule {
     return null;
   }
 
+  /** Noch nicht in dieser Runde vergebene Sondersymbol-Form auswuerfeln -- null, falls (theoretisch) schon alle 20 vergeben sind. */
+  function pickUnusedSpecialShape(): StationShape | null {
+    const used = new Set(stations.map((s) => s.shape));
+    const options = SPECIAL_SHAPES.filter((s) => !used.has(s));
+    if (options.length === 0) return null;
+    return options[Math.floor(Math.random() * options.length)];
+  }
+
   function spawnStation(size: { width: number; height: number }, shape?: StationShape, clusterRadius?: number): void {
     if (stations.length >= MAX_STATIONS) return;
     const pos = randomStationPosition(size, clusterRadius);
     if (!pos) return;
+    // Jede zehnte gespawnte Haltestelle (ueber alle Haltestellen dieser
+    // Runde gezaehlt, auch die drei Start-Haltestellen) ist eine
+    // Sondersymbol-Haltestelle -- nur, wenn die Form nicht explizit
+    // vorgegeben wurde (siehe resetGame, das gibt fuer die drei
+    // Start-Haltestellen bewusst je eine der drei Grundformen vor).
+    const ordinal = stations.length + 1;
+    let resolvedShape = shape;
+    if (!resolvedShape && ordinal % SPECIAL_STATION_INTERVAL === 0) {
+      resolvedShape = pickUnusedSpecialShape() ?? undefined;
+    }
+    if (!resolvedShape) {
+      resolvedShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    }
     const s: Station = {
       id: nextId(),
-      shape: shape ?? SHAPES[Math.floor(Math.random() * SHAPES.length)],
+      shape: resolvedShape,
       x: pos.x,
       y: pos.y,
       waiting: [],
@@ -472,10 +524,17 @@ function createMiniMetroGame(): MinigameModule {
     };
     stations.push(s);
     passengerTimers.set(s.id, PASSENGER_SPAWN_INTERVAL_S * (0.5 + Math.random()));
+    playStationPopSound();
   }
 
   function spawnPassenger(station: Station): void {
-    const options = SHAPES.filter((s) => s !== station.shape);
+    // Sondersymbol-Ziele nur fuer Haltestellen, die JETZT SCHON existieren
+    // (auf ausdruecklichen Wunsch) -- da hier direkt ueber die aktuell
+    // existierenden `stations` iteriert wird, kommen spaeter gespawnte
+    // Sondersymbol-Haltestellen automatisch erst ab ihrem eigenen
+    // Spawn-Zeitpunkt als Fahrtziel infrage, nie rueckwirkend.
+    const specialDestShapes = stations.filter((s) => s.shape !== station.shape && isSpecialShape(s.shape)).map((s) => s.shape);
+    const options = [...SHAPES.filter((s) => s !== station.shape), ...specialDestShapes];
     const destShape = options[Math.floor(Math.random() * options.length)];
     const sprite = PASSENGER_SPRITES[Math.floor(Math.random() * PASSENGER_SPRITES.length)];
     station.waiting.push({ id: nextId(), destShape, sprite, nextStop: null });
@@ -931,6 +990,7 @@ function createMiniMetroGame(): MinigameModule {
   function triggerWeekChange(): void {
     spareLoks += 1;
     weeklyModalOpen = true;
+    playHighscoreOpenSound(); // dieselbe DB-Ansage wie beim Highscore-Board/-Erfolg, siehe core/sound.ts
     openModal(
       (panel, close) => {
         panel.classList.add("mm-week-modal");
@@ -1231,6 +1291,7 @@ function createMiniMetroGame(): MinigameModule {
     zooming = true;
     zoomStation = station;
     zoomElapsedS = 0;
+    stopTrainChug();
   }
 
   function triggerGameOver(): void {
@@ -1320,6 +1381,13 @@ function createMiniMetroGame(): MinigameModule {
     setGameSpeed(1);
     disarmStationDelete();
     gameOverPanel.style.display = "none";
+    // Durchgehendes, leises Zug-Grundrauschen fuer die ganze Runde -- deutlich
+    // leiser als bei den Spielen mit einer einzelnen animierten Fahrt (dort
+    // 0.35), da es hier die ganze Zeit im Hintergrund laeuft und nicht der
+    // eigentliche Fokusmoment ist. Hier statt in onStart(), damit auch
+    // "Nochmal spielen" (ruft direkt resetGame() auf, ohne die Anleitung
+    // erneut zu zeigen) den Loop zuverlaessig neu startet.
+    startTrainChug(0.1);
     // Start = genau eine Haltestelle je Form (Nutzerwunsch) -- lastSize wird
     // in tick() laufend aktualisiert, siehe dort.
     for (const shape of SHAPES) spawnStation(lastSize, shape, INITIAL_CLUSTER_RADIUS);
@@ -1339,13 +1407,51 @@ function createMiniMetroGame(): MinigameModule {
     } else if (shape === "square") {
       const s = r * 1.6;
       ctx.rect(x - s / 2, y - s / 2, s, s);
-    } else {
+    } else if (shape === "triangle") {
       const s = r * 1.9;
       ctx.moveTo(x, y - s * 0.62);
       ctx.lineTo(x + s * 0.55, y + s * 0.42);
       ctx.lineTo(x - s * 0.55, y + s * 0.42);
       ctx.closePath();
+    } else {
+      drawSpecialShapePath(ctx, shape, x, y, r);
     }
+  }
+
+  /**
+   * Sondersymbole (siehe SPECIAL_SHAPE_DEFS): regelmaessiges Vieleck oder
+   * Stern, generisch aus Eckenzahl/Zackenzahl erzeugt statt 20 einzeln von
+   * Hand gezeichneter Pfade -- ctx.beginPath() ist bereits von
+   * drawShapeOutline aufgerufen, hier wird nur der Pfad selbst gefuellt.
+   */
+  function drawSpecialShapePath(ctx: CanvasRenderingContext2D, shape: StationShape, x: number, y: number, r: number): void {
+    const def = SPECIAL_SHAPE_DEFS[shape];
+    if (!def) {
+      ctx.arc(x, y, r, 0, Math.PI * 2); // sollte nie eintreten, sicherer Fallback
+      return;
+    }
+    const outerR = r * 1.15;
+    if (def.kind === "polygon") {
+      for (let i = 0; i < def.n; i++) {
+        const a = -Math.PI / 2 + (i / def.n) * Math.PI * 2;
+        const px = x + Math.cos(a) * outerR;
+        const py = y + Math.sin(a) * outerR;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+    } else {
+      const innerR = outerR * 0.45;
+      const points = def.n * 2;
+      for (let i = 0; i < points; i++) {
+        const a = -Math.PI / 2 + (i / points) * Math.PI * 2;
+        const rad = i % 2 === 0 ? outerR : innerR;
+        const px = x + Math.cos(a) * rad;
+        const py = y + Math.sin(a) * rad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+    }
+    ctx.closePath();
   }
 
   function drawOverloadRing(ctx: CanvasRenderingContext2D, s: Station): void {
@@ -2277,6 +2383,7 @@ function createMiniMetroGame(): MinigameModule {
     },
 
     cleanup() {
+      stopTrainChug();
       cancelActiveResourceDrag?.();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;

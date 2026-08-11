@@ -1360,10 +1360,18 @@ const server = http.createServer(async (req, res) => {
     // dagegen OHNE Admin-Login (Spieler:innen kennen das Passwort nicht),
     // dafuer straff ratenlimitiert -- schuetzt die Papierrolle vor Spam,
     // ohne echte Highscore-Momente zu blockieren.
+    // Grosszuegig ueber der tatsaechlich hoechsten bekannten Ticket-Vorlage
+    // (~577 Zeilen bei aktuellem Design, siehe core/ticket.ts) -- auf
+    // ausdruecklichen Wunsch als Failsafe: eine Anfrage, die mehr als die
+    // DOPPELTE realistische Ticketlaenge verlangt, wird sofort abgelehnt,
+    // BEVOR ueberhaupt etwas an den Drucker geschickt wird. Schuetzt gegen
+    // einen Client-/Renderfehler, der ein absurd hohes Bild anfordert (war
+    // vorher bei 4000 Zeilen, also ueber 6x so grosszuegig wie noetig).
+    const MAX_EXPECTED_TICKET_ROWS = 620;
     async function printRasterJob(req, res, url) {
       const width = Number(url.searchParams.get("width"));
       const height = Number(url.searchParams.get("height"));
-      if (!Number.isInteger(width) || width <= 0 || width % 8 !== 0 || !Number.isInteger(height) || height <= 0 || height > 4000) {
+      if (!Number.isInteger(width) || width <= 0 || width % 8 !== 0 || !Number.isInteger(height) || height <= 0 || height > MAX_EXPECTED_TICKET_ROWS * 2) {
         sendJson(res, 400, { error: "invalid_dimensions" });
         return;
       }
@@ -1409,9 +1417,8 @@ const server = http.createServer(async (req, res) => {
         const byL = bandHeight & 0xff;
         const byH = (bandHeight >> 8) & 0xff;
         const bandHeader = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, byL, byH]);
-        bands.push(bandHeader, bandBuf);
+        bands.push({ buffer: Buffer.concat([bandHeader, bandBuf]), rows: bandHeight });
       }
-      const full = Buffer.concat([init, ...bands, feed]);
 
       // Papierstand-Check UND der eigentliche Rasterdruck laufen ABSICHTLICH
       // gemeinsam in EINEM withPrinterDevice-Block (nicht als zwei getrennte
@@ -1420,27 +1427,37 @@ const server = http.createServer(async (req, res) => {
       // Router.ts) dazwischenfunken. Nutzt dafuer queryPrinterPaperStatusRaw
       // (OHNE eigene Verpackung), siehe Kommentar dort.
       //
-      // WICHTIG (erneut gemeldeter Gibberish-Vorfall TROTZ obiger
+      // WICHTIG (mehrfach erneut gemeldeter Gibberish-Vorfall TROTZ obiger
       // Serialisierung, ausserdem "Ticket wird zu frueh abgeschnitten"):
-      // fs.writeFile() liefert seine Callback, sobald der Kernel-Treiber die
-      // Bytes per USB an den Drucker UEBERGEBEN hat -- nicht, wenn der
-      // Drucker sie fertig AUSGEDRUCKT hat. Ein Thermodruck von ~577
-      // Bildzeilen braucht mechanisch mehrere Sekunden (Kopf fahren, Papier
-      // vorschieben), die USB-Uebertragung selbst dauert dagegen nur
-      // Millisekunden. Bisher gab withPrinterDevice die Warteschlange schon
-      // frei, sobald schreiben "fertig" war -- ein zweiter Druckauftrag
-      // (z. B. beim wiederholten Testdrucken im Adminbereich kurz
-      // hintereinander) konnte dadurch mitten in den noch laufenden
-      // physischen Druck der Lok hineinschreiben und ihn korrumpieren/
-      // abschneiden, genau wie beim urspruenglichen Papierstand-Abfrage-
-      // Vorfall oben, nur diesmal zwischen zwei Druckauftraegen statt
-      // Druck+Statusabfrage. PRINT_SETTLE_MS haelt die Warteschlange nach
-      // einem ERFOLGREICHEN Schreiben deshalb noch zusaetzlich offen, bevor
-      // der naechste Auftrag (Druck oder Statusabfrage) drankommt -- grob
-      // geschaetzt (keine Datenblatt-Angabe zur genauen Druckgeschwindigkeit
-      // dieses Modells vorhanden), aber deutlich groszuegiger als die
-      // tatsaechlich benoetigte Zeit, auf der sicheren Seite.
+      // fs.write()/fs.writeFile() liefert seine Callback, sobald der Kernel-
+      // Treiber die Bytes per USB an den Drucker UEBERGEBEN hat -- nicht,
+      // wenn der Drucker sie fertig AUSGEDRUCKT hat. Ein Thermodruck von
+      // ~577 Bildzeilen braucht mechanisch mehrere Sekunden (Kopf fahren,
+      // Papier vorschieben), die USB-Uebertragung selbst dauert dagegen nur
+      // Millisekunden. PRINT_SETTLE_MS haelt die Warteschlange NACH dem
+      // gesamten Druckauftrag deshalb noch zusaetzlich offen, bevor der
+      // naechste Auftrag (Druck oder Statusabfrage) drankommt -- verhindert,
+      // dass ein zweiter Druckauftrag (z. B. beim wiederholten Testdrucken
+      // im Adminbereich kurz hintereinander) mitten in den noch laufenden
+      // physischen Druck der Lok hineinschreibt.
+      //
+      // Das allein reicht aber nicht: bisher wurden ALLE Baender EINES
+      // Auftrags als EIN einziger fs.writeFile()-Aufruf gesendet -- der
+      // Kernel/USB-Treiber nimmt so einen mehrere KB grossen Block oft
+      // deutlich schneller an, als der Drucker ihn physisch abarbeiten kann.
+      // Landet dadurch schon der naechste "GS v 0"-Bandbefehl im kleinen
+      // internen Bildpuffer des Druckers, WAEHREND dieser das vorherige Band
+      // noch gar nicht fertig gedruckt/geleert hat, verliert er vermutlich
+      // (Datenblatt zu diesem generischen Modell nicht vorhanden, aber exakt
+      // das gemeldete Symptom passt dazu) seine Byte-Zaehlung im Rastermodus
+      // und druckt danach endlos wirre Zeichen. Die Baender werden deshalb
+      // jetzt NACHEINANDER geschrieben, mit einer kurzen Pause dazwischen,
+      // die grob der physischen Druckzeit des jeweiligen Bandes entspricht
+      // (MS_PER_PRINTED_ROW, konservativ geschaetzt) -- der Drucker bekommt
+      // dadurch Zeit, seinen Puffer zu leeren, bevor das naechste Band
+      // eintrifft.
       const PRINT_SETTLE_MS = 4000;
+      const MS_PER_PRINTED_ROW = 4;
       await withPrinterDevice(
         () =>
           new Promise((resolve) => {
@@ -1450,15 +1467,37 @@ const server = http.createServer(async (req, res) => {
                 resolve();
                 return;
               }
-              fs.writeFile(PRINTER_DEVICE, full, (err) => {
-                if (err) {
-                  const reason = err.code === "ENOENT" ? "printer_not_found" : err.code === "EACCES" ? "permission_denied" : "write_failed";
+              fs.open(PRINTER_DEVICE, "r+", (openErr, fd) => {
+                if (openErr) {
+                  const reason = openErr.code === "ENOENT" ? "printer_not_found" : openErr.code === "EACCES" ? "permission_denied" : "write_failed";
                   sendJson(res, 500, { ok: false, error: reason });
                   resolve();
                   return;
                 }
-                sendJson(res, 200, { ok: true });
-                setTimeout(resolve, PRINT_SETTLE_MS);
+                const writeChunk = (buffer) => new Promise((res2, rej2) => fs.write(fd, buffer, (err) => (err ? rej2(err) : res2())));
+                const sleep = (ms) => new Promise((res2) => setTimeout(res2, ms));
+                (async () => {
+                  await writeChunk(init);
+                  for (const band of bands) {
+                    await writeChunk(band.buffer);
+                    await sleep(band.rows * MS_PER_PRINTED_ROW);
+                  }
+                  await writeChunk(feed);
+                })()
+                  .then(() => {
+                    sendJson(res, 200, { ok: true });
+                    setTimeout(resolve, PRINT_SETTLE_MS);
+                  })
+                  .catch((err) => {
+                    const reason = err.code === "ENOENT" ? "printer_not_found" : err.code === "EACCES" ? "permission_denied" : "write_failed";
+                    sendJson(res, 500, { ok: false, error: reason });
+                    resolve();
+                  })
+                  .finally(() => {
+                    fs.close(fd, () => {
+                      /* Geraet ggf. schon zu -- egal, wir wollten nur aufraeumen */
+                    });
+                  });
               });
             });
           }),

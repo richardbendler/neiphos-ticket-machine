@@ -645,6 +645,70 @@ function createMiniMetroGame(): MinigameModule {
     return visited;
   }
 
+  /**
+   * Naechster tatsaechlicher Ausstiegs-Halt fuer einen JETZT einsteigenden
+   * Fahrgast -- kuerzester Weg (Breitensuche) von der Einstiege-Haltestelle
+   * zur naechsten Haltestelle mit passender Form, geliefert wird aber nur
+   * der ERSTE Schritt dieses Wegs (das kann schon das Endziel sein, oder
+   * eine Umstiege-Haltestelle). Der Fahrgast faehrt bis dahin durch (siehe
+   * arriveAtStation, dort wird bei jeder Ankunft anhand von nextStop
+   * geprueft, ob genau HIER auszusteigen ist), nicht nur bis zur naechsten
+   * Station.
+   *
+   * WICHTIG (gemeldeter Bug: "Huepftiere werden nicht an der Station
+   * abgelegt, wo eine Anschlusslinie sie weiterbringen koennte"): vorher
+   * bekam nextStop beim Einsteigen einfach IMMER die naechste physische
+   * Station zugewiesen -- ein Fahrgast auf einer reinen Ringlinie aus
+   * Kreisen, der eigentlich zu einer erst drei Stationen weiter
+   * erreichbaren Anschlusslinie umsteigen muesste, wurde dadurch faelschlich
+   * schon bei der naechsten (falschen) Kreis-Haltestelle wieder ausgeladen.
+   * Diese Suche laeuft NUR in Fahrtrichtung entlang der aktuellen Linie
+   * (Kanten dieser Linie werden nur "vorwaerts" ab fromIdx eingetragen),
+   * alle anderen Linien zaehlen dagegen ganz normal in beide Richtungen --
+   * ein einmal erreichter Umstiegspunkt darf in jede Richtung weitergehen.
+   */
+  function findBoardingNextStop(line: Line, fromIdx: number, dir: 1 | -1, destShape: StationShape): number | null {
+    const adj = buildAdjacencyExcluding(line);
+    if (isRingLine(line)) {
+      for (let i = 0; i < line.stationIds.length; i++) {
+        const toIdx = nextTrainIdx(line, i, dir);
+        adj.get(line.stationIds[i])?.add(line.stationIds[toIdx]);
+      }
+    } else {
+      let idx = fromIdx;
+      while (true) {
+        const toIdx = idx + dir;
+        if (toIdx < 0 || toIdx >= line.stationIds.length) break;
+        adj.get(line.stationIds[idx])?.add(line.stationIds[toIdx]);
+        idx = toIdx;
+      }
+    }
+
+    const fromId = line.stationIds[fromIdx];
+    const visited = new Set<number>([fromId]);
+    const queue: number[] = [fromId];
+    const prev = new Map<number, number>();
+    let goal: number | null = null;
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (cur !== fromId && stationById(cur).shape === destShape) {
+        goal = cur;
+        break;
+      }
+      for (const nb of adj.get(cur) ?? []) {
+        if (!visited.has(nb)) {
+          visited.add(nb);
+          prev.set(nb, cur);
+          queue.push(nb);
+        }
+      }
+    }
+    if (goal === null) return null;
+    let n = goal;
+    while (prev.get(n) !== fromId) n = prev.get(n)!;
+    return n;
+  }
+
   function ensureTrainOnNewLine(line: Line): void {
     if (line.trains.length === 0 && line.stationIds.length >= 2) {
       line.trains.push(createTrain());
@@ -1087,8 +1151,6 @@ function createMiniMetroGame(): MinigameModule {
     // umgedreht, das passiert erst einen Tick spaeter (siehe dortigen
     // Kommentar).
     const departDir = effectiveDepartureDir(line, train.fromIdx, train.dir);
-    const nextIdx = nextTrainIdx(line, train.fromIdx, departDir);
-    const nextStopId = line.stationIds[nextIdx];
     const aheadIds = stationsReachableAhead(line, train.fromIdx, departDir);
     const aheadShapes = new Set(stations.filter((s) => aheadIds.has(s.id)).map((s) => s.shape));
 
@@ -1138,11 +1200,19 @@ function createMiniMetroGame(): MinigameModule {
     // Gegenrichtung vor, bleibt der Fahrgast lieber stehen (wartet auf die
     // Rueckfahrt bzw. einen anderen Zug), statt unnoetig Kapazitaet zu
     // blockieren.
+    //
+    // nextStop ist NICHT einfach die naechste physische Station (siehe
+    // findBoardingNextStop-Kommentar/gemeldeter Bug) -- sonst wuerde der
+    // Fahrgast schon bei der naechsten (evtl. noch gar nicht passenden)
+    // Station wieder ausgeladen, statt bis zur tatsaechlichen
+    // Umsteige-Haltestelle durchzufahren.
     const boarding: Passenger[] = [];
     for (const p of station.waiting) {
       if (train.carrying.length + boarding.length >= train.capacity) continue;
       if (!aheadShapes.has(p.destShape)) continue;
-      p.nextStop = nextStopId;
+      const hop = findBoardingNextStop(line, train.fromIdx, departDir, p.destShape);
+      if (hop === null) continue; // aheadShapes sagte "erreichbar" -- sollte hier eigentlich nie eintreten, sicherheitshalber trotzdem behandelt
+      p.nextStop = hop;
       boarding.push(p);
     }
     train.boardQueue = boarding;
@@ -1692,12 +1762,13 @@ function createMiniMetroGame(): MinigameModule {
             ctx.fillStyle = theme.panelAlt;
             ctx.fillRect(px, py, size, size);
           }
-          // Formsymbol MITTIG auf dem Huepftier-Sprite (auf ausdruecklichen
-          // Wunsch) -- das Sprite ist inzwischen gross genug dafuer (siehe
-          // PASSENGER_SPRITE_SIZE), drawMiniShapeBadge zeichnet selbst schon
-          // einen weissen Kreis dahinter, das Symbol bleibt also unabhaengig
-          // von der Tierfarbe gut lesbar.
-          drawMiniShapeBadge(ctx, p.destShape, px + size / 2, py + size / 2, SHAPE_BADGE_RADIUS);
+          // Formsymbol auf dem Huepftier-Sprite, aber bewusst etwas TIEFER
+          // als die reine Mitte (auf ausdruecklichen Wunsch) -- sitzt so auf
+          // Hoehe der Beine statt das Gesicht des Tiers zu verdecken.
+          // drawMiniShapeBadge zeichnet selbst schon einen weissen Kreis
+          // dahinter, das Symbol bleibt also unabhaengig von der Tierfarbe
+          // gut lesbar.
+          drawMiniShapeBadge(ctx, p.destShape, px + size / 2, py + size * 0.72, SHAPE_BADGE_RADIUS);
           px += itemW;
         }
       }
@@ -2454,18 +2525,23 @@ function createMiniMetroGame(): MinigameModule {
       env.overlay.appendChild(resourceCol);
 
       // Bahnansagen-Geraeuschkulisse an-/ausschalten -- auf ausdruecklichen
-      // Wunsch unten links, eigenes Panel (siehe .mm-panel--left-bottom),
-      // damit es nicht mit dem Loks/Waggons-Vorrat (links MITTIG) kollidiert.
+      // Wunsch oben links, eigenes Panel (siehe .mm-panel--top-left), damit
+      // es nicht mit dem Loks/Waggons-Vorrat (links MITTIG) kollidiert.
       const announcementPanel = document.createElement("div");
-      announcementPanel.className = "mm-panel mm-panel--left-bottom";
+      announcementPanel.className = "mm-panel mm-panel--top-left";
       announcementBtn = document.createElement("button");
       announcementBtn.type = "button";
       announcementBtn.className = "mm-sound-toggle";
       announcementBtn.setAttribute("aria-pressed", "false");
+      // Auf ausdruecklichen Wunsch die AKTION statt den Zustand beschriften
+      // (was passiert beim Klick, nicht was gerade ist) -- intuitiver als
+      // reines "an"/"aus", das man leicht als reine Statusanzeige statt als
+      // Handlungsaufforderung lesen kann.
       function renderAnnouncementBtn(): void {
         announcementBtn.classList.toggle("mm-sound-toggle--active", announcementsEnabled);
         announcementBtn.setAttribute("aria-pressed", announcementsEnabled ? "true" : "false");
-        announcementBtn.innerHTML = `<span class="mm-sound-toggle__icon">${icons.speaker}</span><span>Bahngeräuschkulisse ${announcementsEnabled ? "an" : "aus"}</span>`;
+        const actionLabel = announcementsEnabled ? "Bahngeräuschkulisse ausschalten" : "Bahngeräuschkulisse anschalten";
+        announcementBtn.innerHTML = `<span class="mm-sound-toggle__icon">${icons.speaker}</span><span>${actionLabel}</span>`;
       }
       renderAnnouncementBtn();
       announcementBtn.addEventListener("click", () => {

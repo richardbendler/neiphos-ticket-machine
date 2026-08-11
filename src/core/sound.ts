@@ -27,14 +27,16 @@ import haltestellengongUrl from "../assets/sounds/haltestellengong.mp3";
 // Commons- bzw. Pixabay-Aufnahmen), unter demselben bereits dokumentierten
 // Lizenzrisiko-Vorbehalt wie die uebrigen echten Sample-Clips im Projekt
 // (siehe games/dj-mixer/sounds.ts, Datei-Kommentar oben).
+// Auf ausdruecklichen Wunsch NUR deutsche oder englische Bahnansagen -- zwei
+// urspruenglich mit recherchierte russischsprachige Ansage-Clips (St.
+// Petersburg Metro bzw. "Tueren schliessen" auf Russisch) wurden deshalb
+// wieder entfernt.
 import zughornKurzUrl from "../assets/sounds/zughorn-kurz.ogg";
 import ansageChimeUrl from "../assets/sounds/ansage-chime.ogg";
 import zielanzeigeKlapperUrl from "../assets/sounds/zielanzeige-klappern.ogg";
 import tuerenSchliessenUrl from "../assets/sounds/tueren-schliessen.ogg";
 import bahnhofsglockeUrl from "../assets/sounds/bahnhofsglocke.ogg";
-import metroAnsageLangUrl from "../assets/sounds/metro-ansage-lang.ogg";
 import naechsterHaltUrl from "../assets/sounds/naechster-halt.ogg";
-import tuerenSchliessenAnsageUrl from "../assets/sounds/tueren-schliessen-ansage.ogg";
 import bahnansageKurzUrl from "../assets/sounds/bahnansage-kurz.mp3";
 // Ersatz fuer den bisherigen "zurueckbleiben"-Clip NUR in dieser Rotation
 // (siehe STATION_ANNOUNCEMENT_CLIPS-Kommentar) -- auf ausdruecklichen Wunsch
@@ -289,15 +291,13 @@ const STATION_ANNOUNCEMENT_CLIPS: Array<{ url: string; volume: number }> = [
   { url: zielanzeigeKlapperUrl, volume: 0.6 },
   { url: tuerenSchliessenUrl, volume: 0.6 },
   { url: bahnhofsglockeUrl, volume: 0.6 },
-  { url: metroAnsageLangUrl, volume: 0.6 },
   { url: naechsterHaltUrl, volume: 0.6 },
-  { url: tuerenSchliessenAnsageUrl, volume: 0.6 },
   { url: bahnansageKurzUrl, volume: 0.6 },
 ];
 
 // Merkt sich den zuletzt gespielten Clip-Index, damit nicht zweimal
 // hintereinander genau derselbe Sound laeuft (auf ausdruecklichen Wunsch) --
-// bei zufaelliger Auswahl aus jetzt 14 Clips waere eine Wiederholung selten,
+// bei zufaelliger Auswahl aus jetzt 12 Clips waere eine Wiederholung selten,
 // aber eben nicht ausgeschlossen.
 let lastAnnouncementIndex = -1;
 

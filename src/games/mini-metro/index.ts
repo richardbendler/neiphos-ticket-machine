@@ -165,6 +165,16 @@ const TRAIN_W = 30;
 const TRAIN_H = 18;
 const WAGON_GAP = 4;
 
+// Depot-Stellplatz links (siehe renderDepot): kleine Vorschau-Canvases je
+// vorraetiger Lok/vorraetigem Waggon, gezeichnet mit denselben drawLoco/
+// drawWagon-Funktionen wie auf der Strecke -- etwas kleiner als TRAIN_W/H,
+// damit mehrere gestapelte Fahrzeuge nicht zu viel Platz im schmalen
+// Seiten-Panel beanspruchen. Neutrale graue Farbe, da ein Depot-Fahrzeug
+// noch keiner Linie (und damit keiner Linienfarbe) zugeordnet ist.
+const DEPOT_ITEM_W = 30;
+const DEPOT_ITEM_H = 18;
+const DEPOT_ITEM_COLOR = "#8a8f98";
+
 // Ein "Tag" ist ein kurzes, beschleunigtes Intervall (siehe Datei-Kommentar
 // oben) -- sieben Tage pro "Woche", am Wochenwechsel gibt es automatisch
 // eine neue Lok plus die Wahl zwischen einer weiteren Linie oder einem
@@ -435,24 +445,28 @@ function createMiniMetroGame(): MinigameModule {
 
   let dayLabelEl: HTMLDivElement;
   let deliveredLabelEl: HTMLDivElement;
-  let resourceColEl: HTMLDivElement;
-  let sparelokBtn: HTMLButtonElement;
-  let wagonBtn: HTMLButtonElement;
+  // Depot-Stellplatz links (siehe renderDepot) -- zeigt jede vorraetige Lok/
+  // jeden vorraetigen Waggon als eigene, echte Zug-Grafik (dieselbe
+  // drawLoco/drawWagon-Zeichenfunktion wie auf der Strecke), gestapelt statt
+  // nur als Icon+Zahl. depotColEl ist das aeussere Panel, locoDepotEl/
+  // wagonDepotEl die beiden Stapel-Container darin.
+  let depotColEl: HTMLDivElement;
+  let locoDepotEl: HTMLDivElement;
+  let wagonDepotEl: HTMLDivElement;
   // Fuers Umrechnen von Client- in Canvas-/Weltkoordinaten beim Ziehen eines
-  // Vorrats-Icons (siehe wireResourceDrag) -- die Icons selbst sind normale
-  // DOM-Buttons ausserhalb des Canvas, das Ziel (Linien-Kreis rechts bzw.
-  // fahrender Zug auf der Strecke) muss aber ueber echte Pointer-Events
-  // (nicht die Spiel-eigene onPointerDown/Move/Up-Pipeline) verfolgt werden,
-  // damit der Ziehvorgang unabhaengig vom Canvas ueber den ganzen Bildschirm
-  // hinweg funktioniert.
+  // Depot-Fahrzeugs (siehe wireResourceDrag) -- die Depot-Elemente sind
+  // normale DOM-Canvases ausserhalb des Spiel-Canvas, das Ziel (Linien-Kreis
+  // rechts bzw. fahrender Zug auf der Strecke) muss aber ueber echte
+  // Pointer-Events (nicht die Spiel-eigene onPointerDown/Move/Up-Pipeline)
+  // verfolgt werden, damit der Ziehvorgang unabhaengig vom Canvas ueber den
+  // ganzen Bildschirm hinweg funktioniert.
   let canvasEl: HTMLCanvasElement | null = null;
-  // Bricht einen evtl. noch aktiven Vorrats-Ziehvorgang (siehe
+  // Bricht einen evtl. noch aktiven Depot-Ziehvorgang (siehe
   // wireResourceDrag) beim Verlassen des Spiels sauber ab, damit dessen
   // window-Pointer-Listener nicht ueber das Spielende hinaus haengen bleiben.
   let cancelActiveResourceDrag: (() => void) | null = null;
   let lineColumnEl: HTMLDivElement;
   let lineCircles: HTMLButtonElement[] = [];
-  let hintEl: HTMLDivElement;
   let gameOverPanel: HTMLDivElement;
   let clockWrapEl: HTMLDivElement;
   let clockHandEl: HTMLDivElement;
@@ -983,7 +997,7 @@ function createMiniMetroGame(): MinigameModule {
     return { x: from.x + (to.x - from.x) * train.t, y: from.y + (to.y - from.y) * train.t };
   }
 
-  /** Fuer das Anhaengen eines Waggons (siehe wagonArmed/handleDown) -- sucht den Zug, dessen AKTUELLE gezeichnete Position dem Tipp am naechsten ist. */
+  /** Fuer das Anhaengen eines Waggons (siehe tryAttachWagonAt) -- sucht den Zug, dessen AKTUELLE gezeichnete Position dem Tipp am naechsten ist. */
   function trainAt(x: number, y: number): { line: Line; train: Train } | null {
     let best: { line: Line; train: Train } | null = null;
     let bestDist = 26;
@@ -1227,25 +1241,51 @@ function createMiniMetroGame(): MinigameModule {
 
   // --------------------------------------------------------------- Overlay UI
 
-  function updateHint(): void {
-    if (sparelokArmed) {
-      hintEl.textContent = "Tippe eine Linie rechts an, um ihr eine zusätzliche Lok zu geben.";
-      hintEl.style.display = "block";
-    } else if (wagonArmed) {
-      hintEl.textContent = "Tippe einen fahrenden Zug an, um ihm einen Waggon anzuhängen.";
-      hintEl.style.display = "block";
-    } else {
-      hintEl.style.display = "none";
-    }
-  }
-
   function updateCounters(): void {
     dayLabelEl.textContent = `${WEEKDAY_LABELS[(gameDay - 1) % DAYS_PER_WEEK]} · Woche ${Math.ceil(gameDay / DAYS_PER_WEEK)}`;
     deliveredLabelEl.textContent = formatDelivered(delivered);
-    sparelokBtn.querySelector(".mm-resource__count")!.textContent = String(spareLoks);
-    sparelokBtn.disabled = spareLoks <= 0;
-    wagonBtn.querySelector(".mm-resource__count")!.textContent = String(spareWagons);
-    wagonBtn.disabled = spareWagons <= 0;
+    renderDepot();
+  }
+
+  /** Eine kleine, per drawLoco/drawWagon gezeichnete Vorschau-Grafik fuer ein einzelnes Depot-Fahrzeug -- DPR-bewusst fuer scharfe Darstellung (siehe core/Canvas.ts#setupCanvas fuer dasselbe Muster beim Haupt-Canvas). */
+  function createDepotItemCanvas(kind: "loco" | "wagon"): HTMLCanvasElement {
+    const canvas = document.createElement("canvas");
+    canvas.className = "mm-depot-item";
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = DEPOT_ITEM_W * dpr;
+    canvas.height = DEPOT_ITEM_H * dpr;
+    canvas.style.width = `${DEPOT_ITEM_W}px`;
+    canvas.style.height = `${DEPOT_ITEM_H}px`;
+    const ctx = canvas.getContext("2d")!;
+    ctx.scale(dpr, dpr);
+    if (kind === "loco") drawLoco(ctx, DEPOT_ITEM_W / 2, DEPOT_ITEM_H / 2, 0, DEPOT_ITEM_COLOR);
+    else drawWagon(ctx, DEPOT_ITEM_W / 2, DEPOT_ITEM_H / 2, 0, DEPOT_ITEM_COLOR);
+    return canvas;
+  }
+
+  /**
+   * Baut den Depot-Stellplatz komplett neu auf -- je ein eigenes,
+   * ziehbares Element pro vorraetiger Lok/vorraetigem Waggon (auf
+   * ausdruecklichen Wunsch: "die Züge, die man im Depot hat, sollen genauso,
+   * wie sie grade sind, da rumstehen", mehrere davon "übereinander" gestapelt
+   * statt nur als Icon+Zahl). Wird bei jeder Bestandsaenderung ueber
+   * updateCounters() neu aufgerufen -- bei typischen Bestandsgroessen
+   * (einstellig) ist ein kompletter Neuaufbau statt Diffing voellig
+   * ausreichend schnell.
+   */
+  function renderDepot(): void {
+    locoDepotEl.innerHTML = "";
+    for (let i = 0; i < spareLoks; i++) {
+      const item = createDepotItemCanvas("loco");
+      wireResourceDrag(item, "loco");
+      locoDepotEl.appendChild(item);
+    }
+    wagonDepotEl.innerHTML = "";
+    for (let i = 0; i < spareWagons; i++) {
+      const item = createDepotItemCanvas("wagon");
+      wireResourceDrag(item, "wagon");
+      wagonDepotEl.appendChild(item);
+    }
   }
 
   /**
@@ -1293,26 +1333,8 @@ function createMiniMetroGame(): MinigameModule {
     }
   }
 
-  // "Eine Lok aus dem Vorrat zuweisen" (sparelokArmed, Ziel: Linie rechts)
-  // und "Waggon aus dem Vorrat zuweisen" (wagonArmed, Ziel: ein tatsaechlich
-  // fahrender Zug auf der Strecke, siehe trainAt/handleDown) schliessen sich
-  // gegenseitig aus -- das Starten des einen bricht den anderen ab.
-  let sparelokArmed = false;
-  let wagonArmed = false;
-
   function onLineCircleTap(index: number): void {
     const line = lines[index];
-    if (sparelokArmed) {
-      if (line && line.stationIds.length >= 2) {
-        spareLoks -= 1;
-        line.trains.push(createTrain());
-        sparelokArmed = false;
-        updateHint();
-        updateCounters();
-        renderLineColumn();
-      }
-      return;
-    }
     if (!line || line.stationIds.length === 0) return; // nichts zu loeschen
     if (armedDeleteIndex === index) {
       if (armedDeleteTimer) clearTimeout(armedDeleteTimer);
@@ -1329,21 +1351,7 @@ function createMiniMetroGame(): MinigameModule {
     }, 3000);
   }
 
-  function onSparelokTap(): void {
-    if (spareLoks <= 0) return;
-    wagonArmed = false;
-    sparelokArmed = true;
-    updateHint();
-  }
-
-  function onWagonTap(): void {
-    if (spareWagons <= 0) return;
-    sparelokArmed = false;
-    wagonArmed = true;
-    updateHint();
-  }
-
-  /** Direktes Ziehziel fuer eine Lok aus dem Vorrat (siehe wireResourceDrag): ein Linien-Kreis rechts unter dem Zeiger, dieselbe Wirkung wie der bisherige sparelokArmed-Weg ueber onLineCircleTap. */
+  /** Direktes Ziehziel fuer eine Lok aus dem Depot (siehe wireResourceDrag): ein Linien-Kreis rechts unter dem Zeiger. */
   function tryAttachLocoAt(clientX: number, clientY: number): boolean {
     const el = document.elementFromPoint(clientX, clientY);
     const circleBtn = el?.closest(".mm-line-circle") as HTMLElement | null;
@@ -1359,7 +1367,7 @@ function createMiniMetroGame(): MinigameModule {
     return true;
   }
 
-  /** Direktes Ziehziel fuer einen Waggon aus dem Vorrat (siehe wireResourceDrag): ein fahrender Zug auf dem Canvas unter dem Zeiger, dieselbe Wirkung wie der bisherige wagonArmed-Weg ueber handleDown/trainAt. */
+  /** Direktes Ziehziel fuer einen Waggon aus dem Depot (siehe wireResourceDrag): ein fahrender Zug auf dem Canvas unter dem Zeiger. */
   function tryAttachWagonAt(clientX: number, clientY: number): boolean {
     if (!canvasEl) return false;
     const rect = canvasEl.getBoundingClientRect();
@@ -1375,22 +1383,22 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   /**
-   * Verkabelt ein Vorrats-Icon (Lok/Waggon links) mit einer echten
-   * Ziehen-und-Ablegen-Geste ZUSAETZLICH zum bisherigen "antippen zum
-   * Scharfstellen, dann Ziel separat antippen"-Weg (onSparelokTap/
-   * onWagonTap bleiben unveraendert als Ein-Finger-Fallback bei einem
-   * reinen Tipp ohne Bewegung). Auf ausdruecklichen Nutzerwunsch: das Icon
-   * soll sich direkt auf sein Ziel ziehen lassen. Nutzt echte Pointer-Events
-   * auf window (statt der Canvas-eigenen onPointerDown/Move/Up-Pipeline),
-   * weil der Ziehweg ueber DOM-Elemente ausserhalb des Canvas (Linien-Kreise)
-   * fuehren kann.
+   * Verkabelt ein einzelnes Depot-Fahrzeug (Lok/Waggon, siehe renderDepot)
+   * mit einer Ziehen-und-Ablegen-Geste -- auf ausdruecklichen Wunsch die
+   * EINZIGE Art, ein Depot-Fahrzeug einzusetzen (der fruehere "antippen zum
+   * Scharfstellen, dann Ziel separat antippen"-Weg wurde komplett entfernt:
+   * "das soll komplett raus, nur noch Drag and Drop"). Ein reiner Tipp ohne
+   * Bewegung tut deshalb jetzt nichts. Nutzt echte Pointer-Events auf window
+   * (statt der Canvas-eigenen onPointerDown/Move/Up-Pipeline), weil der
+   * Ziehweg ueber DOM-Elemente ausserhalb des Canvas (Linien-Kreise) fuehren
+   * kann.
    */
-  function wireResourceDrag(btn: HTMLButtonElement, kind: "loco" | "wagon"): void {
+  function wireResourceDrag(el: HTMLElement, kind: "loco" | "wagon"): void {
     let dragging = false;
     let moved = false;
     let startX = 0;
     let startY = 0;
-    let ghost: HTMLDivElement | null = null;
+    let ghost: HTMLCanvasElement | null = null;
 
     function cleanup(): void {
       dragging = false;
@@ -1409,9 +1417,8 @@ function createMiniMetroGame(): MinigameModule {
       if (!dragging) return;
       if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) > 6) {
         moved = true;
-        ghost = document.createElement("div");
-        ghost.className = "mm-resource-drag-ghost";
-        ghost.innerHTML = kind === "loco" ? icons.locomotive : icons.wagon;
+        ghost = createDepotItemCanvas(kind);
+        ghost.classList.add("mm-resource-drag-ghost");
         document.body.appendChild(ghost);
       }
       if (ghost) {
@@ -1423,14 +1430,10 @@ function createMiniMetroGame(): MinigameModule {
     function onUp(e: PointerEvent): void {
       const wasMoved = moved;
       cleanup();
-      if (!wasMoved) {
-        if (kind === "loco") onSparelokTap();
-        else onWagonTap();
-        return;
-      }
-      // Ausserhalb eines gueltigen Ziels losgelassen: einfach abbrechen,
-      // der Vorrat bleibt unangetastet -- kein Fehlerhinweis noetig, das
-      // Icon ist ja sichtbar zur Ausgangsposition zurueckgesprungen.
+      if (!wasMoved) return; // reiner Tipp ohne Ziehen -- bewusst wirkungslos
+      // Ausserhalb eines gueltigen Ziels losgelassen: einfach abbrechen, das
+      // Depot bleibt unangetastet -- kein Fehlerhinweis noetig, das gezogene
+      // Fahrzeug steht ja sichtbar weiter an seinem Stellplatz.
       if (kind === "loco") tryAttachLocoAt(e.clientX, e.clientY);
       else tryAttachWagonAt(e.clientX, e.clientY);
     }
@@ -1439,8 +1442,7 @@ function createMiniMetroGame(): MinigameModule {
       cleanup();
     }
 
-    btn.addEventListener("pointerdown", (e) => {
-      if (btn.disabled) return;
+    el.addEventListener("pointerdown", (e) => {
       dragging = true;
       moved = false;
       startX = e.clientX;
@@ -1564,8 +1566,6 @@ function createMiniMetroGame(): MinigameModule {
     passengerTimers = new Map();
     gameOver = false;
     weeklyModalOpen = false;
-    sparelokArmed = false;
-    wagonArmed = false;
     armedDeleteIndex = null;
     tutorialDismissed = false;
     tutorialPulseTimer = 0;
@@ -1592,7 +1592,6 @@ function createMiniMetroGame(): MinigameModule {
     for (const shape of SHAPES) spawnStation(lastSize, shape, INITIAL_CLUSTER_RADIUS);
     highscoreBanner.update(getHighscoreBoard(GAME_ID));
     renderLineColumn();
-    updateHint();
     updateCounters();
     updateClock();
   }
@@ -2078,28 +2077,12 @@ function createMiniMetroGame(): MinigameModule {
     freshLineIndex = null;
     if (gameOver || weeklyModalOpen) return;
 
-    // Waggon-Zuweisung hat Vorrang und "verbraucht" den Tipp komplett --
-    // Ziel ist ein tatsaechlich fahrender Zug, keine Haltestelle/Linie.
-    if (wagonArmed) {
-      const hit = trainAt(x, y);
-      if (hit) {
-        hit.train.wagons += 1;
-        hit.train.capacity = BASE_CAPACITY + hit.train.wagons * WAGON_CAPACITY;
-        spareWagons -= 1;
-        wagonArmed = false;
-        updateHint();
-        updateCounters();
-      }
-      return;
-    }
-
     // Einen bereits fahrenden Zug (nicht gerade an einer Haltestelle
     // stehend, siehe Datei-Kommentar bei trainDrag) direkt greifen -- geht
     // dem Linien-Stummel-Griff/Stations-Tipp vor, damit sich ein Zug ZWISCHEN
     // zwei Haltestellen ueberhaupt fassen laesst, ohne stattdessen eine neue
-    // Linie zu starten. Bewusst NICHT waehrend sparelokArmed/wagonArmed
-    // (dort hat die Vorrats-Zuweisung Vorrang, siehe oben).
-    if (!sparelokArmed && !wagonArmed) {
+    // Linie zu starten.
+    {
       const hit = trainAt(x, y);
       if (hit && hit.train.dwell <= 0 && hit.train.boardQueue.length === 0) {
         trainDrag = hit;
@@ -2439,23 +2422,18 @@ function createMiniMetroGame(): MinigameModule {
       for (const src of PASSENGER_SPRITES) getImage(src);
       lines = new Array(MAX_LINE_SLOTS).fill(null);
 
-      // Ressourcen-Vorrat (Loks/Waggons) -- auf ausdruecklichen Wunsch links
-      // VERTIKAL MITTIG statt oben links.
-      const resourceCol = document.createElement("div");
-      resourceCol.className = "mm-panel mm-panel--left-mid";
-      sparelokBtn = document.createElement("button");
-      sparelokBtn.type = "button";
-      sparelokBtn.className = "mm-resource";
-      sparelokBtn.innerHTML = `<span class="mm-resource__icon">${icons.locomotive}</span><span class="mm-resource__count">0</span>`;
-      wireResourceDrag(sparelokBtn, "loco");
-      wagonBtn = document.createElement("button");
-      wagonBtn.type = "button";
-      wagonBtn.className = "mm-resource";
-      wagonBtn.innerHTML = `<span class="mm-resource__icon">${icons.wagon}</span><span class="mm-resource__count">0</span>`;
-      wireResourceDrag(wagonBtn, "wagon");
-      resourceCol.append(sparelokBtn, wagonBtn);
-      resourceColEl = resourceCol;
-      env.overlay.appendChild(resourceCol);
+      // Depot-Stellplatz (Loks/Waggons) -- auf ausdruecklichen Wunsch links
+      // VERTIKAL MITTIG statt oben links, und statt Icon+Zahl jetzt echte,
+      // gestapelte Fahrzeug-Grafiken (siehe renderDepot).
+      const depotCol = document.createElement("div");
+      depotCol.className = "mm-panel mm-panel--left-mid mm-depot";
+      locoDepotEl = document.createElement("div");
+      locoDepotEl.className = "mm-depot-group";
+      wagonDepotEl = document.createElement("div");
+      wagonDepotEl.className = "mm-depot-group";
+      depotCol.append(locoDepotEl, wagonDepotEl);
+      depotColEl = depotCol;
+      env.overlay.appendChild(depotCol);
 
       // Bahnansagen-Geraeuschkulisse an-/ausschalten -- auf ausdruecklichen
       // Wunsch oben links, eigenes Panel (siehe .mm-panel--top-left), damit
@@ -2558,11 +2536,6 @@ function createMiniMetroGame(): MinigameModule {
       lineColumnEl.className = "mm-line-column";
       env.overlay.appendChild(lineColumnEl);
 
-      hintEl = document.createElement("div");
-      hintEl.className = "mm-hint";
-      hintEl.style.display = "none";
-      env.overlay.appendChild(hintEl);
-
       gameOverPanel = document.createElement("div");
       gameOverPanel.className = "stage-center-panel";
       gameOverPanel.style.display = "none";
@@ -2661,11 +2634,10 @@ function createMiniMetroGame(): MinigameModule {
       if (armedStationDeleteTimer) clearTimeout(armedStationDeleteTimer);
       armedStationDeleteTimer = null;
       highscoreBanner?.destroy();
-      resourceColEl?.remove();
+      depotColEl?.remove();
       announcementPanelEl?.remove();
       speedRowEl?.remove();
       lineColumnEl?.remove();
-      hintEl?.remove();
       gameOverPanel?.remove();
     },
   };

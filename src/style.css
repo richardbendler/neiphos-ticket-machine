@@ -2667,62 +2667,54 @@ button {
   color: #ffffff;
 }
 
-.mm-resource {
+/* Depot-Stellplatz links (Loks/Waggons im Vorrat, siehe
+   games/mini-metro/index.ts#renderDepot) -- zeigt jedes Fahrzeug als eigene,
+   echte Zug-Grafik (dieselbe drawLoco/drawWagon-Zeichnung wie auf der
+   Strecke) statt nur Icon+Zahl, mehrere davon uebereinander gestapelt (auf
+   ausdruecklichen Wunsch: "genauso, wie sie grade sind, da rumstehen"). Die
+   beiden Gruppen (Loks/Waggons) liegen bereits als Flex-Column-Kinder im
+   umgebenden .mm-panel--left-mid uebereinander. */
+.mm-depot-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1rem;
-  padding: 2px 4px;
+  align-items: center;
 }
 
-.mm-resource:disabled {
-  color: var(--text-faint);
+.mm-depot-group:empty {
+  display: none;
 }
 
-.mm-resource__icon {
-  width: 22px;
-  height: 22px;
-  color: var(--primary);
+/* Ueberschreibt ".game-stage canvas" (position:absolute; inset:0; width/
+   height:100%, fuers Haupt-Canvas gedacht) -- ohne diese hoeher spezifische
+   Regel wuerden alle Depot-Item-Canvases uebereinander auf (0,0) ihres
+   positionierten Vorfahren springen und die Flex-Stapelung/Groesse waere
+   wirkungslos (gemeldet als "sieht nur wie ein Klumpen aus", per Live-Test
+   verifiziert: alle Items hatten identische Bounding-Rects). */
+.mm-depot-group .mm-depot-item {
+  position: static;
+  cursor: grab;
+  touch-action: none;
 }
 
-.mm-resource__icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* Schwebendes Icon waehrend eine Lok/ein Waggon aus dem Vorrat links direkt
-   auf ihr Ziel gezogen wird (siehe games/mini-metro/index.ts#wireResourceDrag)
-   -- folgt per Pointer-Events dem Finger ueber den GESAMTEN Bildschirm
-   hinweg, deshalb an document.body statt an den Spiel-Overlay gehaengt und
-   mit fixed positioniert (Client-, nicht Canvas-/Weltkoordinaten). */
+/* Schwebende Fahrzeug-Grafik waehrend eine Lok/ein Waggon aus dem Depot links
+   direkt auf ihr Ziel gezogen wird (siehe
+   games/mini-metro/index.ts#wireResourceDrag) -- folgt per Pointer-Events
+   dem Finger ueber den GESAMTEN Bildschirm hinweg, deshalb an document.body
+   statt an den Spiel-Overlay gehaengt und mit fixed positioniert (Client-,
+   nicht Canvas-/Weltkoordinaten). Ist selbst schon die per drawLoco/
+   drawWagon gezeichnete Canvas (siehe createDepotItemCanvas), braucht daher
+   nur noch Positionierung/Sichtbarkeit, keine eigene Hintergrundgestaltung.
+*/
 .mm-resource-drag-ghost {
   position: fixed;
   top: 0;
   left: 0;
-  width: 40px;
-  height: 40px;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: var(--primary);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
   opacity: 0.9;
   pointer-events: none;
   z-index: 2000;
-}
-
-.mm-resource-drag-ghost svg {
-  width: 100%;
-  height: 100%;
 }
 
 /* Vertikale Spalte der Linienfarb-Kreise rechts, wie in der Skizze
@@ -2761,21 +2753,6 @@ button {
 .mm-line-circle--armed {
   background: var(--danger);
   border-color: var(--danger);
-}
-
-.mm-hint {
-  position: absolute;
-  top: calc(var(--header-h) + 10px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--accent);
-  color: #2b2004;
-  font-weight: 700;
-  font-size: 0.82rem;
-  padding: 6px 14px;
-  border-radius: 999px;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
 }
 
 /* Wochen-Abschluss-Anzeige (triggerWeekChange) -- bewusst KOMPLETT eigenes

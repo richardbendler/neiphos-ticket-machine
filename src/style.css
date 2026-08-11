@@ -1003,15 +1003,15 @@ button {
   margin-right: 0.35em;
 }
 
-/* Zweiter Weg im Highscore-Dialog ("Speichern und als Ticket drucken",
-   core/highscorePrompt.ts) -- bewusst eine ANDERE Akzentfarbe als der
-   goldene Tastatur-eigene "Speichern"-Button, damit auf einen Blick klar
-   ist, dass es zwei eigenstaendige, gleichwertig druckbare Optionen sind,
-   nicht nur eine Variante derselben Aktion. Zusaetzlich bewusst AUFFAELLIGER
-   als das normale "Speichern" (groesser, dickerer Rand, sanft pulsierender
-   Glanz) -- auf ausdruecklichen Wunsch: viele wuerden sonst intuitiv/aus
-   Gewohnheit den gewohnten gelben Speichern-Button in der Tastatur druecken
-   und den (eigentlich attraktiveren) Ticket-Weg gar nicht bemerken. */
+/* Auffaelliger Teal/Blau-Button mit sanft pulsierendem Glanzring -- auf
+   ausdruecklichen Wunsch urspruenglich fuer "Speichern und als Ticket
+   drucken" im Highscore-Dialog gedacht (viele wuerden sonst intuitiv/aus
+   Gewohnheit nur den gewohnten gelben Speichern-Button druecken). Der
+   Ticket-Druck sitzt inzwischen selbst auf dem Tastatur-eigenen
+   Bestaetigen-Button (siehe .hs-save-only-btn unten fuer den Grund) --
+   .hs-print-btn wird jetzt nur noch fuer den "Papier wechseln"-Folgebutton
+   im Fehlerdialog genutzt (core/highscorePrompt.ts), behaelt den auffaelligen
+   Stil aber bewusst bei (auch DAS soll nicht uebersehen werden). */
 .hs-print-btn {
   background: linear-gradient(180deg, var(--primary-light), var(--primary));
   color: #ffffff;
@@ -1036,6 +1036,25 @@ button {
   50% {
     box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 9px rgba(31, 179, 196, 0.05);
   }
+}
+
+/* "Speichern (ohne Ticket drucken)" im Highscore-Dialog -- auf
+   ausdruecklichen Wunsch getauscht: der Tastatur-eigene, goldene
+   Bestaetigen-Button macht jetzt "Speichern & Ticket drucken" (siehe
+   core/highscorePrompt.ts), dieser Button hier ist der bewusst ruhigere
+   Nebenweg OHNE Ticket -- dieselbe Teal/Blau-Farbe wie .hs-print-btn oben,
+   aber OHNE den pulsierenden Glanzring (der war fuers Aufmerksam-Machen
+   gedacht, das uebernimmt jetzt schon die Tastatur selbst). */
+.hs-save-only-btn {
+  background: linear-gradient(180deg, var(--primary-light), var(--primary));
+  color: #ffffff;
+  border: 2px solid var(--primary-dark);
+  font-size: 0.95rem;
+  padding: 12px 18px;
+}
+
+.hs-save-only-btn:active {
+  background: linear-gradient(180deg, var(--primary), var(--primary-dark));
 }
 
 .btn__icon svg {

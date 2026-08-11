@@ -945,6 +945,27 @@ function createMiniMetroGame(): MinigameModule {
     return Math.min(Math.max(toIdx, 0), lastIdx);
   }
 
+  /**
+   * Welche Richtung der Zug ab JETZT tatsaechlich weiterfaehrt -- bei einer
+   * (nicht geschlossenen) Linie faehrt ein an der Endstation ankommender
+   * Zug in der GEGENRICHTUNG weiter, aber train.dir selbst wird dafuer erst
+   * einen Tick SPAETER umgedreht (siehe stepTrain, das passiert erst NACH
+   * dem Dwell, nicht schon beim Ankommen). Direkt bei der Ankunft
+   * (arriveAtStation) zeigt train.dir deshalb noch in die ALTE Richtung --
+   * fuer die Einstiegs-Entscheidung dort (welche Ziele liegen "voraus")
+   * braucht es aber die tatsaechliche NAECHSTE Richtung, sonst haelt man an
+   * der Endstation faelschlich fuer eine Sackgasse (gemeldeter Bug: "an der
+   * Endstation wird gar nichts mehr eingesammelt, obwohl da Passagiere fuer
+   * die Rueckfahrt warten"). Bei einer Ringlinie gibt es keine Umkehr, dort
+   * bleibt dir unveraendert.
+   */
+  function effectiveDepartureDir(line: Line, fromIdx: number, dir: 1 | -1): 1 | -1 {
+    if (isRingLine(line)) return dir;
+    const rawToIdx = fromIdx + dir;
+    if (rawToIdx < 0 || rawToIdx >= line.stationIds.length) return (dir * -1) as 1 | -1;
+    return dir;
+  }
+
   function currentTrainPos(line: Line, train: Train): { x: number; y: number } {
     const from = stationById(line.stationIds[train.fromIdx]);
     const toIdx = nextTrainIdx(line, train.fromIdx, train.dir);
@@ -1103,9 +1124,13 @@ function createMiniMetroGame(): MinigameModule {
     // Gegenrichtung vor, bleibt der Fahrgast lieber stehen (wartet auf die
     // Rueckfahrt bzw. einen anderen Zug), statt unnoetig Kapazitaet zu
     // blockieren.
-    const nextIdx = nextTrainIdx(line, train.fromIdx, train.dir);
+    // effectiveDepartureDir statt train.dir direkt -- siehe dortigen
+    // Kommentar (an der Endstation ist train.dir bei der Ankunft noch NICHT
+    // umgedreht, das passiert erst einen Tick spaeter).
+    const departDir = effectiveDepartureDir(line, train.fromIdx, train.dir);
+    const nextIdx = nextTrainIdx(line, train.fromIdx, departDir);
     const nextStopId = line.stationIds[nextIdx];
-    const aheadIds = stationsReachableAhead(line, train.fromIdx, train.dir);
+    const aheadIds = stationsReachableAhead(line, train.fromIdx, departDir);
     const aheadShapes = new Set(stations.filter((s) => aheadIds.has(s.id)).map((s) => s.shape));
     const boarding: Passenger[] = [];
     for (const p of station.waiting) {
@@ -2368,15 +2393,21 @@ function createMiniMetroGame(): MinigameModule {
       }
     }
 
+    // "laeuft" heisst NICHT nur "es existiert ein Zug auf einer Linie",
+    // sondern auch: das Spiel ist gerade nicht pausiert (gameSpeed > 0).
+    // Ohne diese Bedingung liefen Zug-Grundrauschen UND Bahnansagen auch bei
+    // gedrueckter Pause einfach weiter (gemeldeter Bug) -- tick() wird auch
+    // im pausierten Zustand jeden Frame aufgerufen (nur mit dt=0, siehe
+    // update()), stehende Zuege "existieren" also weiterhin auf ihrer Linie.
     let anyTrainRunning = false;
     for (const line of lines) {
       if (!line || line.stationIds.length < 2) continue;
       if (line.trains.length > 0) anyTrainRunning = true;
       for (const train of line.trains) stepTrain(line, train, dt);
     }
-    updateTrainChug(anyTrainRunning);
+    updateTrainChug(anyTrainRunning && gameSpeed > 0);
 
-    if (announcementsEnabled) {
+    if (announcementsEnabled && gameSpeed > 0) {
       announcementTimerS += dt;
       if (announcementTimerS >= announcementNextS) {
         announcementTimerS = 0;

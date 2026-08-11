@@ -84,44 +84,46 @@ export function promptHighscoreName(opts: {
 
       panel.append(iconWrap, h2, p);
 
+      // Auf ausdruecklichen Wunsch getauscht: der Tastatur-eigene
+      // Bestaetigen-Button (gold, wird von den meisten intuitiv gedrueckt --
+      // urspruenglich genau das Problem, das die farbliche Hervorhebung des
+      // Ticket-Buttons loesen sollte) macht jetzt selbst "Speichern und
+      // Ticket drucken", wenn ein Ticket-Verdienstweg zutrifft. Der reine
+      // "nur speichern"-Weg (ohne Ticket) sitzt stattdessen als eigener,
+      // bewusst weniger auffaelliger (kein Puls-Effekt mehr noetig, da die
+      // Tastatur selbst schon den Ticket-Weg abdeckt) Button DARUNTER.
+      const ticketVariant = opts.ticketReason !== null ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
       const kb = new OnScreenKeyboard({
         layout: "alphanumeric",
         maxLength: 16,
         placeholder: "Dein Name",
-        submitLabel: "Speichern",
+        submitLabel: ticketVariant !== null ? "Speichern & Ticket drucken" : "Speichern",
         onSubmit: (value) => {
           close();
           const trimmed = value.trim();
           opts.onDone(trimmed || null);
+          if (ticketVariant !== null) {
+            void printTicket(ticketVariant, { name: trimmed, game: opts.gameTitle, score: opts.scoreText }).then((result) => {
+              showTicketPrintResult(result);
+            });
+          }
         },
       });
       kb.mount(panel);
 
-      // Zweiter, gleichwertig grosser Weg: Name UND Ticket -- eigenes,
-      // farblich abgesetztes Element mit Ticket-Symbol, direkt unter der
-      // Tastatur, damit auf den ersten Blick klar ist, dass es zusaetzlich
-      // zum normalen "Speichern" (in der Tastatur) noch diese zweite
-      // Moeglichkeit gibt. Nur wenn tatsaechlich ein aktivierter
-      // Ticket-Verdienstweg zutrifft (siehe core/ticketMethods.ts) --
-      // sonst ganz weg statt nur deaktiviert, um keine falschen
-      // Erwartungen zu wecken.
-      if (opts.ticketReason !== null) {
-        const variant = TICKET_VARIANT_BY_REASON[opts.ticketReason];
-        const printBtn = document.createElement("button");
-        printBtn.type = "button";
-        printBtn.className = "btn hs-print-btn";
-        printBtn.style.width = "100%";
-        printBtn.style.marginTop = "10px";
-        printBtn.innerHTML = `<span class="btn__icon">${icons.ticket}</span>Speichern und als Ticket drucken`;
-        printBtn.addEventListener("click", () => {
+      if (ticketVariant !== null) {
+        const saveOnlyBtn = document.createElement("button");
+        saveOnlyBtn.type = "button";
+        saveOnlyBtn.className = "btn hs-save-only-btn";
+        saveOnlyBtn.style.width = "100%";
+        saveOnlyBtn.style.marginTop = "10px";
+        saveOnlyBtn.textContent = "Speichern (ohne Ticket drucken)";
+        saveOnlyBtn.addEventListener("click", () => {
           const trimmed = kb.getValue().trim();
           close();
           opts.onDone(trimmed || null);
-          void printTicket(variant, { name: trimmed, game: opts.gameTitle, score: opts.scoreText }).then((result) => {
-            showTicketPrintResult(result);
-          });
         });
-        panel.appendChild(printBtn);
+        panel.appendChild(saveOnlyBtn);
       }
 
       const skipBtn = document.createElement("button");

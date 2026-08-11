@@ -103,52 +103,61 @@ function withPrinterDevice(fn) {
  * oder kein Byte zurueckkommt), lieber "unbekannt" anzeigen als etwas
  * falsch Sicheres.
  */
-/** Unverpackte Kernlogik OHNE withPrinterDevice -- fuer sich alleine per queryPrinterPaperStatus() aufrufen (verpackt die Warteschlange EINMAL). printRasterJob nutzt dagegen DIESE rohe Variante direkt innerhalb seines eigenen, groesseren withPrinterDevice-Blocks (siehe dort) -- ein verschachtelter withPrinterDevice-Aufruf wuerde sonst auf sich selbst warten (Deadlock). */
+/**
+ * Unverpackte Kernlogik OHNE withPrinterDevice -- fuer sich alleine per
+ * queryPrinterPaperStatus() aufrufen (verpackt die Warteschlange EINMAL).
+ * printRasterJob nutzt dagegen DIESE rohe Variante direkt innerhalb seines
+ * eigenen, groesseren withPrinterDevice-Blocks (siehe dort) -- ein
+ * verschachtelter withPrinterDevice-Aufruf wuerde sonst auf sich selbst
+ * warten (Deadlock).
+ *
+ * BEWUSST mit den ASYNCHRONEN fs.open/write/read (nicht *Sync) --
+ * gemeldeter Vorfall: die vorherige *Sync-Fassung blockierte bei einem
+ * nicht (mehr) antwortenden Drucker den KOMPLETTEN Node-Hauptthread
+ * (fs.readSync ist eine blockierende Systemcall, waehrenddessen kann auch
+ * der eigentlich als Sicherheitsnetz gedachte setTimeout unten nie feuern
+ * -- Timer laufen nur zwischen Event-Loop-Ticks, ein blockierender Syscall
+ * verhindert genau das). Das legte den GESAMTEN Server lahm, nicht nur die
+ * Statusabfrage -- server war per systemd zwar "aktiv", antwortete aber auf
+ * gar keine Anfrage mehr, auch nicht auf die Startseite. Mit den
+ * asynchronen Varianten (laufen im libuv-Threadpool, nicht im Hauptthread)
+ * bleibt der Server responsiv, selbst wenn eine einzelne Anfrage haengt --
+ * der Timeout unten greift dann zuverlaessig.
+ */
 function queryPrinterPaperStatusRaw() {
   return new Promise((resolve) => {
-    let fd;
-    try {
-      fd = fs.openSync(PRINTER_DEVICE, "r+");
-    } catch {
-      resolve(null);
-      return;
-    }
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        fs.closeSync(fd);
-      } catch {
-        /* Geraet ggf. schon zu -- egal, wir wollten nur aufraeumen */
-      }
-      resolve(null);
-    }, 1500);
-    try {
-      fs.writeSync(fd, Buffer.from([0x10, 0x04, 0x04]));
-      const buf = Buffer.alloc(1);
-      const bytesRead = fs.readSync(fd, buf, 0, 1, null);
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      fs.closeSync(fd);
-      if (bytesRead < 1) {
+    fs.open(PRINTER_DEVICE, "r+", (openErr, fd) => {
+      if (openErr) {
         resolve(null);
         return;
       }
-      const byte = buf[0];
-      resolve({ empty: (byte & 0x40) !== 0, low: (byte & 0x04) !== 0 });
-    } catch {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try {
-        fs.closeSync(fd);
-      } catch {
-        /* siehe oben */
-      }
-      resolve(null);
-    }
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fs.close(fd, () => {
+          /* Geraet ggf. schon zu -- egal, wir wollten nur aufraeumen */
+        });
+        resolve(result);
+      };
+      const timer = setTimeout(() => finish(null), 1500);
+      fs.write(fd, Buffer.from([0x10, 0x04, 0x04]), (writeErr) => {
+        if (writeErr) {
+          finish(null);
+          return;
+        }
+        const buf = Buffer.alloc(1);
+        fs.read(fd, buf, 0, 1, null, (readErr, bytesRead) => {
+          if (readErr || bytesRead < 1) {
+            finish(null);
+            return;
+          }
+          const byte = buf[0];
+          finish({ empty: (byte & 0x40) !== 0, low: (byte & 0x04) !== 0 });
+        });
+      });
+    });
   });
 }
 

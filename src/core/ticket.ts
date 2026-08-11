@@ -66,8 +66,16 @@ const FIELD_LINES = {
   dynamic: { x: 580, maxX: 1100, y: 795 },
   purchasedAt: { x: 500, maxX: 1180, y: 879 },
 };
-const FIELD_FONT = "700 34px 'Barlow Semi Condensed', sans-serif";
+const FIELD_FONT = "700 61px 'Barlow Semi Condensed', sans-serif";
 const FIELD_COLOR = "#7a1400";
+// Zeilenhoehe je Feld -- der Reihenabstand zwischen den vier Feldern liegt
+// (per Bildanalyse) recht einheitlich bei ~84-87px, das jeweilige Label
+// sitzt IM Bereich oberhalb der eigenen Linie (field.y markiert die Linie
+// selbst, nicht die Zeilenmitte). Fuer die vertikale Zentrierung "in die
+// Zeile" (auf ausdruecklichen Wunsch, vorher stand der Wert auf der
+// Grundlinie) wird der Wert deshalb nicht mehr AUF field.y gesetzt, sondern
+// mittig im Band [field.y - FIELD_ROW_HEIGHT, field.y] platziert.
+const FIELD_ROW_HEIGHT = 84;
 
 export interface TicketFields {
   name?: string;
@@ -95,14 +103,14 @@ function drawFieldValue(ctx: CanvasRenderingContext2D, field: { x: number; maxX:
   ctx.fillStyle = FIELD_COLOR;
   ctx.font = FIELD_FONT;
   ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
+  ctx.textBaseline = "middle";
   const maxW = field.maxX - field.x;
   let text = value;
   while (ctx.measureText(text).width > maxW && text.length > 1) {
     text = text.slice(0, -1);
   }
   if (text !== value) text = text.slice(0, -1) + "…";
-  ctx.fillText(text, field.x, field.y);
+  ctx.fillText(text, field.x, field.y - FIELD_ROW_HEIGHT / 2);
 }
 
 /** Rendert das Ticket in normaler (breiter) Ausrichtung auf die vermessene Bild-Vorlage, skaliert auf 384px Hoehe, dreht danach um 90° fuers Querformat (siehe Datei-Kommentar). */

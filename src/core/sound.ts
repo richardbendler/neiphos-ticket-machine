@@ -17,6 +17,10 @@
  */
 import trainChugUrl from "../assets/sounds/zugsgeraeusch.mp3";
 import dbAnkuendigungUrl from "../assets/sounds/db-ankuendigung.mp3";
+import ansageDbUrl from "../assets/sounds/ansage-db.mp3";
+import einsteigenBitteUrl from "../assets/sounds/einsteigen-bitte.mp3";
+import zurueckbleibenUrl from "../assets/sounds/zurueckbleiben.mp3";
+import haltestellengongUrl from "../assets/sounds/haltestellengong.mp3";
 
 let audioCtx: AudioContext | null = null;
 
@@ -240,4 +244,20 @@ export function playStationPopSound(): void {
   osc.connect(gain).connect(ctx.destination);
   osc.start(now);
   osc.stop(now + 0.14);
+}
+
+/**
+ * Optionale Bahnhofs-Geraeuschkulisse (an/aus per Button, siehe
+ * games/mini-metro/index.ts) -- spielt in unregelmaessigen Abstaenden eine
+ * zufaellige, typische Bahnansage/-Gong aus dem bereits vorhandenen Sample-
+ * Set (dieselben Clips wie im DJ-Mischer, siehe games/dj-mixer/sounds.ts
+ * fuer Quellenangaben/Lizenzhinweis). Bewusst eine kleine, feste Auswahl statt
+ * eines einzelnen Clips, damit es sich nach ein paar Ansagen nicht repetitiv
+ * anfuehlt.
+ */
+const STATION_ANNOUNCEMENT_URLS = [ansageDbUrl, dbAnkuendigungUrl, einsteigenBitteUrl, zurueckbleibenUrl, haltestellengongUrl];
+
+export function playRandomStationAnnouncement(): void {
+  const url = STATION_ANNOUNCEMENT_URLS[Math.floor(Math.random() * STATION_ANNOUNCEMENT_URLS.length)];
+  playSampleOnce(url, 0.6);
 }

@@ -96,6 +96,13 @@ export const icons = {
      <line x1="12" y1="10" x2="12" y2="14.5"/>
      <circle cx="12" cy="17.3" r="0.9" fill="currentColor" stroke="none"/>`,
   ),
+  // Klassisches Lautsprecher-Symbol mit zwei Schallwellen -- fuer den
+  // Bahnansagen-Geraeuschkulisse-Umschalter (games/mini-metro/index.ts).
+  speaker: svg(
+    `<path d="M4 9v6h4l6 4V5l-6 4H4z"/>
+     <path d="M17 8.5a5 5 0 0 1 0 7"/>
+     <path d="M19.5 6a8.5 8.5 0 0 1 0 12"/>`,
+  ),
   // Vereinfachtes Huepftier (Rody-Stil: Ball-Koerper, zwei Ohren, vier
   // Beine) -- als eigenstaendiges Icon statt eines Emojis (siehe
   // games/memory/index.ts, games/train-spotter/index.ts), das auf Systemen

@@ -2432,6 +2432,49 @@ button {
   gap: 10px;
 }
 
+/* Analog zu --top-right (dort mit var(--header-h)) -- ein unten
+   positioniertes Panel muss ebenso die separate, davor liegende Fussleiste
+   beruecksichtigen (siehe core/Router.ts), sonst landet es dahinter. */
+.mm-panel--left-bottom {
+  bottom: calc(var(--footer-h) + 10px + var(--safe-bottom));
+  left: 10px;
+}
+
+.mm-sound-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 2px 4px;
+}
+
+.mm-sound-toggle__icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-faint);
+}
+
+.mm-sound-toggle__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Aktiver Zustand (Geraeuschkulisse an) -- auf ausdruecklichen Wunsch klar
+   erkennbar von "aus" unterscheidbar, dieselbe Akzentfarbe wie die
+   Ressourcen-Icons (siehe .mm-resource__icon), statt nur dezent grau. */
+.mm-sound-toggle--active {
+  color: var(--text);
+}
+
+.mm-sound-toggle--active .mm-sound-toggle__icon {
+  color: var(--primary);
+}
+
 /* Uhr/Tage-Zeile UND Geschwindigkeitsregler sind zwei uebereinander
    gestapelte Zeilen IM SELBEN Panel (siehe games/mini-metro/index.ts) --
    dadurch bleibt die zweite Zeile immer unterhalb der ersten, egal wie hoch

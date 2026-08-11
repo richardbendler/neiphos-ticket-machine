@@ -19,8 +19,31 @@ import trainChugUrl from "../assets/sounds/zugsgeraeusch.mp3";
 import dbAnkuendigungUrl from "../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../assets/sounds/ansage-db.mp3";
 import einsteigenBitteUrl from "../assets/sounds/einsteigen-bitte.mp3";
-import zurueckbleibenUrl from "../assets/sounds/zurueckbleiben.mp3";
 import haltestellengongUrl from "../assets/sounds/haltestellengong.mp3";
+// Auf ausdruecklichen Wunsch ca. zehn weitere Clips fuer die Huepftier-Metro-
+// Bahnhofskulisse recherchiert (siehe STATION_ANNOUNCEMENT_CLIPS unten) --
+// echte kurze Bahn-/Bahnhofs-Sample-Clips, aus denselben Quellen-Kategorien
+// wie die bereits vorhandenen (oeffentlich frei verfuegbare Wikimedia-
+// Commons- bzw. Pixabay-Aufnahmen), unter demselben bereits dokumentierten
+// Lizenzrisiko-Vorbehalt wie die uebrigen echten Sample-Clips im Projekt
+// (siehe games/dj-mixer/sounds.ts, Datei-Kommentar oben).
+import zughornKurzUrl from "../assets/sounds/zughorn-kurz.ogg";
+import ansageChimeUrl from "../assets/sounds/ansage-chime.ogg";
+import zielanzeigeKlapperUrl from "../assets/sounds/zielanzeige-klappern.ogg";
+import tuerenSchliessenUrl from "../assets/sounds/tueren-schliessen.ogg";
+import bahnhofsglockeUrl from "../assets/sounds/bahnhofsglocke.ogg";
+import metroAnsageLangUrl from "../assets/sounds/metro-ansage-lang.ogg";
+import naechsterHaltUrl from "../assets/sounds/naechster-halt.ogg";
+import tuerenSchliessenAnsageUrl from "../assets/sounds/tueren-schliessen-ansage.ogg";
+import bahnansageKurzUrl from "../assets/sounds/bahnansage-kurz.mp3";
+// Ersatz fuer den bisherigen "zurueckbleiben"-Clip NUR in dieser Rotation
+// (siehe STATION_ANNOUNCEMENT_CLIPS-Kommentar) -- auf ausdruecklichen Wunsch
+// "der ist viel zu doll" recherchiert: derselbe Ansagetext, aber eine
+// ruhigere/leisere Originalaufnahme (Berliner U-Bahn statt der bisherigen,
+// deutlich lauteren/schrilleren Quelle). games/dj-mixer/sounds.ts nutzt
+// weiterhin den bisherigen zurueckbleiben.mp3-Clip unveraendert -- die beiden
+// Stellen sind bewusst unabhaengig (siehe dortiger Kommentar).
+import zurueckbleibenRuhigUrl from "../assets/sounds/zurueckbleiben-ruhig.ogg";
 
 let audioCtx: AudioContext | null = null;
 
@@ -255,21 +278,63 @@ export function playStationPopSound(): void {
  * eines einzelnen Clips, damit es sich nach ein paar Ansagen nicht repetitiv
  * anfuehlt.
  */
-// "zurueckbleiben" bewusst mit eigener, deutlich leiserer Lautstaerke (statt
-// wie die anderen bei 0.6) -- im DJ-Mischer (games/dj-mixer/sounds.ts) klingt
-// derselbe Clip lauter/schriller, was dort als Sound-Effekt passt, hier als
-// wiederkehrende Hintergrund-Ansage aber als zu aufdringlich empfunden wurde
-// ("ruhiger" gewuenscht, ausdruecklich NUR fuer diese Bahnhofs-Kulisse, nicht
-// fuer den DJ-Mischer).
 const STATION_ANNOUNCEMENT_CLIPS: Array<{ url: string; volume: number }> = [
   { url: ansageDbUrl, volume: 0.6 },
   { url: dbAnkuendigungUrl, volume: 0.6 },
   { url: einsteigenBitteUrl, volume: 0.6 },
-  { url: zurueckbleibenUrl, volume: 0.3 },
   { url: haltestellengongUrl, volume: 0.6 },
+  { url: zurueckbleibenRuhigUrl, volume: 0.6 },
+  { url: zughornKurzUrl, volume: 0.5 },
+  { url: ansageChimeUrl, volume: 0.6 },
+  { url: zielanzeigeKlapperUrl, volume: 0.6 },
+  { url: tuerenSchliessenUrl, volume: 0.6 },
+  { url: bahnhofsglockeUrl, volume: 0.6 },
+  { url: metroAnsageLangUrl, volume: 0.6 },
+  { url: naechsterHaltUrl, volume: 0.6 },
+  { url: tuerenSchliessenAnsageUrl, volume: 0.6 },
+  { url: bahnansageKurzUrl, volume: 0.6 },
 ];
 
+// Merkt sich den zuletzt gespielten Clip-Index, damit nicht zweimal
+// hintereinander genau derselbe Sound laeuft (auf ausdruecklichen Wunsch) --
+// bei zufaelliger Auswahl aus jetzt 14 Clips waere eine Wiederholung selten,
+// aber eben nicht ausgeschlossen.
+let lastAnnouncementIndex = -1;
+
+// Manche der recherchierten Clips sind echte, laengere Ansagen (bis zu ca.
+// 22s) -- laenger als der kuerzeste Abstand zwischen zwei geplanten
+// Ansage-Zeitpunkten (7s, siehe ANNOUNCEMENT_INTERVAL_MIN_S). Ohne diese
+// Sperre koennte deshalb ein neuer Clip starten, waehrend der vorherige noch
+// laeuft -- zwei gleichzeitige Ansagen uebereinander waeren genau die Art
+// von aufdringlichem Krach, die hier ausdruecklich vermieden werden soll.
+// Ein uebersprungener Zeitpunkt (weil noch "busy") wird einfach ausgelassen,
+// der naechste kommt regulaer 7-13s spaeter.
+let stationAnnouncementBusy = false;
+
 export function playRandomStationAnnouncement(): void {
-  const clip = STATION_ANNOUNCEMENT_CLIPS[Math.floor(Math.random() * STATION_ANNOUNCEMENT_CLIPS.length)];
-  playSampleOnce(clip.url, clip.volume);
+  if (stationAnnouncementBusy) return;
+  let index = Math.floor(Math.random() * STATION_ANNOUNCEMENT_CLIPS.length);
+  if (index === lastAnnouncementIndex) {
+    index = (index + 1 + Math.floor(Math.random() * (STATION_ANNOUNCEMENT_CLIPS.length - 1))) % STATION_ANNOUNCEMENT_CLIPS.length;
+  }
+  lastAnnouncementIndex = index;
+  const clip = STATION_ANNOUNCEMENT_CLIPS[index];
+  const ctx = getAudioContext();
+  stationAnnouncementBusy = true;
+  void loadSampleBuffer(ctx, clip.url).then(
+    (buffer) => {
+      const gain = ctx.createGain();
+      gain.gain.value = clip.volume;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gain).connect(ctx.destination);
+      source.onended = () => {
+        stationAnnouncementBusy = false;
+      };
+      source.start();
+    },
+    () => {
+      stationAnnouncementBusy = false; // Ladefehler soll die Kulisse nicht dauerhaft blockieren
+    },
+  );
 }

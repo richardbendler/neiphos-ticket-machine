@@ -255,11 +255,6 @@ interface Passenger {
   id: number;
   destShape: StationShape;
   sprite: string;
-  // Naechste physische Haltestelle DIESES Zuges (siehe arriveAtStation) --
-  // entweder schon das Endziel (destShape erreicht) oder eine
-  // Umstiege-Haltestelle, an der der Passagier wieder aussteigt und auf eine
-  // andere Linie wartet. null, solange der Passagier noch wartet.
-  nextStop: number | null;
 }
 
 interface Station {
@@ -581,12 +576,12 @@ function createMiniMetroGame(): MinigameModule {
     const options = [...SHAPES.filter((s) => s !== station.shape), ...specialDestShapes];
     const destShape = options[Math.floor(Math.random() * options.length)];
     const sprite = PASSENGER_SPRITES[Math.floor(Math.random() * PASSENGER_SPRITES.length)];
-    station.waiting.push({ id: nextId(), destShape, sprite, nextStop: null });
+    station.waiting.push({ id: nextId(), destShape, sprite });
   }
 
   // ------------------------------------------------------------------ Linien
 
-  /** Wie buildAdjacency, aber ohne die Kanten EINER bestimmten Linie -- siehe stationsReachableAhead. */
+  /** Wie buildAdjacency, aber ohne die Kanten EINER bestimmten Linie -- siehe transferReachable. */
   function buildAdjacencyExcluding(excludeLine: Line): Map<number, Set<number>> {
     const adj = new Map<number, Set<number>>();
     for (const s of stations) adj.set(s.id, new Set());
@@ -602,39 +597,41 @@ function createMiniMetroGame(): MinigameModule {
     return adj;
   }
 
+  /** Kommt diese Form IRGENDWO auf dieser Linie vor -- egal wo, egal ob schon abgefahren oder nicht (die GANZE Linie, nicht nur "voraus"). */
+  function lineHasShape(line: Line, shape: StationShape): boolean {
+    return line.stationIds.some((id) => stationById(id).shape === shape);
+  }
+
   /**
-   * Alle Haltestellen, die ein Zug ab jetzt OHNE Umkehren noch erreichen
-   * wird: erst die verbleibenden Haltestellen dieser Linie in der
-   * aktuellen Fahrtrichtung (bei einer Ringlinie faehrt er ohnehin
-   * frueher oder spaeter an jeder davon vorbei), dann -- ab JEDER davon --
-   * rekursiv/transitiv alles, was ueber andere Linien erreichbar ist
-   * (Umstieg zaehlt unabhaengig von deren Richtung, siehe Datei-Kommentar
-   * bei buildAdjacencyExcluding: die TRANSITIVE Ausweitung nutzt bewusst
-   * NICHT nochmal die Kanten dieser Linie selbst, sonst wuerde ueber die
-   * direkte Nachbarschaft zur Ausgangs-Haltestelle faelschlich auch die
-   * Gegenrichtung als "erreichbar" durchsickern).
-   *
-   * Grundlage fuer die Einstiegs-Entscheidung in arriveAtStation: ein
-   * Fahrgast steigt nur ein, wenn seine Zielform auf diesem Weg ueberhaupt
-   * noch vorkommt -- sonst lieber auf die Rueckfahrt/einen anderen Zug
-   * warten, statt unnoetig Kapazitaet zu blockieren (gemeldeter Wunsch).
+   * Kommt die gesuchte Form ab HIER noch auf DIESER Linie in der aktuellen
+   * Fahrtrichtung vor (ohne Umkehren)? Bei einer Ringlinie faehrt der Zug
+   * ohnehin nie um, sondern immer weiter rundherum -- dort ist das
+   * gleichbedeutend mit lineHasShape.
    */
-  function stationsReachableAhead(line: Line, fromIdx: number, dir: 1 | -1): Set<number> {
-    const ahead = new Set<number>();
-    if (isRingLine(line)) {
-      for (const id of line.stationIds) ahead.add(id);
-    } else {
-      let idx = fromIdx;
-      while (idx >= 0 && idx < line.stationIds.length) {
-        ahead.add(line.stationIds[idx]);
-        idx += dir;
-      }
+  function aheadHasShapeSameLine(line: Line, fromIdx: number, dir: 1 | -1, shape: StationShape): boolean {
+    if (isRingLine(line)) return lineHasShape(line, shape);
+    let idx = fromIdx;
+    while (idx >= 0 && idx < line.stationIds.length) {
+      if (stationById(line.stationIds[idx]).shape === shape) return true;
+      idx += dir;
     }
-    const adjOther = buildAdjacencyExcluding(line);
-    const visited = new Set(ahead);
-    const queue = [...ahead];
+    return false;
+  }
+
+  /**
+   * Ist die gesuchte Form von einer Haltestelle aus ueber das Netz ANDERER
+   * Linien erreichbar (rekursiv/transitiv, Umstieg zaehlt in jede
+   * Richtung)? Setzt voraus, dass ueberhaupt eine andere Linie hier haelt
+   * -- sonst ist die Nachbarschaft dieser Haltestelle in adjOther leer und
+   * die Suche findet nichts.
+   */
+  function transferReachable(fromStationId: number, excludeLine: Line, shape: StationShape): boolean {
+    const adjOther = buildAdjacencyExcluding(excludeLine);
+    const visited = new Set<number>([fromStationId]);
+    const queue: number[] = [fromStationId];
     while (queue.length > 0) {
       const cur = queue.shift()!;
+      if (cur !== fromStationId && stationById(cur).shape === shape) return true;
       for (const nb of adjOther.get(cur) ?? []) {
         if (!visited.has(nb)) {
           visited.add(nb);
@@ -642,71 +639,27 @@ function createMiniMetroGame(): MinigameModule {
         }
       }
     }
-    return visited;
+    return false;
   }
 
   /**
-   * Naechster tatsaechlicher Ausstiegs-Halt fuer einen JETZT einsteigenden
-   * Fahrgast -- kuerzester Weg (Breitensuche) von der Einstiege-Haltestelle
-   * zur naechsten Haltestelle mit passender Form, geliefert wird aber nur
-   * der ERSTE Schritt dieses Wegs (das kann schon das Endziel sein, oder
-   * eine Umstiege-Haltestelle). Der Fahrgast faehrt bis dahin durch (siehe
-   * arriveAtStation, dort wird bei jeder Ankunft anhand von nextStop
-   * geprueft, ob genau HIER auszusteigen ist), nicht nur bis zur naechsten
-   * Station.
-   *
-   * WICHTIG (gemeldeter Bug: "Huepftiere werden nicht an der Station
-   * abgelegt, wo eine Anschlusslinie sie weiterbringen koennte"): vorher
-   * bekam nextStop beim Einsteigen einfach IMMER die naechste physische
-   * Station zugewiesen -- ein Fahrgast auf einer reinen Ringlinie aus
-   * Kreisen, der eigentlich zu einer erst drei Stationen weiter
-   * erreichbaren Anschlusslinie umsteigen muesste, wurde dadurch faelschlich
-   * schon bei der naechsten (falschen) Kreis-Haltestelle wieder ausgeladen.
-   * Diese Suche laeuft NUR in Fahrtrichtung entlang der aktuellen Linie
-   * (Kanten dieser Linie werden nur "vorwaerts" ab fromIdx eingetragen),
-   * alle anderen Linien zaehlen dagegen ganz normal in beide Richtungen --
-   * ein einmal erreichter Umstiegspunkt darf in jede Richtung weitergehen.
+   * Gibt es auf dieser Linie irgendeine ANDERE Haltestelle als
+   * excludeStationId, an der ein Umstieg zur gesuchten Form moeglich waere?
+   * Grundlage fuer die Einstiegs-Entscheidung, wenn die Linie die Form
+   * selbst gar nicht bedient (siehe arriveAtStation) -- excludeStationId
+   * ist dabei die Haltestelle, an der GERADE eingestiegen wird: bietet
+   * schon die genau da einen Umstieg, macht das Zusteigen in DIESE (falsche)
+   * Linie keinen Sinn, dann kann der Fahrgast gleich hier auf den
+   * Anschluss warten statt unnoetig eine Runde mitzufahren.
    */
-  function findBoardingNextStop(line: Line, fromIdx: number, dir: 1 | -1, destShape: StationShape): number | null {
-    const adj = buildAdjacencyExcluding(line);
-    if (isRingLine(line)) {
-      for (let i = 0; i < line.stationIds.length; i++) {
-        const toIdx = nextTrainIdx(line, i, dir);
-        adj.get(line.stationIds[i])?.add(line.stationIds[toIdx]);
-      }
-    } else {
-      let idx = fromIdx;
-      while (true) {
-        const toIdx = idx + dir;
-        if (toIdx < 0 || toIdx >= line.stationIds.length) break;
-        adj.get(line.stationIds[idx])?.add(line.stationIds[toIdx]);
-        idx = toIdx;
-      }
+  function lineCanTransferTo(line: Line, shape: StationShape, excludeStationId: number): boolean {
+    const seen = new Set<number>();
+    for (const id of line.stationIds) {
+      if (id === excludeStationId || seen.has(id)) continue;
+      seen.add(id);
+      if (transferReachable(id, line, shape)) return true;
     }
-
-    const fromId = line.stationIds[fromIdx];
-    const visited = new Set<number>([fromId]);
-    const queue: number[] = [fromId];
-    const prev = new Map<number, number>();
-    let goal: number | null = null;
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      if (cur !== fromId && stationById(cur).shape === destShape) {
-        goal = cur;
-        break;
-      }
-      for (const nb of adj.get(cur) ?? []) {
-        if (!visited.has(nb)) {
-          visited.add(nb);
-          prev.set(nb, cur);
-          queue.push(nb);
-        }
-      }
-    }
-    if (goal === null) return null;
-    let n = goal;
-    while (prev.get(n) !== fromId) n = prev.get(n)!;
-    return n;
+    return false;
   }
 
   function ensureTrainOnNewLine(line: Line): void {
@@ -1139,47 +1092,43 @@ function createMiniMetroGame(): MinigameModule {
     }
   }
 
+  /**
+   * Bei jeder Ankunft werden IMMER frisch/dynamisch zwei Fragen neu
+   * gestellt (kein gespeicherter "nextStop" mehr -- bewusst komplett neu
+   * aufgesetzt, siehe Nutzer-Vorgabe, statt einer vorausberechneten
+   * Ziel-Haltestelle vom Einstiegszeitpunkt, die bei nachtraeglich
+   * geaenderter Streckenfuehrung veraltet/falsch werden konnte):
+   *
+   * 1. WEN LADEN WIR AB? Nur Fahrgaeste, die entweder (a) genau hier ihr
+   *    Ziel erreicht haben, oder (b) deren Zielform auf der GESAMTEN
+   *    aktuellen Linie (in beide Richtungen, auch bereits abgefahrene
+   *    Haltestellen) gar nicht mehr vorkommt UND von genau HIER aus ueber
+   *    eine andere, ebenfalls hier haltende Linie (transitiv) erreichbar
+   *    ist -- dann lieber hier auf den Anschluss warten als sinnlos
+   *    weiterfahren.
+   * 2. WEN NEHMEN WIR MIT? Nur Fahrgaeste, deren Zielform entweder (a) ab
+   *    hier noch auf DIESER Linie in Fahrtrichtung vorkommt, oder (b) --
+   *    NUR falls die Zielform auf der GESAMTEN Linie ueberhaupt nicht
+   *    vorkommt -- es irgendwo sonst auf der Linie einen Umstiegspunkt zu
+   *    dieser Form gibt (dann lohnt sich das Mitfahren ein paar
+   *    Haltestellen weit, siehe lineCanTransferTo).
+   */
   function arriveAtStation(line: Line, train: Train, station: Station): void {
     train.dwell = TRAIN_DWELL_S;
     train.boardTimer = 0; // erster wartender Fahrgast darf sofort einsteigen
 
-    // Fuer BEIDES (Aussteigen-Sonderfall unten UND Einsteigen) vorab
-    // berechnet: was liegt ab hier in der tatsaechlichen naechsten
-    // Fahrtrichtung dieses Zuges ueberhaupt noch (direkt oder ueber
-    // Anschlusslinien) erreichbar? effectiveDepartureDir statt train.dir
-    // direkt -- an der Endstation ist train.dir bei der Ankunft noch NICHT
-    // umgedreht, das passiert erst einen Tick spaeter (siehe dortigen
-    // Kommentar).
+    // effectiveDepartureDir statt train.dir direkt -- an der Endstation ist
+    // train.dir bei der Ankunft noch NICHT umgedreht, das passiert erst
+    // einen Tick spaeter (siehe dortigen Kommentar).
     const departDir = effectiveDepartureDir(line, train.fromIdx, train.dir);
-    const aheadIds = stationsReachableAhead(line, train.fromIdx, departDir);
-    const aheadShapes = new Set(stations.filter((s) => aheadIds.has(s.id)).map((s) => s.shape));
 
     // Erst abladen, dann erst einladen -- macht sofort wieder Platz frei
     // fuer neue Fahrgaeste an derselben Haltestelle.
-    //
-    // WICHTIG (gemeldeter Bug: "nicht alle passenden Passagiere werden
-    // abgelegt"): die Endziel-Pruefung (station.shape === p.destShape) laeuft
-    // IMMER zuerst, unabhaengig vom gespeicherten nextStop -- ein Fahrgast,
-    // dessen Zielform genau hier erreicht ist, steigt IMMER aus, auch wenn
-    // sein zuletzt gesetztes nextStop (naechster Umstiegs-Halt) zufaellig
-    // noch auf eine ANDERE Haltestelle zeigte.
-    //
-    // NEU (gemeldeter Bug: "eine Linie nimmt Passagiere mit, die ihr Ziel
-    // damit gar nicht erreichen koennen"): ein noch mitfahrender Fahrgast,
-    // dessen Ziel ab hier in der (evtl. inzwischen umgebauten) Streckenfuehrung
-    // gar nicht mehr erreichbar ist, steigt hier ebenfalls aus (statt
-    // sinnlos weiterzufahren) -- kann sonst passieren, wenn waehrend der
-    // Fahrt eine Haltestelle aus der Linie entfernt wurde, die fuer die
-    // Weiterfahrt noetig gewesen waere.
     const staying: Passenger[] = [];
     for (const p of train.carrying) {
       if (station.shape === p.destShape) {
         delivered += 1;
-      } else if (p.nextStop === station.id || !aheadShapes.has(p.destShape)) {
-        // Umstiege-Haltestelle erreicht ODER Ziel ab hier nicht mehr
-        // erreichbar: zurueck in die Warteschlange, die naechste Ankunft
-        // (egal welche Linie) sucht von hier aus neu.
-        p.nextStop = null;
+      } else if (!lineHasShape(line, p.destShape) && transferReachable(station.id, line, p.destShape)) {
         station.waiting.push(p);
       } else {
         staying.push(p);
@@ -1187,32 +1136,16 @@ function createMiniMetroGame(): MinigameModule {
     }
     train.carrying = staying;
 
-    // Einsteigende werden nur AUSGEWAEHLT, aber (anders als frueher) noch
-    // NICHT sofort aus station.waiting entfernt/in train.carrying verschoben
-    // -- das passiert gestaffelt in stepTrain (siehe BOARD_STAGGER_S), damit
-    // sie sichtbar nacheinander einsteigen statt alle im selben Frame.
-    //
-    // Auf ausdruecklichen Wunsch "smart" einsteigen: nur, wenn die Zielform
-    // des Fahrgasts ueberhaupt noch in der AKTUELLEN Fahrtrichtung dieses
-    // Zuges vorkommt (direkt auf dieser Linie oder -- rekursiv/transitiv --
-    // ueber eine von dort erreichbare Anschlusslinie), siehe
-    // stationsReachableAhead. Kommt die Zielform nur noch in der
-    // Gegenrichtung vor, bleibt der Fahrgast lieber stehen (wartet auf die
-    // Rueckfahrt bzw. einen anderen Zug), statt unnoetig Kapazitaet zu
-    // blockieren.
-    //
-    // nextStop ist NICHT einfach die naechste physische Station (siehe
-    // findBoardingNextStop-Kommentar/gemeldeter Bug) -- sonst wuerde der
-    // Fahrgast schon bei der naechsten (evtl. noch gar nicht passenden)
-    // Station wieder ausgeladen, statt bis zur tatsaechlichen
-    // Umsteige-Haltestelle durchzufahren.
+    // Einsteigende werden nur AUSGEWAEHLT, aber noch NICHT sofort aus
+    // station.waiting entfernt/in train.carrying verschoben -- das passiert
+    // gestaffelt in stepTrain (siehe BOARD_STAGGER_S), damit sie sichtbar
+    // nacheinander einsteigen statt alle im selben Frame.
     const boarding: Passenger[] = [];
     for (const p of station.waiting) {
       if (train.carrying.length + boarding.length >= train.capacity) continue;
-      if (!aheadShapes.has(p.destShape)) continue;
-      const hop = findBoardingNextStop(line, train.fromIdx, departDir, p.destShape);
-      if (hop === null) continue; // aheadShapes sagte "erreichbar" -- sollte hier eigentlich nie eintreten, sicherheitshalber trotzdem behandelt
-      p.nextStop = hop;
+      const directlyAhead = aheadHasShapeSameLine(line, train.fromIdx, departDir, p.destShape);
+      const viaTransfer = !directlyAhead && !lineHasShape(line, p.destShape) && lineCanTransferTo(line, p.destShape, station.id);
+      if (!directlyAhead && !viaTransfer) continue;
       boarding.push(p);
     }
     train.boardQueue = boarding;

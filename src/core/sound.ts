@@ -255,9 +255,21 @@ export function playStationPopSound(): void {
  * eines einzelnen Clips, damit es sich nach ein paar Ansagen nicht repetitiv
  * anfuehlt.
  */
-const STATION_ANNOUNCEMENT_URLS = [ansageDbUrl, dbAnkuendigungUrl, einsteigenBitteUrl, zurueckbleibenUrl, haltestellengongUrl];
+// "zurueckbleiben" bewusst mit eigener, deutlich leiserer Lautstaerke (statt
+// wie die anderen bei 0.6) -- im DJ-Mischer (games/dj-mixer/sounds.ts) klingt
+// derselbe Clip lauter/schriller, was dort als Sound-Effekt passt, hier als
+// wiederkehrende Hintergrund-Ansage aber als zu aufdringlich empfunden wurde
+// ("ruhiger" gewuenscht, ausdruecklich NUR fuer diese Bahnhofs-Kulisse, nicht
+// fuer den DJ-Mischer).
+const STATION_ANNOUNCEMENT_CLIPS: Array<{ url: string; volume: number }> = [
+  { url: ansageDbUrl, volume: 0.6 },
+  { url: dbAnkuendigungUrl, volume: 0.6 },
+  { url: einsteigenBitteUrl, volume: 0.6 },
+  { url: zurueckbleibenUrl, volume: 0.3 },
+  { url: haltestellengongUrl, volume: 0.6 },
+];
 
 export function playRandomStationAnnouncement(): void {
-  const url = STATION_ANNOUNCEMENT_URLS[Math.floor(Math.random() * STATION_ANNOUNCEMENT_URLS.length)];
-  playSampleOnce(url, 0.6);
+  const clip = STATION_ANNOUNCEMENT_CLIPS[Math.floor(Math.random() * STATION_ANNOUNCEMENT_CLIPS.length)];
+  playSampleOnce(clip.url, clip.volume);
 }

@@ -2,7 +2,7 @@ import { openModal } from "./modal";
 import { OnScreenKeyboard } from "./OnScreenKeyboard";
 import { icons } from "./icons";
 import { playHighscoreOpenSound } from "./sound";
-import { printTicket, friendlyPrintErrorMessage, type TicketVariant } from "./ticket";
+import { printTicket, friendlyPrintErrorMessage, type TicketVariant, type TicketFields, type PrintTicketResult } from "./ticket";
 import type { TicketReasonKind } from "./ticketMethods";
 import { openPaperChangeInstructions } from "./paperChangeInstructions";
 
@@ -103,8 +103,9 @@ export function promptHighscoreName(opts: {
           const trimmed = value.trim();
           opts.onDone(trimmed || null);
           if (ticketVariant !== null) {
-            void printTicket(ticketVariant, { name: trimmed, game: opts.gameTitle, score: opts.scoreText }).then((result) => {
-              showTicketPrintResult(result);
+            const ticketFields = { name: trimmed, game: opts.gameTitle, score: opts.scoreText };
+            void printTicket(ticketVariant, ticketFields).then((result) => {
+              showTicketPrintResult(result, ticketVariant, ticketFields);
             });
           }
         },
@@ -146,51 +147,86 @@ export function promptHighscoreName(opts: {
   );
 }
 
-/** Eigener kleiner Folge-Dialog NUR nach "Speichern und als Ticket drucken" (siehe promptHighscoreName) -- meldet entweder den Bar-Hinweis oder, falls der Druck fehlschlug, eine freundliche Fehlermeldung. */
-function showTicketPrintResult(result: { ok: boolean; error?: string }): void {
+/**
+ * Eigener kleiner Folge-Dialog NUR nach "Speichern und als Ticket drucken"
+ * (siehe promptHighscoreName) -- meldet entweder den Bar-Hinweis oder,
+ * falls der Druck fehlschlug, eine konkrete Fehlermeldung MIT "Erneut
+ * versuchen"-Button (auf ausdruecklichen Wunsch: variant/fields bleiben
+ * dafuer erhalten, ein erneuter Versuch druckt exakt dasselbe Ticket noch
+ * einmal). Rendert sich bei einem erneuten Versuch INNERHALB desselben
+ * Dialogs neu (kein neues Modal) -- klappt der Nachversuch, verschwindet
+ * der "Erneut versuchen"-Button automatisch (die Erfolgs-Ansicht hat gar
+ * keinen), man kann also nicht endlos weiterdrucken.
+ */
+function showTicketPrintResult(result: PrintTicketResult, variant: TicketVariant, fields: TicketFields): void {
   openModal((panel, close) => {
-    const iconWrap = document.createElement("div");
-    iconWrap.style.width = "40px";
-    iconWrap.style.height = "40px";
-    iconWrap.style.color = result.ok ? "var(--accent)" : "var(--danger)";
-    iconWrap.style.marginBottom = "8px";
-    iconWrap.innerHTML = result.ok ? icons.ticket : icons.close;
+    function render(current: PrintTicketResult): void {
+      panel.innerHTML = "";
 
-    const h2 = document.createElement("h2");
-    h2.textContent = result.ok ? "Dein Ticket wird gedruckt!" : "Ticket konnte nicht gedruckt werden";
-    panel.appendChild(iconWrap);
-    panel.appendChild(h2);
+      const iconWrap = document.createElement("div");
+      iconWrap.style.width = "40px";
+      iconWrap.style.height = "40px";
+      iconWrap.style.color = current.ok ? "var(--accent)" : "var(--danger)";
+      iconWrap.style.marginBottom = "8px";
+      iconWrap.innerHTML = current.ok ? icons.ticket : icons.close;
 
-    const p = document.createElement("p");
-    p.style.fontSize = "0.95rem";
-    p.textContent = result.ok
-      ? "Mit diesem Ticket kannst du dir nun einen Shot an der Bar abholen. Lass es vorher noch beim Schaffner stempeln."
-      : friendlyPrintErrorMessage(result.error);
-    panel.appendChild(p);
+      const h2 = document.createElement("h2");
+      h2.textContent = current.ok ? "Dein Ticket wird gedruckt!" : "Ticket konnte nicht gedruckt werden";
+      panel.appendChild(iconWrap);
+      panel.appendChild(h2);
 
-    const okBtn = document.createElement("button");
-    okBtn.type = "button";
-    okBtn.className = "btn btn--accent";
-    okBtn.style.width = "100%";
-    okBtn.style.marginTop = "12px";
-    okBtn.textContent = "Alles klar";
-    okBtn.addEventListener("click", close);
+      const p = document.createElement("p");
+      p.style.fontSize = "0.95rem";
+      p.textContent = current.ok
+        ? "Mit diesem Ticket kannst du dir nun einen Shot an der Bar abholen. Lass es vorher noch beim Schaffner stempeln."
+        : friendlyPrintErrorMessage(current.error);
+      panel.appendChild(p);
 
-    // Bei leerem Papier zusaetzlich ein auffaelliger, eigenstaendiger Weg
-    // direkt zur Wechsel-Anleitung -- auf ausdruecklichen Wunsch, damit man
-    // nicht erst rueckwaerts im Admin-Bereich danach suchen muss.
-    if (!result.ok && result.error === "paper_empty") {
-      const changeBtn = document.createElement("button");
-      changeBtn.type = "button";
-      changeBtn.className = "btn hs-print-btn";
-      changeBtn.style.width = "100%";
-      changeBtn.style.marginTop = "10px";
-      changeBtn.innerHTML = `<span class="btn__icon">${icons.ticket}</span>Papier wechseln -- Anleitung`;
-      changeBtn.addEventListener("click", () => openPaperChangeInstructions());
-      panel.appendChild(changeBtn);
-      panel.appendChild(okBtn);
-    } else {
+      const okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "btn btn--accent";
+      okBtn.style.width = "100%";
+      okBtn.style.marginTop = "12px";
+      okBtn.textContent = "Alles klar";
+      okBtn.addEventListener("click", close);
+
+      if (current.ok) {
+        panel.appendChild(okBtn);
+        return;
+      }
+
+      // Bei leerem Papier zusaetzlich ein auffaelliger, eigenstaendiger Weg
+      // direkt zur Wechsel-Anleitung -- auf ausdruecklichen Wunsch, damit man
+      // nicht erst rueckwaerts im Admin-Bereich danach suchen muss.
+      if (current.error === "paper_empty") {
+        const changeBtn = document.createElement("button");
+        changeBtn.type = "button";
+        changeBtn.className = "btn hs-print-btn";
+        changeBtn.style.width = "100%";
+        changeBtn.style.marginTop = "10px";
+        changeBtn.innerHTML = `<span class="btn__icon">${icons.ticket}</span>Papier wechseln -- Anleitung`;
+        changeBtn.addEventListener("click", () => openPaperChangeInstructions());
+        panel.appendChild(changeBtn);
+      }
+
+      // Egal aus welchem Grund es fehlschlug: nochmal versuchen koennen,
+      // OHNE den ganzen Highscore-Dialog erneut durchzugehen -- druckt
+      // exakt dasselbe Ticket (gleicher Name/Spiel/Wert) noch einmal.
+      const retryBtn = document.createElement("button");
+      retryBtn.type = "button";
+      retryBtn.className = "btn hs-save-only-btn";
+      retryBtn.style.width = "100%";
+      retryBtn.style.marginTop = "10px";
+      retryBtn.textContent = "Erneut versuchen";
+      retryBtn.addEventListener("click", () => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = "Versucht erneut …";
+        void printTicket(variant, fields).then((retryResult) => render(retryResult));
+      });
+      panel.appendChild(retryBtn);
       panel.appendChild(okBtn);
     }
+
+    render(result);
   });
 }

@@ -2459,6 +2459,23 @@ button {
   left: 10px;
 }
 
+/* War zunaechst unten links (.mm-panel--left-bottom), auf ausdruecklichen
+   Wunsch stattdessen oben links -- braucht wie .mm-panel--top-right den
+   Abstand zur separaten Kopfzeile (siehe core/Router.ts). Deutlich mehr
+   Abstand als top-right (55px statt 10px): das (horizontal zentrierte,
+   aber auf schmalen Bildschirmen bis nah an den linken Rand reichende)
+   Highscore-Banner (.stage-highscore-banner) sitzt in genau dieser Zeile
+   -- ohne den Zusatzabstand ueberlappten sich beide (gemeldeter Bug). */
+.mm-panel--top-left {
+  top: calc(var(--header-h) + 55px);
+  left: 10px;
+  /* Auf schmalen Bildschirmen reicht der Platz bis zum naechsten Panel
+     (Uhr/Tageszaehler oben rechts) nicht fuer den vollen Beschriftungstext
+     in einer Zeile -- lieber umbrechen als vom Nachbar-Panel abgeschnitten
+     werden (gemeldeter Bug). */
+  max-width: 165px;
+}
+
 .mm-sound-toggle {
   display: flex;
   align-items: center;
@@ -2470,12 +2487,25 @@ button {
   font-weight: 700;
   font-size: 0.78rem;
   padding: 2px 4px;
+  /* Beschriftung ("Bahngeräuschkulisse an-/ausschalten") ist auf schmalen
+     Bildschirmen laenger als der verfuegbare Platz -- lieber in der eigenen
+     Zeile umbrechen, als vom naechsten Panel abgeschnitten zu werden
+     (gemeldeter Bug, siehe .mm-panel--top-left). */
+  white-space: normal;
+  text-align: left;
+  /* Flex-Item-Falle: ohne das schrumpft ein Flex-Kind nie unter seine
+     eigene Inhaltsbreite (min-width:auto per Default), egal wie eng der
+     umgebende Container (siehe .mm-panel--top-left) ist -- der Text ragt
+     dann ueber den Rand hinaus statt umzubrechen (gleiche Ursache wie beim
+     Highscore-Board-Ueberlauf-Bug, siehe .highscore-board__values). */
+  min-width: 0;
 }
 
 .mm-sound-toggle__icon {
   width: 20px;
   height: 20px;
   color: var(--text-faint);
+  flex-shrink: 0;
 }
 
 .mm-sound-toggle__icon svg {

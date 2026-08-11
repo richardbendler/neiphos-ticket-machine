@@ -174,24 +174,40 @@ export interface PrintTicketResult {
 
 /**
  * Verstaendliche deutsche Meldung statt eines rohen Fehlercodes (siehe
- * server/serve.js#printRasterJob fuer die Codes) -- deckt insbesondere zwei
- * haeufige, harmlose Faelle ab: die Papierrolle ist leer, oder es haengt
- * (z. B. weil diese Instanz gerade auf einem normalen Webserver ohne
- * angeschlossene Druckerhardware laeuft) gar kein Drucker dran. Beides ist
- * kein "richtiger" Fehler, den man alarmierend melden muesste. Genutzt vom
+ * server/serve.js#printRasterJob fuer die Server-seitigen Codes, "network_error"
+ * kommt dagegen aus printTicket() unten selbst) -- deckt zwei haeufige,
+ * harmlose Faelle extra freundlich ab: die Papierrolle ist leer, oder es
+ * haengt (z. B. weil diese Instanz gerade auf einem normalen Webserver ohne
+ * angeschlossene Druckerhardware laeuft) gar kein Drucker dran. Genutzt vom
  * Highscore-Ticket-Dialog (core/highscorePrompt.ts) UND vom Admin-Testdruck
  * (admin/AdminPanel.ts), damit beide Stellen dieselbe Formulierung zeigen.
+ *
+ * Auf ausdruecklichen Wunsch KONKRET statt nur "bitte am Automaten melden"
+ * fuer jeden bekannten Fehlerfall -- vorher fielen alle Faelle ausser den
+ * drei haeufigsten (inkl. z. B. "Automat/Server nicht erreichbar") in
+ * diesen nichtssagenden Sammel-Fallback.
  */
 export function friendlyPrintErrorMessage(error?: string): string {
   switch (error) {
     case "paper_empty":
-      return "Leider ist das Druckerpapier gerade alle -- das Ticket kann deshalb im Moment nicht gedruckt werden.";
+      return "Druckerpapier ist alle.";
     case "printer_not_found":
-      return "Gerade ist kein Drucker angeschlossen -- das Ticket kann deshalb im Moment nicht gedruckt werden.";
+      return "Kein Drucker angeschlossen.";
     case "rate_limited":
       return "Gerade wurden schon sehr viele Tickets gedruckt -- bitte in ein paar Minuten nochmal versuchen.";
+    case "network_error":
+      return "Automat nicht erreichbar (keine Verbindung zum Server).";
+    case "permission_denied":
+      return "Keine Berechtigung für den Drucker (Automat braucht technische Hilfe).";
+    case "write_failed":
+      return "Schreibfehler am Drucker (Automat braucht technische Hilfe).";
+    case "invalid_dimensions":
+    case "size_mismatch":
+      return "Ticket-Vorlage fehlerhaft erzeugt (Automat braucht technische Hilfe).";
+    case "payload_too_large":
+      return "Ticket-Daten zu groß übertragen (Automat braucht technische Hilfe).";
     default:
-      return "Bitte am Automaten melden.";
+      return error ? `Unbekannter Fehler (${error}) -- Automat braucht technische Hilfe.` : "Unbekannter Fehler -- Automat braucht technische Hilfe.";
   }
 }
 
@@ -223,6 +239,15 @@ export async function printTicket(variant: TicketVariant, fields: TicketFields, 
     }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: String((e as Error).message || e) };
+    // fetch() selbst wirft (statt eine Antwort mit !res.ok zu liefern) genau
+    // dann, wenn die Anfrage gar nicht erst beim Server ankam -- Automat/
+    // Server nicht erreichbar (Netzwerk weg, Server abgestuerzt, o.ae.).
+    // Chromium meldet das als TypeError ("Failed to fetch" o.ae.), das ist
+    // browseruebergreifend zwar nicht 100% garantiert, aber der einzig
+    // sinnvolle Anhaltspunkt hier -- auf ausdruecklichen Wunsch trotzdem
+    // konkret als "nicht erreichbar" statt als nichtssagender Rohfehler
+    // gemeldet (siehe friendlyPrintErrorMessage).
+    const isNetworkError = e instanceof TypeError;
+    return { ok: false, error: isNetworkError ? "network_error" : String((e as Error).message || e) };
   }
 }

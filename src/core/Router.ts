@@ -126,6 +126,29 @@ export class Router {
     logo.alt = "Neiphos";
     brand.appendChild(logo);
 
+    // Geheimer Admin-Zugang: zehnmal auf das Logo tippen, innerhalb von 15
+    // Sekunden -- ersetzt den bisherigen, staendig sichtbaren "Admin"-Button
+    // in der Fussleiste (auf ausdruecklichen Wunsch entfernt, siehe
+    // buildChromeFooterBar). pointer-events ist auf .chrome-bar__brand
+    // standardmaessig "none" (siehe style.css), daher hier gezielt wieder
+    // aktiviert, nur fuer das Logo selbst.
+    logo.style.pointerEvents = "auto";
+    logo.style.cursor = "pointer";
+    let secretTapTimestamps: number[] = [];
+    const SECRET_TAP_COUNT = 10;
+    const SECRET_TAP_WINDOW_MS = 15_000;
+    logo.addEventListener("click", () => {
+      const now = Date.now();
+      secretTapTimestamps.push(now);
+      secretTapTimestamps = secretTapTimestamps.filter((t) => now - t <= SECRET_TAP_WINDOW_MS);
+      if (secretTapTimestamps.length >= SECRET_TAP_COUNT) {
+        secretTapTimestamps = [];
+        openAdminPanel(() => {
+          if (this.screenEl?.classList.contains("menu-screen")) this.showMenu();
+        });
+      }
+    });
+
     // highscoreBtn und menuBtn teilen sich denselben Platz oben links (siehe
     // setNavMode): auf dem Hauptmenue-Bildschirm braucht man keinen
     // "zurueck ins Menü"-Button, dafuer den Highscores-Zugang; ueberall
@@ -162,38 +185,17 @@ export class Router {
       <span class="chrome-footer-credit__line chrome-footer-credit__line--wrap">Du willst im Camp oder in Berlin weiterspielen? Das kannst du auf neiphos.blankiball.de tun</span>
     `;
 
-    // Design bewusst an den "Tarifinfo"-Button der Vorlage angelehnt (silbern
-    // umrandete Taste), aber deutlich kleiner -- es ist nur der Einstieg
-    // hinter dem Passwortschutz, kein prominentes Hauptfeature.
-    const adminBtn = document.createElement("button");
-    adminBtn.type = "button";
-    adminBtn.className = "chrome-footer-btn chrome-footer-admin-btn";
-    adminBtn.setAttribute("aria-label", "Admin-Bereich");
-    adminBtn.innerHTML = `<span class="chrome-footer-btn__icon">${icons.gear}</span><span>Admin</span>`;
-    // Nach Schliessen des Admin-Panels das Hauptmenue neu aufbauen, FALLS es
-    // gerade sichtbar ist -- damit im Admin ein-/ausgeblendete Spiele sofort
-    // greifen, ohne dass man erst ein Spiel starten und zurueckkehren muss.
-    // Waehrend eines laufenden Spiels bleibt man dagegen einfach im Spiel.
-    guardedClick(adminBtn, () =>
-      openAdminPanel(() => {
-        if (this.screenEl?.classList.contains("menu-screen")) this.showMenu();
-      }),
-    );
-
     // Kleiner, oeffentlich sichtbarer Hinweis auf ungelesenes Feedback --
     // extra schmaler, eigener Endpunkt OHNE Admin-Login (nur die Anzahl,
     // kein Inhalt, siehe core/feedback.ts#fetchUnreadFeedbackCount), damit
-    // das auch ohne Admin-Anmeldung auf einen Blick sichtbar ist. Eigene
-    // Spalte unter dem Admin-Button statt danebengesetzt, wie gewuenscht.
-    const adminWrap = document.createElement("div");
-    adminWrap.style.display = "flex";
-    adminWrap.style.flexDirection = "column";
-    adminWrap.style.alignItems = "center";
-    adminWrap.style.gap = "1px";
+    // das auch ohne Admin-Anmeldung auf einen Blick sichtbar ist. Stand
+    // vorher unter dem (mittlerweile entfernten, siehe buildChromeBar fuer
+    // den neuen geheimen Logo-Zugang) Admin-Button -- bleibt auf
+    // ausdruecklichen Wunsch weiterhin unten rechts in der Fussleiste
+    // stehen, jetzt eigenstaendig statt in dessen Spalte.
     const unreadBadge = document.createElement("span");
     unreadBadge.className = "chrome-footer-unread-badge";
     unreadBadge.style.display = "none";
-    adminWrap.append(adminBtn, unreadBadge);
 
     const refreshUnreadBadge = () => {
       void fetchUnreadFeedbackCount().then((count) => {
@@ -215,7 +217,7 @@ export class Router {
     // (gemeldet). Der Endpunkt ist trivial billig, daher deutlich kuerzer.
     window.setInterval(refreshUnreadBadge, 15_000);
 
-    bar.append(feedbackBtn, credit, adminWrap);
+    bar.append(feedbackBtn, credit, unreadBadge);
     return bar;
   }
 

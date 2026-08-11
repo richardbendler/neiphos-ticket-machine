@@ -166,15 +166,19 @@ button {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: clamp(34px, 10.5vw, 44px);
-  padding: 0 clamp(10px, 3.4vw, 18px) 0 clamp(7px, 2.4vw, 12px);
+  /* Auf Groesse von .chrome-highscore-btn angeglichen (siehe dortiger
+     Kommentar) -- beide teilen sich denselben Platz oben links (setNavMode)
+     und muessten sonst beim Wechsel Hauptmenue<->Spiel sichtbar schrumpfen/
+     wachsen. */
+  height: clamp(37px, 11.5vw, 48px);
+  padding: 0 clamp(11px, 3.6vw, 20px) 0 clamp(8px, 2.6vw, 13px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--btn-border);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.78rem, 3.4vw, 1.02rem);
+  font-size: clamp(0.86rem, 3.7vw, 1.12rem);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -186,8 +190,8 @@ button {
 
 .chrome-menu-btn svg {
   flex-shrink: 0;
-  width: clamp(17px, 5.2vw, 22px);
-  height: clamp(17px, 5.2vw, 22px);
+  width: clamp(19px, 5.7vw, 24px);
+  height: clamp(19px, 5.7vw, 24px);
 }
 
 /* Golden/pokalfarben statt im silbernen Look der uebrigen Kopfleisten-
@@ -202,15 +206,19 @@ button {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: clamp(34px, 10.5vw, 44px);
-  padding: 0 clamp(10px, 3.4vw, 18px) 0 clamp(7px, 2.4vw, 12px);
+  /* Auf ausdruecklichen Wunsch etwas groesser als vorher (war 34-44px /
+     0.78-1.02rem) -- siehe auch .chrome-footer-btn, das bewusst auf
+     dieselbe Schriftgroesse angeglichen wurde, damit beide Buttons (oben/
+     unten, unterschiedliche Leisten) gleich gross wirken. */
+  height: clamp(37px, 11.5vw, 48px);
+  padding: 0 clamp(11px, 3.6vw, 20px) 0 clamp(8px, 2.6vw, 13px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent-dark);
   background: linear-gradient(180deg, #ffe08a, var(--accent));
   color: #2b2004;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.78rem, 3.4vw, 1.02rem);
+  font-size: clamp(0.86rem, 3.7vw, 1.12rem);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,8 +230,8 @@ button {
 
 .chrome-highscore-btn svg {
   flex-shrink: 0;
-  width: clamp(17px, 5.2vw, 22px);
-  height: clamp(17px, 5.2vw, 22px);
+  width: clamp(19px, 5.7vw, 24px);
+  height: clamp(19px, 5.7vw, 24px);
 }
 
 .chrome-bar__title {
@@ -358,13 +366,17 @@ button {
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   color: var(--text-muted);
   border-radius: var(--radius-sm);
-  padding: clamp(4px, 1.6vw, 7px) clamp(7px, 2.8vw, 14px);
+  /* Auf ausdruecklichen Wunsch an .chrome-highscore-btn (Kopfleiste)
+     angeglichen -- gleiche Schriftgroesse, damit "Feedback geben" (unten)
+     und "Highscores" (oben) trotz unterschiedlicher Leisten gleich gross
+     wirken. Padding/Icon entsprechend mitgewachsen (war 4-7px/12-15px). */
+  padding: clamp(6px, 2vw, 9px) clamp(9px, 3.2vw, 16px);
   display: flex;
   align-items: center;
   gap: 6px;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.6rem, 2.4vw, 0.78rem);
+  font-size: clamp(0.86rem, 3.7vw, 1.12rem);
   flex-shrink: 1;
   min-width: 0;
   white-space: nowrap;
@@ -378,8 +390,8 @@ button {
 
 .chrome-footer-btn__icon {
   flex-shrink: 0;
-  width: clamp(12px, 3.6vw, 15px);
-  height: clamp(12px, 3.6vw, 15px);
+  width: clamp(15px, 4.6vw, 19px);
+  height: clamp(15px, 4.6vw, 19px);
   display: inline-flex;
 }
 
@@ -388,18 +400,13 @@ button {
   height: 100%;
 }
 
-/* Admin-Zugang, bewusst im gleichen "silbernen" Tastendesign wie die
-   uebrigen Tasten der Vorlage (Tarifinfo-Button), aber deutlich kleiner --
-   er ist nur ein Einstiegspunkt hinter dem Passwortschutz, kein
-   Haupt-Feature. */
-.chrome-footer-admin-btn {
-  color: var(--text-faint);
-}
-
 /* Sehr kleiner, oeffentlich sichtbarer Hinweis auf ungelesenes Feedback --
    auf ausdruecklichen Wunsch in der "Standard-Gelb"-Farbe des Themes, aber
-   bewusst winzig gehalten (reine Randnotiz, kein eigenes UI-Element, das
-   mit dem Admin-Button konkurrieren soll). */
+   bewusst winzig gehalten (reine Randnotiz, kein eigenes UI-Element). Stand
+   frueher unter dem inzwischen entfernten Admin-Button (siehe Router.ts --
+   der Admin-Zugang laeuft jetzt ueber einen geheimen 10x-Tipp aufs Logo),
+   bleibt aber auf ausdruecklichen Wunsch weiterhin unten rechts stehen.
+   */
 .chrome-footer-unread-badge {
   color: var(--accent-dark);
   font-family: var(--font-display);
@@ -410,9 +417,9 @@ button {
 
 .chrome-footer-credit {
   /* Jetzt eine normale (mittlere) Grid-Spalte statt absoluter Positionierung
-     -- links steht der Feedback-Button, rechts der (schmalere) Admin-Button,
-     die 1fr-Mittelspalte zentriert sich dadurch von selbst zwischen beiden,
-     ohne die fruehere transform-Rechnerei (siehe .chrome-footer-bar). */
+     -- links steht der Feedback-Button, rechts der Ungelesen-Hinweis, die
+     1fr-Mittelspalte zentriert sich dadurch von selbst zwischen beiden, ohne
+     die fruehere transform-Rechnerei (siehe .chrome-footer-bar). */
   justify-self: center;
   display: flex;
   flex-direction: column;

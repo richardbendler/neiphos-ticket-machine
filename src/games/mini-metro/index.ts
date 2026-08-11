@@ -72,11 +72,7 @@ function isSpecialShape(shape: StationShape): boolean {
 }
 
 // Jede zehnte gespawnte Haltestelle ist eine Sondersymbol-Haltestelle, siehe
-// spawnStation. MAX_STATIONS musste dafuer von vorher 9 auf 12 angehoben
-// werden -- mit 9 waere die zehnte Haltestelle in einer Runde nie erreicht
-// worden (bei 9-Sekunden-Spawnabstand, siehe DAY_HALF_S, liegt sie aber
-// bequem innerhalb einer normalen Runde bei ca. einer guten Minute
-// Spielzeit).
+// spawnStation (Spawn-Abstand siehe STATION_SPAWN_INTERVAL_S).
 const SPECIAL_STATION_INTERVAL = 10;
 
 // Sechs klar unterscheidbare Linienfarben aus der bestehenden Palette
@@ -185,6 +181,12 @@ const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // Ein Analog-Uhr-Umlauf entspricht einer Tageshaelfte (hell) bzw. der
 // anderen Haelfte (dunkel) -- zwei Umlaeufe = ein Tag, siehe updateClock().
 const DAY_HALF_S = DAY_MS / 1000 / 2;
+// Spawn-Abstand fuer neue Haltestellen -- war testweise alle 12 Spielstunden
+// (DAY_HALF_S), seit Haltestellen aber nicht mehr bei 12 Stueck aufhoeren
+// zu spawnen (siehe MAX_STATIONS-Kommentar), wurde die Runde dadurch zu
+// schnell zu schwer (gemeldet). Jetzt wieder alle 24 Spielstunden (ein
+// ganzer Tag), siehe tick().
+const STATION_SPAWN_INTERVAL_S = DAY_MS / 1000;
 
 // Das Canvas fuellt (anders als man vermuten koennte) den KOMPLETTEN
 // Viewport, nicht nur den Bereich zwischen Kopf-/Fusszeile -- die Zeilen
@@ -346,9 +348,8 @@ function createMiniMetroGame(): MinigameModule {
   let delivered = 0;
   let gameDay = 1;
   let dayTimerS = 0;
-  // Eigener, von dayTimerS UNABHAENGIGER Timer fuer neue Haltestellen -- auf
-  // ausdruecklichen Wunsch alle 12 Spielstunden (DAY_HALF_S, siehe
-  // updateClock) statt nur einmal pro vollem Tag, siehe tick().
+  // Eigener, von dayTimerS UNABHAENGIGER Timer fuer neue Haltestellen (siehe
+  // STATION_SPAWN_INTERVAL_S/tick()).
   let stationSpawnTimerS = 0;
   let passengerTimers = new Map<number, number>();
   let gameOver = false;
@@ -2323,15 +2324,14 @@ function createMiniMetroGame(): MinigameModule {
     worldZoomTarget = 1 - zoomProgress * (1 - WORLD_ZOOM_MIN);
     worldZoom += (worldZoomTarget - worldZoom) * dt * WORLD_ZOOM_LERP_RATE;
 
-    // Neue Haltestelle alle 12 Spielstunden (DAY_HALF_S) -- auf
-    // ausdruecklichen Wunsch bewusst UNABHAENGIG vom Tag-/Wochen-Timer
-    // unten, damit es sich konstant und vorhersehbar anfuehlt (vorher nur
-    // einmal pro vollem Tag, wirkte dadurch gemeldet wie "es passiert
-    // tagelang nichts"). "-= DAY_HALF_S" statt "= 0", damit bei grossen
-    // dt-Werten (z. B. 2x Geschwindigkeit) kein Rest verloren geht.
+    // Neue Haltestelle alle 24 Spielstunden (STATION_SPAWN_INTERVAL_S) --
+    // bewusst UNABHAENGIG vom Tag-/Wochen-Timer unten, damit es sich
+    // konstant und vorhersehbar anfuehlt. "-= STATION_SPAWN_INTERVAL_S"
+    // statt "= 0", damit bei grossen dt-Werten (z. B. 2x Geschwindigkeit)
+    // kein Rest verloren geht.
     stationSpawnTimerS += dt;
-    if (stationSpawnTimerS >= DAY_HALF_S) {
-      stationSpawnTimerS -= DAY_HALF_S;
+    if (stationSpawnTimerS >= STATION_SPAWN_INTERVAL_S) {
+      stationSpawnTimerS -= STATION_SPAWN_INTERVAL_S;
       spawnStation(size);
     }
 

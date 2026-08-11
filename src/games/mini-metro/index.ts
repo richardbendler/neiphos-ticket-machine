@@ -237,20 +237,13 @@ function getImage(src: string): HTMLImageElement {
 // Abwechslung braucht es bei der kleinen Darstellungsgroesse nicht, welches
 // Tier es ist, ist ohnehin nur Deko (das kleine Formsymbol zeigt das Ziel).
 const PASSENGER_SPRITES = hopperAnimalCards.slice(0, 8).map((c) => c.image);
-// Auf ausdruecklichen Wunsch groesser (war 13px, dann 20px, jetzt nochmal
-// 30% groesser) und mit dem Formsymbol DANEBEN statt DARueBERLIEGEND --
-// vorher verdeckte der Kreis-Chip einen Teil des Huepftier-Sprites.
+// Auf ausdruecklichen Wunsch groesser (war 13px, dann 20px, dann 26px) --
+// das Formsymbol sitzt jetzt MITTIG AUF dem Sprite statt daneben, das Tier
+// ist gross genug, dass das Symbol nicht mehr zu viel davon verdeckt.
 const PASSENGER_SPRITE_SIZE = 26;
-// Auf ausdruecklichen Wunsch: der Abstand INNERHALB eines Paares (Tier +
-// sein Formsymbol) ist jetzt deutlich kleiner als der Abstand ZWISCHEN zwei
-// verschiedenen Paaren -- vorher waren beide Abstaende (3px/5px) zu aehnlich,
-// bei mehreren wartenden Huepftieren war dadurch nicht klar erkennbar,
-// welches Formsymbol zu welchem Tier gehoert. Auf weiteren Wunsch noch
-// dichter ans Tier heran (war 1px) -- beruehrt es jetzt praktisch.
-const PASSENGER_BADGE_GAP = 0;
 const PASSENGER_ITEM_GAP = 12;
 // Auf ausdruecklichen Wunsch 20% kleiner (war 6px), passend zum jetzt
-// groesseren Huepftier-Sprite daneben.
+// mittig auf dem Huepftier-Sprite sitzenden Formsymbol.
 const SHAPE_BADGE_RADIUS = 4.8;
 
 let idSeq = 1;
@@ -1085,24 +1078,45 @@ function createMiniMetroGame(): MinigameModule {
   function arriveAtStation(line: Line, train: Train, station: Station): void {
     train.dwell = TRAIN_DWELL_S;
     train.boardTimer = 0; // erster wartender Fahrgast darf sofort einsteigen
+
+    // Fuer BEIDES (Aussteigen-Sonderfall unten UND Einsteigen) vorab
+    // berechnet: was liegt ab hier in der tatsaechlichen naechsten
+    // Fahrtrichtung dieses Zuges ueberhaupt noch (direkt oder ueber
+    // Anschlusslinien) erreichbar? effectiveDepartureDir statt train.dir
+    // direkt -- an der Endstation ist train.dir bei der Ankunft noch NICHT
+    // umgedreht, das passiert erst einen Tick spaeter (siehe dortigen
+    // Kommentar).
+    const departDir = effectiveDepartureDir(line, train.fromIdx, train.dir);
+    const nextIdx = nextTrainIdx(line, train.fromIdx, departDir);
+    const nextStopId = line.stationIds[nextIdx];
+    const aheadIds = stationsReachableAhead(line, train.fromIdx, departDir);
+    const aheadShapes = new Set(stations.filter((s) => aheadIds.has(s.id)).map((s) => s.shape));
+
     // Erst abladen, dann erst einladen -- macht sofort wieder Platz frei
     // fuer neue Fahrgaeste an derselben Haltestelle.
     //
     // WICHTIG (gemeldeter Bug: "nicht alle passenden Passagiere werden
     // abgelegt"): die Endziel-Pruefung (station.shape === p.destShape) laeuft
-    // JETZT IMMER zuerst, unabhaengig vom gespeicherten nextStop -- ein
-    // Fahrgast, dessen Zielform genau hier erreicht ist, steigt IMMER aus,
-    // auch wenn sein zuletzt gesetztes nextStop (naechster Umstiegs-Halt,
-    // ueber eine andere Route berechnet) zufaellig noch auf eine ANDERE
-    // Haltestelle zeigte. Nur wenn die Zielform hier NICHT erreicht ist,
-    // zaehlt nextStop noch (Umstieg an genau dieser Haltestelle noetig).
+    // IMMER zuerst, unabhaengig vom gespeicherten nextStop -- ein Fahrgast,
+    // dessen Zielform genau hier erreicht ist, steigt IMMER aus, auch wenn
+    // sein zuletzt gesetztes nextStop (naechster Umstiegs-Halt) zufaellig
+    // noch auf eine ANDERE Haltestelle zeigte.
+    //
+    // NEU (gemeldeter Bug: "eine Linie nimmt Passagiere mit, die ihr Ziel
+    // damit gar nicht erreichen koennen"): ein noch mitfahrender Fahrgast,
+    // dessen Ziel ab hier in der (evtl. inzwischen umgebauten) Streckenfuehrung
+    // gar nicht mehr erreichbar ist, steigt hier ebenfalls aus (statt
+    // sinnlos weiterzufahren) -- kann sonst passieren, wenn waehrend der
+    // Fahrt eine Haltestelle aus der Linie entfernt wurde, die fuer die
+    // Weiterfahrt noetig gewesen waere.
     const staying: Passenger[] = [];
     for (const p of train.carrying) {
       if (station.shape === p.destShape) {
         delivered += 1;
-      } else if (p.nextStop === station.id) {
-        // Umstiege-Haltestelle erreicht: zurueck in die Warteschlange, die
-        // naechste Ankunft (egal welche Linie) sucht von hier aus weiter.
+      } else if (p.nextStop === station.id || !aheadShapes.has(p.destShape)) {
+        // Umstiege-Haltestelle erreicht ODER Ziel ab hier nicht mehr
+        // erreichbar: zurueck in die Warteschlange, die naechste Ankunft
+        // (egal welche Linie) sucht von hier aus neu.
         p.nextStop = null;
         station.waiting.push(p);
       } else {
@@ -1124,14 +1138,6 @@ function createMiniMetroGame(): MinigameModule {
     // Gegenrichtung vor, bleibt der Fahrgast lieber stehen (wartet auf die
     // Rueckfahrt bzw. einen anderen Zug), statt unnoetig Kapazitaet zu
     // blockieren.
-    // effectiveDepartureDir statt train.dir direkt -- siehe dortigen
-    // Kommentar (an der Endstation ist train.dir bei der Ankunft noch NICHT
-    // umgedreht, das passiert erst einen Tick spaeter).
-    const departDir = effectiveDepartureDir(line, train.fromIdx, train.dir);
-    const nextIdx = nextTrainIdx(line, train.fromIdx, departDir);
-    const nextStopId = line.stationIds[nextIdx];
-    const aheadIds = stationsReachableAhead(line, train.fromIdx, departDir);
-    const aheadShapes = new Set(stations.filter((s) => aheadIds.has(s.id)).map((s) => s.shape));
     const boarding: Passenger[] = [];
     for (const p of station.waiting) {
       if (train.carrying.length + boarding.length >= train.capacity) continue;
@@ -1674,8 +1680,7 @@ function createMiniMetroGame(): MinigameModule {
 
       if (s.waiting.length > 0) {
         const size = PASSENGER_SPRITE_SIZE;
-        const badgeSpace = SHAPE_BADGE_RADIUS * 2 + PASSENGER_BADGE_GAP;
-        const itemW = size + badgeSpace + PASSENGER_ITEM_GAP;
+        const itemW = size + PASSENGER_ITEM_GAP;
         const totalW = s.waiting.length * itemW - PASSENGER_ITEM_GAP;
         let px = s.x - totalW / 2;
         const py = s.y - STATION_RADIUS - size - 8;
@@ -1687,9 +1692,12 @@ function createMiniMetroGame(): MinigameModule {
             ctx.fillStyle = theme.panelAlt;
             ctx.fillRect(px, py, size, size);
           }
-          // Formsymbol DANEBEN statt ueberlappend auf dem Sprite -- zeigt
-          // weiterhin das Fahrtziel, verdeckt aber nicht mehr das Tier.
-          drawMiniShapeBadge(ctx, p.destShape, px + size + PASSENGER_BADGE_GAP + SHAPE_BADGE_RADIUS, py + size / 2, SHAPE_BADGE_RADIUS);
+          // Formsymbol MITTIG auf dem Huepftier-Sprite (auf ausdruecklichen
+          // Wunsch) -- das Sprite ist inzwischen gross genug dafuer (siehe
+          // PASSENGER_SPRITE_SIZE), drawMiniShapeBadge zeichnet selbst schon
+          // einen weissen Kreis dahinter, das Symbol bleibt also unabhaengig
+          // von der Tierfarbe gut lesbar.
+          drawMiniShapeBadge(ctx, p.destShape, px + size / 2, py + size / 2, SHAPE_BADGE_RADIUS);
           px += itemW;
         }
       }

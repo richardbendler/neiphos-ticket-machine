@@ -1385,10 +1385,11 @@ const server = http.createServer(async (req, res) => {
       const yH = (height >> 8) & 0xff;
       const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
       const init = Buffer.from([0x1b, 0x40]);
-      // ESC d 8 -- acht Zeilen vorschieben zum bequemen Abreissen (war 4,
-      // gemeldet: Ticket kam nicht weit genug raus, musste von Hand
-      // nachgezogen werden, um es abzuschneiden).
-      const feed = Buffer.from([0x1b, 0x64, 0x08]);
+      // ESC d 5 -- fuenf Zeilen vorschieben zum bequemen Abreissen (war erst
+      // 4: zu wenig, Ticket musste von Hand nachgezogen werden; dann 8: zu
+      // viel, unnoetig viel Leerraum/Papier am Ende verschwendet -- 5 als
+      // Mittelweg).
+      const feed = Buffer.from([0x1b, 0x64, 0x05]);
       const full = Buffer.concat([init, header, bodyBuf, feed]);
 
       // Papierstand-Check UND der eigentliche Rasterdruck laufen ABSICHTLICH

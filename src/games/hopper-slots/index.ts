@@ -314,14 +314,20 @@ function createHopperSlotsGame(): MinigameModule {
     spinsUsed += 1;
     const [a, b, c] = targets;
     let win = 0;
-    // Nur eine von links beginnende Kette zaehlt (siehe Datei-Kommentar) --
-    // "b === c, aber a anders" ist KEIN Gewinn mehr.
+    // War zwischenzeitlich auf "nur eine von links beginnende Kette zaehlt"
+    // eingeschraenkt (a===b, aber b===c bei anderem a NICHT) -- auf
+    // ausdruecklichen Wunsch wieder zurueckgedreht: gemeldeter Bug/Eindruck
+    // "ich hab zwei gleiche, aber es gibt nie Punkte" kam genau daher --
+    // visuell sehen zwei gleiche Symbole an EGAL welcher Position gleich
+    // "gewonnen" aus, unabhaengig davon, welche der drei moeglichen Paare
+    // (a-b, b-c, a-c) tatsaechlich uebereinstimmen. Jetzt zaehlt jede
+    // Zwei-Gleiche-Kombination.
     if (a.id === b.id && b.id === c.id) {
       win = Math.round(a.payout * roundJackpotMultiplier);
       messageEl.textContent = `🎉 Drei ${a.label}! +${win} Punkte`;
       messageEl.classList.add("hs-message--win");
       triggerWinGlow();
-    } else if (a.id === b.id) {
+    } else if (a.id === b.id || b.id === c.id || a.id === c.id) {
       win = roundPairPayout;
       messageEl.textContent = `Zwei Gleiche! +${win} Punkte`;
       messageEl.classList.add("hs-message--win");

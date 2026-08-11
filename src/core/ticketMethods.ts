@@ -40,12 +40,21 @@ export function setTicketMethod(method: keyof TicketMethodSettings, enabled: boo
 
 // --------------------------------------------------------------- Meilensteine
 
-/** Anzeige-Infos je Spiel fuers Meilenstein-Untermenue (core/admin/AdminPanel.ts) -- Titel/Richtung/Einheit, damit die Zahl dort sinnvoll beschriftet werden kann. */
+/** Je Spiel mit Geschwindigkeits-/Schwierigkeitsstufen (siehe MilestoneGameDef.levels) -- key/label identisch zu den SPEED_LEVELS der jeweiligen Spiele (games/train-photo, games/count-passengers), hier absichtlich dupliziert statt importiert, um keinen Import von core/ auf games/ einzugehen. */
+export interface MilestoneLevelDef {
+  key: string;
+  label: string;
+}
+
+const TEN_STAGE_LEVELS: MilestoneLevelDef[] = Array.from({ length: 10 }, (_, i) => ({ key: String(i + 1), label: `Stufe ${i + 1}` }));
+
+/** Anzeige-Infos je Spiel fuers Meilenstein-Untermenue (admin/AdminPanel.ts) -- Titel/Richtung/Einheit, damit die Zahl dort sinnvoll beschriftet werden kann. levels (optional): Spiele mit mehreren Schwierigkeitsstufen bekommen je Stufe einen EIGENEN Schwellwert statt eines einzigen fuer das ganze Spiel (siehe getMilestones/setMilestone). */
 export interface MilestoneGameDef {
   gameId: string;
   title: string;
   direction: HighscoreDirection;
   unit: string;
+  levels?: MilestoneLevelDef[];
 }
 
 export const MILESTONE_GAMES: MilestoneGameDef[] = [
@@ -54,28 +63,44 @@ export const MILESTONE_GAMES: MilestoneGameDef[] = [
   { gameId: "train-spotter", title: "Zug-Spotter", direction: "lower-better", unit: "Sekunden" },
   { gameId: "memory", title: "Zug-Memory", direction: "lower-better", unit: "Züge" },
   { gameId: "hopper-slots", title: "Hüpftier-Glück", direction: "higher-better", unit: "Punkte" },
-  { gameId: "train-photo", title: "Zugfoto", direction: "higher-better", unit: "Punkte" },
+  { gameId: "train-photo", title: "Zugfoto", direction: "higher-better", unit: "Punkte", levels: TEN_STAGE_LEVELS },
   { gameId: "train-sim", title: "Zugsimulator", direction: "lower-better", unit: "Züge" },
-  { gameId: "count-passengers", title: "Passagiere zählen", direction: "lower-better", unit: "Differenz" },
+  { gameId: "count-passengers", title: "Passagiere zählen", direction: "lower-better", unit: "Differenz", levels: TEN_STAGE_LEVELS },
   { gameId: "mini-metro", title: "Hüpftier-Metro", direction: "higher-better", unit: "Passagiere" },
   { gameId: "train-quartet", title: "Zug-Quartett", direction: "higher-better", unit: "Karten" },
 ];
+
+function milestoneStorageKey(gameId: string, board?: string | null): string {
+  const def = MILESTONE_GAMES.find((g) => g.gameId === gameId);
+  return def?.levels && board ? `${gameId}:${board}` : gameId;
+}
 
 // Startwerte, gedacht als echte, aber schaffbare Herausforderung -- deutlich
 // unter dem jeweiligen theoretischen Maximum, aber ueber dem, was rein durch
 // Glueck/eine einzelne schwache Runde erreicht wird. Ueber das Untermenue im
 // Admin-Panel jederzeit anpassbar.
+//
+// train-photo/count-passengers haben STATT eines einzelnen Werts einen
+// eigenen Schwellwert JE STUFE (Key "gameId:stufe") -- auf ausdruecklichen
+// Wunsch, da beide Spiele ueber zehn spuerbar unterschiedlich schwere
+// Geschwindigkeitsstufen haben. Die Progression ist bewusst so gestaffelt,
+// dass die SCHWERSTE Stufe den NACHSICHTIGSTEN Schwellwert bekommt (leichter
+// erreichbar), die leichteste den strengsten -- sonst waere ein Ticket bei
+// hoher Geschwindigkeit praktisch unerreichbar.
+const TRAIN_PHOTO_LEVEL_MILESTONES = [85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
+const COUNT_PASSENGERS_LEVEL_MILESTONES = [1, 1, 2, 2, 3, 3, 4, 5, 5, 6];
+
 const DEFAULT_MILESTONES: Record<string, number> = {
   "connection-puzzle": 240,
   "switch-run": 5,
-  "train-spotter": 18,
+  "train-spotter": 3,
   memory: 20,
   "hopper-slots": 25,
-  "train-photo": 65,
-  "train-sim": 6,
-  "count-passengers": 4,
-  "mini-metro": 40,
-  "train-quartet": 13,
+  "train-sim": 5,
+  "mini-metro": 70,
+  "train-quartet": 15,
+  ...Object.fromEntries(TRAIN_PHOTO_LEVEL_MILESTONES.map((v, i) => [`train-photo:${i + 1}`, v])),
+  ...Object.fromEntries(COUNT_PASSENGERS_LEVEL_MILESTONES.map((v, i) => [`count-passengers:${i + 1}`, v])),
 };
 
 const MILESTONES_KEY = ["settings", "ticketMilestones"];
@@ -84,13 +109,14 @@ export function getMilestones(): Record<string, number> {
   return { ...DEFAULT_MILESTONES, ...loadJSON<Record<string, number>>(MILESTONES_KEY, {}) };
 }
 
-export function setMilestone(gameId: string, value: number): void {
+/** board nur bei Spielen mit levels relevant (siehe MilestoneGameDef) -- fuer alle anderen Spiele wird er ignoriert, der Schwellwert bleibt spielweit einheitlich. */
+export function setMilestone(gameId: string, value: number, board?: string | null): void {
   const current = loadJSON<Record<string, number>>(MILESTONES_KEY, {});
-  saveJSON(MILESTONES_KEY, { ...current, [gameId]: value });
+  saveJSON(MILESTONES_KEY, { ...current, [milestoneStorageKey(gameId, board)]: value });
 }
 
-function isMilestoneReached(gameId: string, value: number, direction: HighscoreDirection): boolean {
-  const threshold = getMilestones()[gameId];
+function isMilestoneReached(gameId: string, value: number, direction: HighscoreDirection, board?: string | null): boolean {
+  const threshold = getMilestones()[milestoneStorageKey(gameId, board)];
   if (threshold === undefined) return false;
   return direction === "higher-better" ? value >= threshold : value <= threshold;
 }
@@ -211,7 +237,7 @@ export function checkTicketEligibility(opts: {
   const board = opts.board ?? "default";
   return {
     viaHighscore: methods.highscore && opts.highscoreOutcome !== "none",
-    viaMilestone: methods.milestone && isMilestoneReached(opts.gameId, opts.value, opts.direction),
+    viaMilestone: methods.milestone && isMilestoneReached(opts.gameId, opts.value, opts.direction, opts.board),
     viaDailyBoard: methods.dailyBoard && getDailyBestOutcome(opts.gameId, board, opts.value, opts.direction) !== "none",
   };
 }

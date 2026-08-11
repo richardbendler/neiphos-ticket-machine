@@ -42,24 +42,30 @@ const TEMPLATES: Record<TicketVariant, TicketTemplate> = {
   milestone: { url: ticketMilestoneUrl, fieldLabel: "ERRUNGENSCHAFT" },
 };
 
-// Pixelkoordinaten der vier Beschriftungslinien, per Bildanalyse an der
-// Vorlage (urspruenglich 1537x1023px, "Version Highscore.png" u. ae.)
-// vermessen -- NAME/SPIEL/[dynamisches Feld]/KAUFDATUM & UHRZEIT sitzen bei
-// allen drei beschrifteten Vorlagen an identischer Position, nur das
-// Label-Wort des dritten Feldes unterscheidet sich (schon Teil der
-// jeweiligen Bilddatei).
+// Pixelkoordinaten je Feld, per Bildanalyse an der (bereits zugeschnittenen,
+// 1506x1003px) Vorlage vermessen -- NAME/SPIEL/[dynamisches Feld]/
+// KAUFDATUM & UHRZEIT sitzen bei allen drei beschrifteten Vorlagen an
+// identischer Position, nur das Label-Wort des dritten Feldes unterscheidet
+// sich (schon Teil der jeweiligen Bilddatei).
 //
-// Die Vorlagen wurden nachtraeglich um den ungenutzten, unbedruckten
-// Hintergrundrand herum zugeschnitten (gemeldet: "relativ viel Platz an der
-// Seite", der Druck soll die volle Druckerbreite ausnutzen -- siehe
-// Datei-Kommentar zur Quer-Rotation, der Bildhoehe wird 1:1 zur
-// Druckbreite). Zuschnitt war links 15px, oben 16px (per Bildanalyse
-// ermittelt, fuer alle drei beschrifteten Vorlagen identisch) -- die
-// urspruenglich vermessenen Koordinaten unten sind deshalb um genau diesen
-// Betrag verschoben, NICHT neu vermessen.
-const FIELD_X = 95 - 15;
-const FIELD_MAX_X = 640 - 15;
-const FIELD_LINES_Y = { name: 624, game: 708, dynamic: 795, purchasedAt: 879 };
+// Auf ausdruecklichen Wunsch steht der eingetragene Wert jetzt NEBEN dem
+// Label (rechts davon, auf derselben Zeile/Linie) statt darunter -- "da ist
+// ja genug Freiflaeche". Die verfuegbare Breite unterscheidet sich dabei
+// STARK je Zeile: NAME/SPIEL laufen neben der rechten Box (ZUGNUMMER/PREIS/
+// HINFAHRT/RUECKFAHRT) und enden deshalb schon bei x~640, waehrend die
+// Linien fuer das dynamische Feld und KAUFDATUM & UHRZEIT darunter beginnen
+// (die rechte Box endet dort schon) und quer ueber fast die gesamte
+// Kartenbreite laufen, nur vom runden ZORNTRAIN-Stempel unten rechts
+// begrenzt -- deshalb je Zeile ein eigenes x/maxX-Paar statt einer
+// gemeinsamen Konstante. x startet jeweils knapp hinter dem eigenen Label
+// (per Bildanalyse gemessen, "TAGES-HIGHSCORE" ist als laengstes Label
+// fuer die maxX-Berechnung der dynamischen Zeile massgeblich).
+const FIELD_LINES = {
+  name: { x: 200, maxX: 640, y: 624 },
+  game: { x: 215, maxX: 640, y: 708 },
+  dynamic: { x: 580, maxX: 1100, y: 795 },
+  purchasedAt: { x: 500, maxX: 1180, y: 879 },
+};
 const FIELD_FONT = "700 34px 'Barlow Semi Condensed', sans-serif";
 const FIELD_COLOR = "#7a1400";
 
@@ -85,18 +91,18 @@ function formatPurchasedAt(): string {
   return `${date} · ${time} Uhr`;
 }
 
-function drawFieldValue(ctx: CanvasRenderingContext2D, y: number, value: string): void {
+function drawFieldValue(ctx: CanvasRenderingContext2D, field: { x: number; maxX: number; y: number }, value: string): void {
   ctx.fillStyle = FIELD_COLOR;
   ctx.font = FIELD_FONT;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  const maxW = FIELD_MAX_X - FIELD_X;
+  const maxW = field.maxX - field.x;
   let text = value;
   while (ctx.measureText(text).width > maxW && text.length > 1) {
     text = text.slice(0, -1);
   }
   if (text !== value) text = text.slice(0, -1) + "…";
-  ctx.fillText(text, FIELD_X, y);
+  ctx.fillText(text, field.x, field.y);
 }
 
 /** Rendert das Ticket in normaler (breiter) Ausrichtung auf die vermessene Bild-Vorlage, skaliert auf 384px Hoehe, dreht danach um 90° fuers Querformat (siehe Datei-Kommentar). */
@@ -112,10 +118,10 @@ export async function renderTicketCanvas(variant: TicketVariant, fields: TicketF
   dctx.drawImage(img, 0, 0);
 
   if (variant !== "basic") {
-    drawFieldValue(dctx, FIELD_LINES_Y.name, fields.name?.trim() || "");
-    drawFieldValue(dctx, FIELD_LINES_Y.game, fields.game?.trim() || "");
-    drawFieldValue(dctx, FIELD_LINES_Y.dynamic, fields.score?.trim() || "");
-    drawFieldValue(dctx, FIELD_LINES_Y.purchasedAt, formatPurchasedAt());
+    drawFieldValue(dctx, FIELD_LINES.name, fields.name?.trim() || "");
+    drawFieldValue(dctx, FIELD_LINES.game, fields.game?.trim() || "");
+    drawFieldValue(dctx, FIELD_LINES.dynamic, fields.score?.trim() || "");
+    drawFieldValue(dctx, FIELD_LINES.purchasedAt, formatPurchasedAt());
   }
 
   // Auf exakt 384px Hoehe skalieren -- das wird nach der Drehung die feste

@@ -12,7 +12,7 @@ import { guardedClick } from "../core/guardedClick";
 import { playHighscoreOpenSound } from "../core/sound";
 import { printTicket, friendlyPrintErrorMessage } from "../core/ticket";
 import { openPaperChangeInstructions } from "../core/paperChangeInstructions";
-import { getTicketMethods, setTicketMethod, type TicketMethodSettings, MILESTONE_GAMES, getMilestones, setMilestone } from "../core/ticketMethods";
+import { getTicketMethods, setTicketMethod, type TicketMethodSettings, MILESTONE_GAMES, type MilestoneGameDef, getMilestones, setMilestone } from "../core/ticketMethods";
 import {
   isScreensaverEnabled,
   setScreensaverEnabled,
@@ -1031,7 +1031,9 @@ function openMilestonesModal(): void {
     h2.textContent = "Meilensteine bearbeiten";
     panel.appendChild(h2);
 
-    const hint = paragraph("Je Spiel EIN fester Schwellwert (unabhängig von einer evtl. gewählten Schwierigkeitsstufe) -- wird erreicht, gibt's ein Ticket.");
+    const hint = paragraph(
+      "Je Spiel EIN fester Schwellwert (unabhängig von einer evtl. gewählten Schwierigkeitsstufe) -- wird erreicht, gibt's ein Ticket. Bei Spielen mit mehreren Geschwindigkeitsstufen gibt es stattdessen einen eigenen Schwellwert je Stufe.",
+    );
     hint.style.fontSize = "0.8rem";
     panel.appendChild(hint);
 
@@ -1049,10 +1051,82 @@ function openMilestonesModal(): void {
       label.innerHTML = `${game.title}<br><span style="font-size:0.72rem;color:var(--text-faint)">${game.direction === "higher-better" ? "mind." : "höchstens"} … ${game.unit}</span>`;
       row.appendChild(label);
 
+      if (game.levels) {
+        // Spiele mit mehreren Geschwindigkeitsstufen (Zugfoto/Passagiere
+        // zaehlen) bekommen hier keinen einzelnen Zahleneingang, sondern
+        // einen Zugang zu einem eigenen Untermenue mit je einem Schwellwert
+        // pro Stufe -- siehe openMilestoneLevelsModal.
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "btn btn--ghost";
+        editBtn.style.fontSize = "0.76rem";
+        editBtn.style.padding = "8px 12px";
+        editBtn.style.flexShrink = "0";
+        editBtn.textContent = "Je Stufe bearbeiten →";
+        editBtn.addEventListener("click", () => openMilestoneLevelsModal(game));
+        row.appendChild(editBtn);
+      } else {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.inputMode = "decimal";
+        input.value = String(milestones[game.gameId] ?? 0);
+        input.style.width = "84px";
+        input.style.padding = "8px";
+        input.style.fontSize = "1rem";
+        input.style.border = "1px solid var(--btn-border)";
+        input.style.borderRadius = "var(--radius-sm)";
+        input.style.textAlign = "right";
+        input.addEventListener("change", () => {
+          const parsed = Number(input.value);
+          if (Number.isFinite(parsed)) setMilestone(game.gameId, parsed);
+        });
+        row.appendChild(input);
+      }
+
+      panel.appendChild(row);
+    }
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "btn btn--accent";
+    closeBtn.style.width = "100%";
+    closeBtn.style.marginTop = "14px";
+    closeBtn.textContent = "Fertig";
+    closeBtn.addEventListener("click", close);
+    panel.appendChild(closeBtn);
+  });
+}
+
+/** Untermenue mit je einem Meilenstein-Schwellwert PRO STUFE -- fuer Spiele mit MilestoneGameDef.levels (siehe dort), aufgerufen aus openMilestonesModal. */
+function openMilestoneLevelsModal(game: MilestoneGameDef): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = `${game.title}: Meilensteine je Stufe`;
+    panel.appendChild(h2);
+
+    const hint = paragraph(`${game.direction === "higher-better" ? "Mindestens" : "Höchstens"} … ${game.unit} je Stufe -- wird erreicht, gibt's ein Ticket.`);
+    hint.style.fontSize = "0.8rem";
+    panel.appendChild(hint);
+
+    const milestones = getMilestones();
+    for (const level of game.levels ?? []) {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "10px";
+      row.style.padding = "6px 0";
+      row.style.borderTop = "1px solid var(--panel-border)";
+
+      const label = document.createElement("span");
+      label.style.flex = "1";
+      label.textContent = level.label;
+      row.appendChild(label);
+
       const input = document.createElement("input");
       input.type = "number";
       input.inputMode = "decimal";
-      input.value = String(milestones[game.gameId] ?? 0);
+      input.value = String(milestones[`${game.gameId}:${level.key}`] ?? 0);
       input.style.width = "84px";
       input.style.padding = "8px";
       input.style.fontSize = "1rem";
@@ -1061,7 +1135,7 @@ function openMilestonesModal(): void {
       input.style.textAlign = "right";
       input.addEventListener("change", () => {
         const parsed = Number(input.value);
-        if (Number.isFinite(parsed)) setMilestone(game.gameId, parsed);
+        if (Number.isFinite(parsed)) setMilestone(game.gameId, parsed, level.key);
       });
       row.appendChild(input);
 

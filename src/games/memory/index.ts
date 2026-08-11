@@ -4,6 +4,7 @@ import { trainCards } from "../../data/trains";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { fitAspectToContainer } from "../../core/squareFit";
 import { icons } from "../../core/icons";
@@ -529,18 +530,30 @@ function createMemoryGame(): MinigameModule {
     renderPanel();
     if (mode !== "solo") return;
     const outcome = getHighscoreOutcome(GAME_ID, moves, "lower-better", boardSize.key);
-    if (outcome !== "none") {
+    const ticketResult = checkTicketEligibility({ gameId: GAME_ID, board: boardSize.key, value: moves, direction: "lower-better", highscoreOutcome: outcome });
+    if (outcome !== "none" || isTicketEligible(ticketResult)) {
       const size = boardSize;
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
+        const gameTitle = "Zug-Memory";
+        const scoreText = `${moves} Züge (${sizeLabel(size)})`;
+        const { title, message } = describeTicketReason(
+          ticketResult,
+          `${moves} Züge auf ${sizeLabel(size)} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle,
+          scoreText,
+        );
         closeHighscoreModal = promptHighscoreName({
-          message: `${moves} Züge auf ${sizeLabel(size)} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-          gameTitle: "Zug-Memory",
-          scoreText: `${moves} Züge (${sizeLabel(size)})`,
+          title,
+          message,
+          gameTitle,
+          scoreText,
+          ticketReason: primaryTicketReason(ticketResult),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
             highscoreBanner.update(recordHighscore(GAME_ID, name, moves, "lower-better", size.key));
+            recordDailyBestIfApplicable(GAME_ID, size.key, name, moves, "lower-better");
           },
         });
       }, HIGHSCORE_POPUP_DELAY_MS);

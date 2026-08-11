@@ -8,6 +8,7 @@ import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { buildMenuButton } from "../../core/menuButton";
 import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound } from "../../core/sound";
+import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { registerGame } from "../registry";
 
@@ -1339,17 +1340,29 @@ function createMiniMetroGame(): MinigameModule {
     card.appendChild(menuBtn);
 
     const outcome = getHighscoreOutcome(GAME_ID, delivered, "higher-better");
-    if (outcome !== "none" && delivered > 0) {
+    const ticketResult = checkTicketEligibility({ gameId: GAME_ID, value: delivered, direction: "higher-better", highscoreOutcome: outcome });
+    if ((outcome !== "none" || isTicketEligible(ticketResult)) && delivered > 0) {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
+        const gameTitle = "Hüpftier-Metro";
+        const scoreText = formatDelivered(delivered);
+        const { title, message } = describeTicketReason(
+          ticketResult,
+          `${scoreText} befördert — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle,
+          scoreText,
+        );
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatDelivered(delivered)} befördert — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-          gameTitle: "Hüpftier-Metro",
-          scoreText: formatDelivered(delivered),
+          title,
+          message,
+          gameTitle,
+          scoreText,
+          ticketReason: primaryTicketReason(ticketResult),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
             highscoreBanner.update(recordHighscore(GAME_ID, name, delivered, "higher-better"));
+            recordDailyBestIfApplicable(GAME_ID, undefined, name, delivered, "higher-better");
           },
         });
       }, 900);

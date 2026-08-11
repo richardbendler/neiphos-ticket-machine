@@ -1,5 +1,6 @@
 import { gameRegistry } from "../games/registry";
 import { getHighscoreBoard } from "../core/storage";
+import { getTicketMethods, getDailyBestBoard, type DailyBestEntry } from "../core/ticketMethods";
 
 function formatAchievedAt(iso: string): string {
   const d = new Date(iso);
@@ -10,11 +11,18 @@ function formatAchievedAt(iso: string): string {
   return `${dd}.${mm}. · ${hh}:${min}`;
 }
 
+type BoardMode = "all" | "daily";
+
 /**
  * Statische Uebersichtsseite ueber alle Highscores jedes Spiels (inkl.
  * Varianten wie Spielfeldgroesse oder Geschwindigkeitsstufe). Rein lesend,
  * kein Canvas/GameLoop noetig -- reguliert sich also selbst ueber normales
  * DOM-Scrolling wie das Hauptmenue.
+ *
+ * Zweiter Modus "Tagesbestenliste" (nur sichtbar, wenn dieser Ticket-
+ * Verdienstweg im Admin-Panel aktiviert ist, siehe core/ticketMethods.ts)
+ * -- eigener Umschalt-Button oben, zeigt statt der Allzeit-Bestwerte die
+ * seit dem letzten 6-Uhr-Reset erspielten Tagesbestwerte.
  */
 export function renderHighscoreBoard(): HTMLElement {
   const screen = document.createElement("div");
@@ -25,66 +33,107 @@ export function renderHighscoreBoard(): HTMLElement {
 
   const header = document.createElement("div");
   header.className = "menu-header";
-  header.innerHTML = `<h1>Highscores</h1>`;
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.justifyContent = "space-between";
+  header.style.flexWrap = "wrap";
+  header.style.gap = "10px";
+  const h1 = document.createElement("h1");
+  h1.textContent = "Highscores";
+  header.appendChild(h1);
   card.appendChild(header);
 
   const list = document.createElement("div");
   list.className = "highscore-board";
+  card.appendChild(list);
 
   const gamesWithScores = gameRegistry.filter((g) => g.highscoreCategories && g.highscoreCategories.length > 0);
+  let mode: BoardMode = "all";
 
-  for (const game of gamesWithScores) {
-    const section = document.createElement("div");
-    section.className = "highscore-board__game";
-
-    const title = document.createElement("div");
-    title.className = "highscore-board__game-title";
-    title.style.setProperty("--tile-accent", game.accent);
-    title.textContent = game.title;
-    section.appendChild(title);
-
-    for (const category of game.highscoreCategories!) {
-      const board = getHighscoreBoard(game.id, category.board);
-
-      const row = document.createElement("div");
-      row.className = "highscore-board__row";
-
-      const label = document.createElement("span");
-      label.className = "highscore-board__label";
-      label.textContent = category.label;
-      row.appendChild(label);
-
-      if (board && board.entries.length > 0) {
-        const valueWrap = document.createElement("span");
-        valueWrap.className = "highscore-board__values";
-        // Bei Gleichstand stehen alle Halter des Bestwerts einzeln
-        // untereinander, statt zu einer einzigen Zeile zusammengefasst zu
-        // werden -- so ist auf einen Blick klar, wer sich den Highscore
-        // teilt.
-        for (const entry of board.entries) {
-          const value = document.createElement("span");
-          value.className = "highscore-board__value";
-          value.innerHTML = `
-            <span class="highscore-board__value-main"><strong>${category.formatValue(board.value)}</strong> — ${entry.name}</span>
-            <span class="highscore-board__value-time">${formatAchievedAt(entry.achievedAt)}</span>
-          `;
-          valueWrap.appendChild(value);
-        }
-        row.appendChild(valueWrap);
-      } else {
-        const value = document.createElement("span");
-        value.className = "highscore-board__value highscore-board__value--empty";
-        value.textContent = "Noch kein Highscore";
-        row.appendChild(value);
-      }
-
-      section.appendChild(row);
-    }
-
-    list.appendChild(section);
+  // Umschalt-Button nur, wenn der Tagesbestenliste-Weg ueberhaupt aktiviert
+  // ist (siehe Admin-Panel, Abschnitt "Ticket-Verdienstwege") -- sonst gibt
+  // es schlicht keine Tagesbestwerte zu zeigen.
+  if (getTicketMethods().dailyBoard) {
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "btn btn--ghost";
+    toggleBtn.style.fontSize = "0.82rem";
+    const setToggleLabel = () => {
+      toggleBtn.textContent = mode === "all" ? "🗓️ Tagesbestenliste anzeigen" : "🏆 Allzeit-Highscores anzeigen";
+    };
+    setToggleLabel();
+    toggleBtn.addEventListener("click", () => {
+      mode = mode === "all" ? "daily" : "all";
+      setToggleLabel();
+      h1.textContent = mode === "all" ? "Highscores" : "Tagesbestenliste";
+      renderList();
+    });
+    header.appendChild(toggleBtn);
   }
 
-  card.appendChild(list);
+  function renderList(): void {
+    list.innerHTML = "";
+    for (const game of gamesWithScores) {
+      const section = document.createElement("div");
+      section.className = "highscore-board__game";
+
+      const title = document.createElement("div");
+      title.className = "highscore-board__game-title";
+      title.style.setProperty("--tile-accent", game.accent);
+      title.textContent = game.title;
+      section.appendChild(title);
+
+      for (const category of game.highscoreCategories!) {
+        const row = document.createElement("div");
+        row.className = "highscore-board__row";
+
+        const label = document.createElement("span");
+        label.className = "highscore-board__label";
+        label.textContent = category.label;
+        row.appendChild(label);
+
+        const board = mode === "all" ? getHighscoreBoard(game.id, category.board) : getDailyBestBoard(game.id, category.board);
+
+        if (board && board.entries.length > 0) {
+          const valueWrap = document.createElement("span");
+          valueWrap.className = "highscore-board__values";
+          // Bei Gleichstand stehen alle Halter des Bestwerts einzeln
+          // untereinander, statt zu einer einzigen Zeile zusammengefasst zu
+          // werden -- so ist auf einen Blick klar, wer sich den Highscore
+          // teilt.
+          for (const entry of board.entries) {
+            const value = document.createElement("span");
+            value.className = "highscore-board__value";
+            // Wert+Einheit und Name je in einer eigenen "white-space:
+            // nowrap"-Spanne (siehe style.css) -- verhindert, dass bei wenig
+            // Platz (z. B. sehr lange Namen) MITTEN im Wert ("5 Karten")
+            // oder MITTEN im Namen umgebrochen wird. Faellt der Inhalt
+            // insgesamt zu breit aus, bricht die Zeile stattdessen sauber
+            // ZWISCHEN Wert und Namen um (der "—" bleibt dabei beim Namen,
+            // wirkt dadurch wie ein Aufzaehlungspunkt vor der zweiten Zeile).
+            const timeLine = "achievedAt" in entry ? `<span class="highscore-board__value-time">${formatAchievedAt((entry as { achievedAt: string }).achievedAt)}</span>` : "";
+            value.innerHTML = `
+              <span class="highscore-board__value-main"><span class="highscore-board__value-num"><strong>${category.formatValue(board.value)}</strong></span> <span class="highscore-board__value-name">— ${(entry as DailyBestEntry).name}</span></span>
+              ${timeLine}
+            `;
+            valueWrap.appendChild(value);
+          }
+          row.appendChild(valueWrap);
+        } else {
+          const value = document.createElement("span");
+          value.className = "highscore-board__value highscore-board__value--empty";
+          value.textContent = mode === "all" ? "Noch kein Highscore" : "Heute noch kein Versuch";
+          row.appendChild(value);
+        }
+
+        section.appendChild(row);
+      }
+
+      list.appendChild(section);
+    }
+  }
+  renderList();
+
   screen.appendChild(card);
   return screen;
 }

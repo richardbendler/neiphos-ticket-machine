@@ -20,6 +20,17 @@ export interface GameEnv {
   overlay: HTMLElement;
   /** Beendet das Spiel sauber und kehrt ins Hauptmenue zurueck. */
   exit: () => void;
+  /**
+   * Optional: "board"-Schluessel (siehe games/registry.ts#HighscoreCategory),
+   * mit dem dieses Spiel gestartet wurde -- gesetzt vom "Jetzt spielen"-
+   * Button im Highscore-Board (siehe menu/HighscoreBoard.ts), damit ein
+   * Spiel mit mehreren Varianten (z. B. Geschwindigkeitsstufen) direkt in
+   * GENAU diese Variante springen kann, statt erst wieder die eigene
+   * Auswahl anzuzeigen. Spiele ohne Varianten (nur "default"-Board) oder
+   * Spiele, die einen normalen Menue-Start nicht unterscheiden, ignorieren
+   * das Feld einfach.
+   */
+  initialBoard?: string;
 }
 
 export interface PointerPoint {

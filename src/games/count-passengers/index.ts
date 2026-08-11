@@ -453,8 +453,16 @@ function createCountPassengersGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatDiff);
 
-      renderSpeedPanel();
-      renderPanel();
+      // "Jetzt spielen" bei einer bestimmten Stufe aus dem Highscore-Board
+      // (siehe GameEnv#initialBoard) -- ueberspringt die eigene
+      // Stufenauswahl und startet direkt in genau dieser Stufe.
+      const initialLevel = env.initialBoard ? SPEED_LEVELS.find((l) => l.key === env.initialBoard) : undefined;
+      if (initialLevel) {
+        selectSpeed(initialLevel);
+      } else {
+        renderSpeedPanel();
+        renderPanel();
+      }
 
       closeIntro = showGameIntro({
         title: "Passagiere zählen",

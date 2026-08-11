@@ -624,7 +624,22 @@ function createMemoryGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatMoves);
 
-      renderPanel();
+      // "Jetzt spielen" bei einer bestimmten Spielfeldgroesse/Variante aus
+      // dem Highscore-Board (siehe GameEnv#initialBoard) -- ueberspringt
+      // Themen-/Modus-/Groessenauswahl und startet direkt in genau dieser
+      // Variante (immer im Solo-Modus, da nur der einen Highscore fuehrt,
+      // siehe selectSize). board-Schluessel kodiert das Thema mit ("4x4"
+      // fuer Zuege, "hopper-4x4" fuer Huepftiere, siehe TRAIN_BOARD_SIZES/
+      // HOPPER_BOARD_SIZES).
+      const initialTheme: ContentTheme | null = env.initialBoard ? (env.initialBoard.startsWith("hopper-") ? "hoppers" : "trains") : null;
+      const initialSize = initialTheme ? boardSizesFor(initialTheme).find((s) => s.key === env.initialBoard) : undefined;
+      if (initialTheme && initialSize) {
+        selectTheme(initialTheme);
+        selectMode("solo");
+        selectSize(initialSize);
+      } else {
+        renderPanel();
+      }
     },
 
     update(dt: number) {

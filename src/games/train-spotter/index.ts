@@ -353,7 +353,16 @@ export function createTrainSpotterGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatTime);
 
-      showThemeSelect();
+      // "Jetzt spielen" bei einer bestimmten Variante aus dem Highscore-
+      // Board (siehe GameEnv#initialBoard) -- ueberspringt die eigene
+      // Themenauswahl und startet direkt mit "default" -> Zuege bzw.
+      // "hopper" -> Huepftiere (siehe highscoreBoardKey()).
+      if (env.initialBoard === "default" || env.initialBoard === "hopper") {
+        contentTheme = env.initialBoard === "hopper" ? "hoppers" : "trains";
+        beginRound();
+      } else {
+        showThemeSelect();
+      }
     },
 
     update(dt: number) {

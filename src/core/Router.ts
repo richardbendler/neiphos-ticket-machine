@@ -414,14 +414,15 @@ export class Router {
     this.screenEl = placeholder;
     void import("../menu/HighscoreBoard").then(({ renderHighscoreBoard }) => {
       if (this.screenEl !== placeholder) return; // zwischenzeitlich schon wieder verlassen
-      const element = renderHighscoreBoard();
+      const element = renderHighscoreBoard((gameId, board) => this.startGame(gameId, board));
       placeholder.replaceWith(element);
       this.screenEl = element;
       playHighscoreOpenSound();
     });
   }
 
-  private startGame(id: string): void {
+  /** initialBoard: siehe GameEnv#initialBoard -- vom "Jetzt spielen"-Button je Schwierigkeitsstufe im Highscore-Board (menu/HighscoreBoard.ts). */
+  private startGame(id: string, initialBoard?: string): void {
     const meta = gameRegistry.find((g) => g.id === id);
     if (!meta) {
       console.error(`Unbekanntes Spiel: ${id}`);
@@ -472,6 +473,7 @@ export class Router {
       size,
       overlay,
       exit: () => this.showMenu(),
+      initialBoard,
     };
     this.activeEnv = env;
 

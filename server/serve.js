@@ -62,6 +62,36 @@ const SETTINGS_FILE = path.resolve(ROOT, "..", "settings.json");
 const PRINTER_DEVICE = process.env.PRINTER_DEVICE || "/dev/usb/lp0";
 
 /**
+ * Serialisiert JEDEN Zugriff auf PRINTER_DEVICE (sowohl die Statusabfrage
+ * als auch den eigentlichen Rasterdruck, siehe printRasterJob) ueber eine
+ * einzige Promise-Kette -- gemeldeter Vorfall: ein Testdruck ueberschnitt
+ * sich zeitlich offenbar mit einer der periodischen Papierstand-Abfragen
+ * (siehe /api/system/printer/paper, wird u. a. alle 60s vom Footer eines
+ * jeden geoeffneten Browser-Tabs abgefragt, core/Router.ts) -- zwei
+ * UNABHAENGIGE Dateihandles auf dasselbe rohe USB-Druckergeraet garantieren
+ * keinerlei Reihenfolge zueinander, die 3 Statusabfrage-Bytes koennen
+ * dadurch MITTEN in den Bildbyte-Strom eines laufenden Rasterdrucks
+ * hineingeraten. Der Drucker verliert dadurch seine Byte-Zaehlung im
+ * Rastermodus und interpretiert danach beliebige Folgebytes als Text/
+ * Befehle -- druckt dann endlos wirr wirkende Zeichen, bis er manuell vom
+ * Strom getrennt wird (genau der gemeldete Vorfall). Ohne diese
+ * Serialisierung kann das erneut passieren, sobald zwei Anfragen zeitlich
+ * kollidieren, auch wenn die Chance im Normalbetrieb gering ist.
+ */
+let printerDeviceQueue = Promise.resolve();
+function withPrinterDevice(fn) {
+  const result = printerDeviceQueue.then(() => fn());
+  // Immer weiterlaufen, auch wenn fn() ablehnt -- sonst blockiert ein
+  // einzelner Fehler (z. B. "Drucker nicht angeschlossen") die Warteschlange
+  // fuer alle folgenden Aufrufe dauerhaft.
+  printerDeviceQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+/**
  * Fragt den Drucker per ESC/POS-Echtzeit-Statusabfrage (DLE EOT 4 =
  * Papiersensor-Status) nach seinem Papierstand -- am echten Geraet
  * verifiziert, DASS es antwortet (1 Byte zurueck), die genaue Bit-Bedeutung
@@ -73,7 +103,8 @@ const PRINTER_DEVICE = process.env.PRINTER_DEVICE || "/dev/usb/lp0";
  * oder kein Byte zurueckkommt), lieber "unbekannt" anzeigen als etwas
  * falsch Sicheres.
  */
-function queryPrinterPaperStatus() {
+/** Unverpackte Kernlogik OHNE withPrinterDevice -- fuer sich alleine per queryPrinterPaperStatus() aufrufen (verpackt die Warteschlange EINMAL). printRasterJob nutzt dagegen DIESE rohe Variante direkt innerhalb seines eigenen, groesseren withPrinterDevice-Blocks (siehe dort) -- ein verschachtelter withPrinterDevice-Aufruf wuerde sonst auf sich selbst warten (Deadlock). */
+function queryPrinterPaperStatusRaw() {
   return new Promise((resolve) => {
     let fd;
     try {
@@ -119,6 +150,10 @@ function queryPrinterPaperStatus() {
       resolve(null);
     }
   });
+}
+
+function queryPrinterPaperStatus() {
+  return withPrinterDevice(queryPrinterPaperStatusRaw);
 }
 
 // ------------------------------------------------------------- .env.local
@@ -1341,31 +1376,40 @@ const server = http.createServer(async (req, res) => {
       const yH = (height >> 8) & 0xff;
       const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
       const init = Buffer.from([0x1b, 0x40]);
-      const feed = Buffer.from([0x1b, 0x64, 0x04]); // ESC d 4 -- vier Zeilen vorschieben zum bequemen Abreissen
+      // ESC d 8 -- acht Zeilen vorschieben zum bequemen Abreissen (war 4,
+      // gemeldet: Ticket kam nicht weit genug raus, musste von Hand
+      // nachgezogen werden, um es abzuschneiden).
+      const feed = Buffer.from([0x1b, 0x64, 0x08]);
       const full = Buffer.concat([init, header, bodyBuf, feed]);
 
-      // Papierstand vorab pruefen -- ein leerer Papierstatus faellt beim
-      // reinen Schreiben (fs.writeFile) meist NICHT als Fehler auf (der
-      // Drucker puffert die Daten einfach), erst die explizite Statusabfrage
-      // erkennt das zuverlaessig. Liefert dadurch eine praezise, dem Client
-      // uebersetzbare Fehlerursache statt eines rohen ENOENT/EACCES (siehe
-      // auch core/highscorePrompt.ts fuer die deutsche Nutzermeldung dazu --
-      // insbesondere fuer den Fall "auf einem normalen Webserver ganz ohne
-      // angeschlossenen Drucker deployed", wo /dev/usb/lp0 gar nicht existiert).
-      const paperStatus = await queryPrinterPaperStatus();
-      if (paperStatus && paperStatus.empty) {
-        sendJson(res, 200, { ok: false, error: "paper_empty" });
-        return;
-      }
-
-      fs.writeFile(PRINTER_DEVICE, full, (err) => {
-        if (err) {
-          const reason = err.code === "ENOENT" ? "printer_not_found" : err.code === "EACCES" ? "permission_denied" : "write_failed";
-          sendJson(res, 500, { ok: false, error: reason });
-          return;
-        }
-        sendJson(res, 200, { ok: true });
-      });
+      // Papierstand-Check UND der eigentliche Rasterdruck laufen ABSICHTLICH
+      // gemeinsam in EINEM withPrinterDevice-Block (nicht als zwei getrennte
+      // Aufrufe) -- sonst koennte zwischen Check und Schreiben eine ANDERE
+      // Anfrage (z. B. eine periodische Papierstand-Abfrage aus core/
+      // Router.ts) dazwischenfunken. Nutzt dafuer queryPrinterPaperStatusRaw
+      // (OHNE eigene Verpackung), siehe Kommentar dort.
+      await withPrinterDevice(
+        () =>
+          new Promise((resolve) => {
+            queryPrinterPaperStatusRaw().then((paperStatus) => {
+              if (paperStatus && paperStatus.empty) {
+                sendJson(res, 200, { ok: false, error: "paper_empty" });
+                resolve();
+                return;
+              }
+              fs.writeFile(PRINTER_DEVICE, full, (err) => {
+                if (err) {
+                  const reason = err.code === "ENOENT" ? "printer_not_found" : err.code === "EACCES" ? "permission_denied" : "write_failed";
+                  sendJson(res, 500, { ok: false, error: reason });
+                  resolve();
+                  return;
+                }
+                sendJson(res, 200, { ok: true });
+                resolve();
+              });
+            });
+          }),
+      );
     }
 
     if (url.pathname === "/api/system/printer/raster" && req.method === "POST") {

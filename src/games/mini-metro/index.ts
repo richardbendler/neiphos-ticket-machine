@@ -307,10 +307,11 @@ function createTrain(): Train {
 }
 
 // Bahnansagen-Geraeuschkulisse (siehe core/sound.ts#playRandomStationAnnouncement)
-// -- per Button an-/ausschaltbar, auf ausdruecklichen Wunsch geraetweit
-// gemerkt (nicht nur fuer die laufende Runde), damit man es nicht bei jeder
-// neuen Runde erneut anschalten muss.
-const ANNOUNCEMENTS_STORAGE_KEY = "ntm:mini-metro:announcementsEnabled";
+// -- per Button an-/ausschaltbar. Auf ausdruecklichen Wunsch NICHT mehr
+// geraeteweit gemerkt (war vorher per localStorage persistiert) -- der
+// Standardzustand ist immer AUS, bei jedem Betreten des Spiels neu, ein
+// einmaliges Anschalten gilt nur fuer die laufende Runde und faellt beim
+// naechsten Spielstart wieder auf AUS zurueck.
 // Kein fester 10s-Takt, sondern ein zufaelliger Bereich UM 10 Sekunden herum
 // -- wirkt dadurch weniger wie ein maschineller Timer, mehr wie echte,
 // unregelmaessige Ansagen.
@@ -322,23 +323,6 @@ const ANNOUNCEMENT_INTERVAL_MAX_S = 13;
 // nicht sofort beim ersten Zoegern nervt, aber deutlich kuerzer als eine
 // ganze Spielwoche.
 const DEPOT_HINT_DELAY_S = 25;
-
-function loadAnnouncementsEnabled(): boolean {
-  try {
-    return localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function saveAnnouncementsEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    // localStorage evtl. nicht verfuegbar (z. B. privater Modus) -- dann
-    // bleibt die Einstellung eben nur fuer die laufende Runde erhalten.
-  }
-}
 
 function randomAnnouncementInterval(): number {
   return ANNOUNCEMENT_INTERVAL_MIN_S + Math.random() * (ANNOUNCEMENT_INTERVAL_MAX_S - ANNOUNCEMENT_INTERVAL_MIN_S);
@@ -386,11 +370,11 @@ export function createMiniMetroGame(): MinigameModule {
   // es schon vor der ersten gezogenen Linie zu hoeren ist (gemeldeter Bug).
   let trainChugPlaying = false;
 
-  // Bahnansagen-Geraeuschkulisse (siehe ANNOUNCEMENTS_STORAGE_KEY oben) --
-  // announcementTimerS zaehlt in tick() hoch, bei Erreichen von
-  // announcementNextS spielt eine zufaellige Ansage und der naechste
-  // (wieder zufaellige) Abstand wird gewuerfelt.
-  let announcementsEnabled = loadAnnouncementsEnabled();
+  // Bahnansagen-Geraeuschkulisse -- immer AUS als Startzustand (siehe
+  // Datei-Kommentar oben), announcementTimerS zaehlt in tick() hoch, bei
+  // Erreichen von announcementNextS spielt eine zufaellige Ansage und der
+  // naechste (wieder zufaellige) Abstand wird gewuerfelt.
+  let announcementsEnabled = false;
   let announcementTimerS = 0;
   let announcementNextS = randomAnnouncementInterval();
   let announcementBtn: HTMLButtonElement;
@@ -2536,7 +2520,6 @@ export function createMiniMetroGame(): MinigameModule {
       renderAnnouncementBtn();
       announcementBtn.addEventListener("click", () => {
         announcementsEnabled = !announcementsEnabled;
-        saveAnnouncementsEnabled(announcementsEnabled);
         renderAnnouncementBtn();
         // Beim Anschalten gleich mal eine Ansage als direktes Feedback,
         // statt bis zu 13s auf die erste zu warten.

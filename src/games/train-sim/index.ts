@@ -233,8 +233,17 @@ function createTrainSimGame(): MinigameModule {
       btn.className = "btn";
       btn.style.width = "100%";
       const isFestivalStop = edge.to === FESTIVAL_CITY_ID;
-      btn.textContent = `→ ${cityName(edge.to)} (${edge.km} km)${isFestivalStop ? " 🎪" : ""}`;
-      if (isFestivalStop) btn.classList.add("btn--accent");
+      // Auf ausdruecklichen Wunsch klar als Umkehr-Option erkennbar (statt
+      // wie jede andere Verbindung auszusehen) -- siehe beginChoice fuer den
+      // Grund, warum diese Option ueberhaupt in der Liste steht.
+      const isBackToPrevious = edge.to === previousCityId;
+      if (isBackToPrevious) {
+        btn.textContent = `← Zurück nach ${cityName(edge.to)} (${edge.km} km)`;
+        btn.classList.add("btn--ghost");
+      } else {
+        btn.textContent = `→ ${cityName(edge.to)} (${edge.km} km)${isFestivalStop ? " 🎪" : ""}`;
+        if (isFestivalStop) btn.classList.add("btn--accent");
+      }
       btn.addEventListener("click", () => startLeg(edge));
       choiceHost.appendChild(btn);
     }
@@ -252,7 +261,20 @@ function createTrainSimGame(): MinigameModule {
   function beginChoice(): void {
     phase = "choosing";
     updateLabels();
-    const options = neighborsOf(currentCityId, previousCityId);
+    // Auf ausdruecklichen Wunsch OHNE Ausschluss der Herkunfts-Station --
+    // vorher konnte man an einer Station nie in die Richtung zurueckfahren,
+    // aus der man gerade kam ("man hat sich doch anders entschieden"). Bei
+    // einer Station mit nur EINER Anschlussstrecke (die dann zwangslaeufig
+    // die Herkunft war) fuehrte der alte Ausschluss sogar zu einem sofortigen
+    // Rundenende ohne jede Wahlmoeglichkeit (options.length === 0 unten).
+    // Die Zurueck-Option wird ans Ende sortiert und optisch abgesetzt (siehe
+    // renderChoiceButtons), damit sie nicht mit den "neuen" Richtungen
+    // verwechselt wird.
+    const options = neighborsOf(currentCityId).sort((a, b) => {
+      const aBack = a.to === previousCityId ? 1 : 0;
+      const bBack = b.to === previousCityId ? 1 : 0;
+      return aBack - bBack;
+    });
     currentOptions = options;
     if (options.length === 0) {
       finish(false);

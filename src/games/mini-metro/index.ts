@@ -7,7 +7,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { buildMenuButton } from "../../core/menuButton";
-import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound } from "../../core/sound";
+import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound, playRandomStationAnnouncement } from "../../core/sound";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { registerGame } from "../registry";
@@ -305,6 +305,38 @@ function createTrain(): Train {
   return { fromIdx: 0, dir: 1, t: 0, dwell: 0, carrying: [], capacity: BASE_CAPACITY, wagons: 0, boardQueue: [], boardTimer: 0 };
 }
 
+// Bahnansagen-Geraeuschkulisse (siehe core/sound.ts#playRandomStationAnnouncement)
+// -- per Button an-/ausschaltbar, auf ausdruecklichen Wunsch geraetweit
+// gemerkt (nicht nur fuer die laufende Runde), damit man es nicht bei jeder
+// neuen Runde erneut anschalten muss.
+const ANNOUNCEMENTS_STORAGE_KEY = "ntm:mini-metro:announcementsEnabled";
+// Kein fester 10s-Takt, sondern ein zufaelliger Bereich UM 10 Sekunden herum
+// -- wirkt dadurch weniger wie ein maschineller Timer, mehr wie echte,
+// unregelmaessige Ansagen.
+const ANNOUNCEMENT_INTERVAL_MIN_S = 7;
+const ANNOUNCEMENT_INTERVAL_MAX_S = 13;
+
+function loadAnnouncementsEnabled(): boolean {
+  try {
+    return localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveAnnouncementsEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, enabled ? "1" : "0");
+  } catch {
+    // localStorage evtl. nicht verfuegbar (z. B. privater Modus) -- dann
+    // bleibt die Einstellung eben nur fuer die laufende Runde erhalten.
+  }
+}
+
+function randomAnnouncementInterval(): number {
+  return ANNOUNCEMENT_INTERVAL_MIN_S + Math.random() * (ANNOUNCEMENT_INTERVAL_MAX_S - ANNOUNCEMENT_INTERVAL_MIN_S);
+}
+
 function createMiniMetroGame(): MinigameModule {
   let stations: Station[] = [];
   let lines: (Line | null)[] = [];
@@ -339,6 +371,16 @@ function createMiniMetroGame(): MinigameModule {
   // tick()/updateTrainChug) laeuft das Zug-Grundrauschen -- verhindert, dass
   // es schon vor der ersten gezogenen Linie zu hoeren ist (gemeldeter Bug).
   let trainChugPlaying = false;
+
+  // Bahnansagen-Geraeuschkulisse (siehe ANNOUNCEMENTS_STORAGE_KEY oben) --
+  // announcementTimerS zaehlt in tick() hoch, bei Erreichen von
+  // announcementNextS spielt eine zufaellige Ansage und der naechste
+  // (wieder zufaellige) Abstand wird gewuerfelt.
+  let announcementsEnabled = loadAnnouncementsEnabled();
+  let announcementTimerS = 0;
+  let announcementNextS = randomAnnouncementInterval();
+  let announcementBtn: HTMLButtonElement;
+  let announcementPanelEl: HTMLDivElement;
 
   let weeklyModalOpen = false;
   let armedDeleteIndex: number | null = null;
@@ -1508,6 +1550,8 @@ function createMiniMetroGame(): MinigameModule {
     // trainChugPlaying muss trotzdem bei jeder neuen Runde zurueckgesetzt
     // werden, falls die vorherige Runde mit laufendem Sound endete.
     trainChugPlaying = false;
+    announcementTimerS = 0;
+    announcementNextS = randomAnnouncementInterval();
     // Start = genau eine Haltestelle je Form (Nutzerwunsch) -- lastSize wird
     // in tick() laufend aktualisiert, siehe dort.
     for (const shape of SHAPES) spawnStation(lastSize, shape, INITIAL_CLUSTER_RADIUS);
@@ -1895,7 +1939,11 @@ function createMiniMetroGame(): MinigameModule {
     // zeigt nach OBEN zu den Haltestellen -- dort ist garantiert Platz
     // (siehe MARGIN_BOTTOM), unabhaengig davon, ob/wo gerade ein
     // Highscore-Banner eingeblendet ist.
-    const tipY = size.height - MARGIN_BOTTOM - 85 + bounce;
+    // Zusaetzlicher Abstand (war -85), seit es unten links auch den
+    // Bahnansagen-Umschalter gibt (siehe .mm-panel--left-bottom) -- der
+    // zentrierte, auf schmalen Bildschirmen recht breite Hinweistext reichte
+    // sonst bis in dessen Bereich hinein (gemeldete Ueberdeckung).
+    const tipY = size.height - MARGIN_BOTTOM - 150 + bounce;
     ctx.fillStyle = theme.accent;
     ctx.beginPath();
     ctx.moveTo(cx, tipY);
@@ -2327,6 +2375,15 @@ function createMiniMetroGame(): MinigameModule {
       for (const train of line.trains) stepTrain(line, train, dt);
     }
     updateTrainChug(anyTrainRunning);
+
+    if (announcementsEnabled) {
+      announcementTimerS += dt;
+      if (announcementTimerS >= announcementNextS) {
+        announcementTimerS = 0;
+        announcementNextS = randomAnnouncementInterval();
+        playRandomStationAnnouncement();
+      }
+    }
   }
 
   return {
@@ -2356,6 +2413,37 @@ function createMiniMetroGame(): MinigameModule {
       resourceCol.append(sparelokBtn, wagonBtn);
       resourceColEl = resourceCol;
       env.overlay.appendChild(resourceCol);
+
+      // Bahnansagen-Geraeuschkulisse an-/ausschalten -- auf ausdruecklichen
+      // Wunsch unten links, eigenes Panel (siehe .mm-panel--left-bottom),
+      // damit es nicht mit dem Loks/Waggons-Vorrat (links MITTIG) kollidiert.
+      const announcementPanel = document.createElement("div");
+      announcementPanel.className = "mm-panel mm-panel--left-bottom";
+      announcementBtn = document.createElement("button");
+      announcementBtn.type = "button";
+      announcementBtn.className = "mm-sound-toggle";
+      announcementBtn.setAttribute("aria-pressed", "false");
+      function renderAnnouncementBtn(): void {
+        announcementBtn.classList.toggle("mm-sound-toggle--active", announcementsEnabled);
+        announcementBtn.setAttribute("aria-pressed", announcementsEnabled ? "true" : "false");
+        announcementBtn.innerHTML = `<span class="mm-sound-toggle__icon">${icons.speaker}</span><span>Bahngeräuschkulisse ${announcementsEnabled ? "an" : "aus"}</span>`;
+      }
+      renderAnnouncementBtn();
+      announcementBtn.addEventListener("click", () => {
+        announcementsEnabled = !announcementsEnabled;
+        saveAnnouncementsEnabled(announcementsEnabled);
+        renderAnnouncementBtn();
+        // Beim Anschalten gleich mal eine Ansage als direktes Feedback,
+        // statt bis zu 13s auf die erste zu warten.
+        if (announcementsEnabled) {
+          playRandomStationAnnouncement();
+          announcementTimerS = 0;
+          announcementNextS = randomAnnouncementInterval();
+        }
+      });
+      announcementPanel.appendChild(announcementBtn);
+      announcementPanelEl = announcementPanel;
+      env.overlay.appendChild(announcementPanel);
 
       // Uhr/Tage-Zeile UND Geschwindigkeitsregler sitzen bewusst als ZWEI
       // ZEILEN IM SELBEN Panel (nicht als zwei unabhaengig positionierte
@@ -2526,6 +2614,7 @@ function createMiniMetroGame(): MinigameModule {
       armedStationDeleteTimer = null;
       highscoreBanner?.destroy();
       resourceColEl?.remove();
+      announcementPanelEl?.remove();
       speedRowEl?.remove();
       lineColumnEl?.remove();
       hintEl?.remove();

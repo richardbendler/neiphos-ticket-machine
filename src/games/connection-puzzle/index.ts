@@ -216,6 +216,8 @@ function createConnectionPuzzleGame(): MinigameModule {
           highscoreTimer = null;
           closeHighscoreModal = promptHighscoreName({
             message: `Du hast ${totalScore} Punkte erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert" : "neuer Bestwert"} für die Verbindungssuche!`,
+            gameTitle: "Verbindungssuche",
+            scoreText: `${totalScore} Punkte`,
             onDone: (name) => {
               closeHighscoreModal = null;
               if (name === null) { render(); return; }

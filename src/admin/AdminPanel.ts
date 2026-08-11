@@ -10,6 +10,7 @@ import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
 import { playHighscoreOpenSound } from "../core/sound";
+import { printTicket } from "../core/ticket";
 import {
   isScreensaverEnabled,
   setScreensaverEnabled,
@@ -867,15 +868,23 @@ function renderPrinterControl(): HTMLDivElement {
   function refreshStatus(): void {
     fetch("./api/system/printer/status", { headers: systemAdminHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-      .then((data: { available: boolean }) => {
-        if (data.available) {
-          status.textContent = "✅ Drucker erkannt";
-          status.style.color = "var(--success)";
-          testBtn.disabled = false;
-        } else {
+      .then((data: { available: boolean; paper?: "ok" | "low" | "empty" | "unknown" }) => {
+        if (!data.available) {
           status.textContent = "❌ Kein Drucker gefunden (angeschlossen? Gruppe „lp“ eingerichtet?)";
           status.style.color = "var(--danger)";
           testBtn.disabled = true;
+          return;
+        }
+        testBtn.disabled = false;
+        if (data.paper === "empty") {
+          status.textContent = "⚠️ Drucker erkannt, aber Papier ist leer";
+          status.style.color = "var(--danger)";
+        } else if (data.paper === "low") {
+          status.textContent = "⚠️ Drucker erkannt, Papier wird knapp";
+          status.style.color = "var(--accent-dark)";
+        } else {
+          status.textContent = "✅ Drucker erkannt";
+          status.style.color = "var(--success)";
         }
       })
       .catch(() => {
@@ -886,20 +895,19 @@ function renderPrinterControl(): HTMLDivElement {
   }
   refreshStatus();
 
+  // Druckt genau dasselbe Ticket-Design wie beim echten Highscore-Ticket
+  // (siehe core/ticket.ts/highscorePrompt.ts), nur ohne Name/Spiel/
+  // Highscore -- dafuer laeuft der Testdruck ueber den Admin-geschuetzten
+  // Rasterdruck-Endpunkt statt des oeffentlichen Ticket-Endpunkts.
   guardedClick(testBtn, () => {
     testBtn.disabled = true;
     testBtn.textContent = "Druckt …";
-    fetch("./api/system/printer/test", { method: "POST", headers: systemAdminHeaders() })
-      .then((res) => res.json().catch(() => ({})))
-      .then((data: { ok?: boolean; error?: string }) => {
-        if (!data.ok) {
-          status.textContent = `❌ Testdruck fehlgeschlagen${data.error ? ` (${data.error})` : ""}.`;
+    void printTicket({}, systemAdminHeaders())
+      .then((result) => {
+        if (!result.ok) {
+          status.textContent = `❌ Testdruck fehlgeschlagen${result.error ? ` (${result.error})` : ""}.`;
           status.style.color = "var(--danger)";
         }
-      })
-      .catch(() => {
-        status.textContent = "❌ Testdruck fehlgeschlagen.";
-        status.style.color = "var(--danger)";
       })
       .finally(() => {
         testBtn.disabled = false;

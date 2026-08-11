@@ -314,6 +314,27 @@ button {
   flex-shrink: 0;
 }
 
+/* Papier-Warnung links vom Logo (siehe Router.ts#refreshPaperWarning) --
+   bernsteinfarben bei "wird knapp", rot bei "leer" (Modifier-Klasse). */
+.chrome-bar__paper-warn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: clamp(20px, 6vw, 28px);
+  height: clamp(20px, 6vw, 28px);
+  flex-shrink: 0;
+  color: var(--accent-dark);
+}
+
+.chrome-bar__paper-warn--empty {
+  color: var(--danger);
+}
+
+.chrome-bar__paper-warn svg {
+  width: 100%;
+  height: 100%;
+}
+
 .chrome-bar__wordmark {
   font-family: var(--font-display);
   font-weight: 800;
@@ -945,6 +966,23 @@ button {
   width: 1.15em;
   height: 1.15em;
   margin-right: 0.35em;
+}
+
+/* Zweiter Weg im Highscore-Dialog ("Speichern und als Ticket drucken",
+   core/highscorePrompt.ts) -- bewusst eine ANDERE Akzentfarbe als der
+   goldene Tastatur-eigene "Speichern"-Button, damit auf einen Blick klar
+   ist, dass es zwei eigenstaendige, gleichwertig druckbare Optionen sind,
+   nicht nur eine Variante derselben Aktion. */
+.hs-print-btn {
+  background: linear-gradient(180deg, var(--primary-light), var(--primary));
+  color: #ffffff;
+  border-color: var(--primary-dark);
+  box-shadow: 0 3px 0 var(--primary-dark);
+}
+
+.hs-print-btn:active {
+  box-shadow: none;
+  background: linear-gradient(180deg, var(--primary), var(--primary-dark));
 }
 
 .btn__icon svg {

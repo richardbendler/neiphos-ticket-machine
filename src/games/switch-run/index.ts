@@ -177,6 +177,8 @@ function createSwitchRunGame(): MinigameModule {
           highscoreTimer = null;
           closeHighscoreModal = promptHighscoreName({
             message: `Du hast ${score} Weiche${score === 1 ? "" : "n"} geschafft — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+            gameTitle: "Weichenspiel",
+            scoreText: `${score} Weiche${score === 1 ? "" : "n"}`,
             onDone: (name) => {
               closeHighscoreModal = null;
               if (name === null) return;

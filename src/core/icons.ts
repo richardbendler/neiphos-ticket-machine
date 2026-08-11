@@ -81,6 +81,21 @@ export const icons = {
      <circle cx="8" cy="19" r="2"/>
      <circle cx="17" cy="19" r="2"/>`,
   ),
+  // Fahrkarte mit angedeuteter Lochung (Kreis-Ausschnitt links) und
+  // gestrichelter Abriss-Linie -- fuer den Ticket-Druck-Button
+  // (core/highscorePrompt.ts) und die Erfolgsmeldung danach.
+  ticket: svg(
+    `<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8Z"/>
+     <line x1="14" y1="6" x2="14" y2="18" stroke-dasharray="2.4 2.4"/>`,
+  ),
+  // Warndreieck mit Ausrufezeichen -- fuer die Papierstand-Anzeige im
+  // Header (core/Router.ts), erscheint nur, wenn der Bondrucker wenig/kein
+  // Papier mehr meldet.
+  warningTriangle: svg(
+    `<path d="M12 3.5 21.5 20h-19L12 3.5Z"/>
+     <line x1="12" y1="10" x2="12" y2="14.5"/>
+     <circle cx="12" cy="17.3" r="0.9" fill="currentColor" stroke="none"/>`,
+  ),
   // Vereinfachtes Huepftier (Rody-Stil: Ball-Koerper, zwei Ohren, vier
   // Beine) -- als eigenstaendiges Icon statt eines Emojis (siehe
   // games/memory/index.ts, games/train-spotter/index.ts), das auf Systemen

@@ -61,6 +61,66 @@ const SETTINGS_FILE = path.resolve(ROOT, "..", "settings.json");
 // Geraet auf einem anderen Pi/Setup unter einem anderen Pfad auftaucht.
 const PRINTER_DEVICE = process.env.PRINTER_DEVICE || "/dev/usb/lp0";
 
+/**
+ * Fragt den Drucker per ESC/POS-Echtzeit-Statusabfrage (DLE EOT 4 =
+ * Papiersensor-Status) nach seinem Papierstand -- am echten Geraet
+ * verifiziert, DASS es antwortet (1 Byte zurueck), die genaue Bit-Bedeutung
+ * (Bit 2 = "fast leer", Bit 6 = "leer") folgt der verbreiteten Epson-
+ * aehnlichen ESC/POS-Konvention, ist fuer dieses konkrete (generische,
+ * STM32-basierte) Druckermodell aber NICHT mit einer echten leeren Rolle
+ * gegengetestet -- bewusst als best-effort behandelt (siehe available/
+ * paper: "unknown" als Fallback ueberall dort, wo dieser Aufruf fehlschlaegt
+ * oder kein Byte zurueckkommt), lieber "unbekannt" anzeigen als etwas
+ * falsch Sicheres.
+ */
+function queryPrinterPaperStatus() {
+  return new Promise((resolve) => {
+    let fd;
+    try {
+      fd = fs.openSync(PRINTER_DEVICE, "r+");
+    } catch {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* Geraet ggf. schon zu -- egal, wir wollten nur aufraeumen */
+      }
+      resolve(null);
+    }, 1500);
+    try {
+      fs.writeSync(fd, Buffer.from([0x10, 0x04, 0x04]));
+      const buf = Buffer.alloc(1);
+      const bytesRead = fs.readSync(fd, buf, 0, 1, null);
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fs.closeSync(fd);
+      if (bytesRead < 1) {
+        resolve(null);
+        return;
+      }
+      const byte = buf[0];
+      resolve({ empty: (byte & 0x40) !== 0, low: (byte & 0x04) !== 0 });
+    } catch {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* siehe oben */
+      }
+      resolve(null);
+    }
+  });
+}
+
 // ------------------------------------------------------------- .env.local
 //
 // Liest dieselbe .env.local wie Vite (KEY=value pro Zeile, # fuer
@@ -201,6 +261,25 @@ function readBody(req, limitBytes = 20_000) {
       chunks.push(chunk);
     });
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+    req.on("error", reject);
+  });
+}
+
+/** Wie readBody, aber liefert den rohen Buffer statt eines UTF-8-Strings -- fuer binaere Uploads (siehe Rasterdruck-Endpunkt unten), bei denen toString("utf-8") die Bytes zerstoeren wuerde. */
+function readBodyBuffer(req, limitBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > limitBytes) {
+        req.destroy();
+        reject(new Error("Payload zu gross"));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -1194,30 +1273,103 @@ const server = http.createServer(async (req, res) => {
     // Anwendungsfall nicht noetig. flipper muss dafuer in der Gruppe "lp"
     // sein (siehe deployment/README), sonst schlaegt das Schreiben mit
     // EACCES fehl.
+    function sendPrinterStatus(res) {
+      fs.access(PRINTER_DEVICE, fs.constants.W_OK, async (err) => {
+        if (err) {
+          sendJson(res, 200, { available: false, paper: "unknown" });
+          return;
+        }
+        const status = await queryPrinterPaperStatus();
+        const paper = !status ? "unknown" : status.empty ? "empty" : status.low ? "low" : "ok";
+        sendJson(res, 200, { available: true, paper });
+      });
+    }
+
     if (url.pathname === "/api/system/printer/status" && req.method === "GET") {
       if (!requireAdmin(req, res)) return;
-      fs.access(PRINTER_DEVICE, fs.constants.W_OK, (err) => {
-        sendJson(res, 200, { available: !err });
-      });
+      sendPrinterStatus(res);
       return;
     }
 
-    if (url.pathname === "/api/system/printer/test" && req.method === "POST") {
-      if (!requireAdmin(req, res)) return;
-      const ESC = "\x1B";
-      const payload =
-        `${ESC}@` + // ESC @ = Drucker-Initialisierung (setzt Formatierung/Puffer zurueck)
-        "Neiphos Ticket Machine\n" +
-        "Drucker-Testdruck\n" +
-        "Wenn Du das lesen kannst,\n" +
-        "funktioniert es!\n\n\n\n\n";
-      fs.writeFile(PRINTER_DEVICE, Buffer.from(payload, "binary"), (err) => {
+    // Oeffentliche, ungeschuetzte Variante nur des Papierstands -- fuer die
+    // kleine Warnanzeige im Kopfleisten-Logo (siehe core/Router.ts), die
+    // fuer JEDE:N Besucher:in sichtbar sein soll, nicht nur im Admin-Bereich.
+    // Liefert bewusst nur "available"/"paper", keine sonstigen internen
+    // Details -- rein lesend und billig, daher kein Rate-Limit noetig.
+    if (url.pathname === "/api/system/printer/paper" && req.method === "GET") {
+      sendPrinterStatus(res);
+      return;
+    }
+
+    // Generischer Rasterdruck (ESC/POS "GS v 0"): das Ticket-Design (siehe
+    // core/ticket.ts) wird komplett im Client als 1-Bit-Bitmap gerendert
+    // (inkl. der 90-Grad-Drehung fuers Querformat-Ticket auf dem
+    // schmalen, aber beliebig langen Thermopapier) und hier nur noch roh
+    // an den Drucker durchgereicht -- dieser Endpunkt selbst weiss nichts
+    // vom Ticket-Layout, nur von Breite/Hoehe/gepackten Bytes, bleibt also
+    // fuer jeden kuenftigen Rasterdruck wiederverwendbar. Breite/Hoehe als
+    // Query-Parameter, da der Body reine Binaerdaten sind (1 Bit/Pixel, MSB
+    // zuerst, 1 = schwarz, byteweise pro Zeile aufgerundet -- Standard-
+    // Format fuer GS v 0). Zwei Endpunkte teilen sich dieselbe Logik
+    // (printRasterJob): der Admin-Testdruck bleibt hinter dem Passwort,
+    // der eigentliche Ticket-Druck bei einem erspielten Highscore laeuft
+    // dagegen OHNE Admin-Login (Spieler:innen kennen das Passwort nicht),
+    // dafuer straff ratenlimitiert -- schuetzt die Papierrolle vor Spam,
+    // ohne echte Highscore-Momente zu blockieren.
+    async function printRasterJob(req, res, url) {
+      const width = Number(url.searchParams.get("width"));
+      const height = Number(url.searchParams.get("height"));
+      if (!Number.isInteger(width) || width <= 0 || width % 8 !== 0 || !Number.isInteger(height) || height <= 0 || height > 4000) {
+        sendJson(res, 400, { error: "invalid_dimensions" });
+        return;
+      }
+      let bodyBuf;
+      try {
+        bodyBuf = await readBodyBuffer(req, 400_000);
+      } catch {
+        sendJson(res, 413, { error: "payload_too_large" });
+        return;
+      }
+      const bytesPerRow = width / 8;
+      if (bodyBuf.length !== bytesPerRow * height) {
+        sendJson(res, 400, { error: "size_mismatch", expected: bytesPerRow * height, got: bodyBuf.length });
+        return;
+      }
+      const xL = bytesPerRow & 0xff;
+      const xH = (bytesPerRow >> 8) & 0xff;
+      const yL = height & 0xff;
+      const yH = (height >> 8) & 0xff;
+      const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+      const init = Buffer.from([0x1b, 0x40]);
+      const feed = Buffer.from([0x1b, 0x64, 0x04]); // ESC d 4 -- vier Zeilen vorschieben zum bequemen Abreissen
+      const full = Buffer.concat([init, header, bodyBuf, feed]);
+      fs.writeFile(PRINTER_DEVICE, full, (err) => {
         if (err) {
           sendJson(res, 500, { ok: false, error: String(err.message || err) });
           return;
         }
         sendJson(res, 200, { ok: true });
       });
+    }
+
+    if (url.pathname === "/api/system/printer/raster" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      await printRasterJob(req, res, url);
+      return;
+    }
+
+    if (url.pathname === "/api/system/printer/ticket" && req.method === "POST") {
+      // Grosszuegiger als die meisten anderen public-Endpunkte (die laufen
+      // pro Aktion typischerweise viel oefter auf), aber ein Ticket ist ein
+      // physischer Verbrauchsgegenstand (Papier) -- 8 pro 5 Minuten reicht
+      // fuer echte Highscore-Momente (auch bei mehreren kurz hintereinander
+      // an einem Kiosk) bequem, macht Skript-Spam auf die Papierrolle aber
+      // unattraktiv.
+      if (isRateLimited(`printer-ticket:${clientIp(req)}`, 8, 5 * 60_000)) {
+        sendJson(res, 429, { error: "rate_limited" });
+        return;
+      }
+      await printRasterJob(req, res, url);
       return;
     }
 

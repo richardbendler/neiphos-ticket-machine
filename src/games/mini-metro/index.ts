@@ -1344,6 +1344,8 @@ function createMiniMetroGame(): MinigameModule {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${formatDelivered(delivered)} befördert — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle: "Hüpftier-Metro",
+          scoreText: formatDelivered(delivered),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

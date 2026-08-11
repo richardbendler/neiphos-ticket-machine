@@ -326,6 +326,8 @@ function createTrainQuartetGame(): MinigameModule {
       highscoreTimer = null;
       closeHighscoreModal = promptHighscoreName({
         message: `${formatCardCount(playerDeck.length)} gesammelt — ${outcomeResult === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        gameTitle: "Zug-Quartett",
+        scoreText: formatCardCount(playerDeck.length),
         onDone: (name) => {
           closeHighscoreModal = null;
           if (name === null) return;

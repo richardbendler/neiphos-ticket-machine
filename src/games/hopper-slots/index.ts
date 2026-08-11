@@ -406,6 +406,8 @@ function createHopperSlotsGame(): MinigameModule {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${formatPoints(balance)} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle: "Hüpftier-Glück",
+          scoreText: formatPoints(balance),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

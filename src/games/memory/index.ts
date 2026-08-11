@@ -535,6 +535,8 @@ function createMemoryGame(): MinigameModule {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${moves} Züge auf ${sizeLabel(size)} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle: "Zug-Memory",
+          scoreText: `${moves} Züge (${sizeLabel(size)})`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

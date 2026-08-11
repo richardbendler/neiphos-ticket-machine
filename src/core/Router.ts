@@ -120,11 +120,47 @@ export class Router {
 
     const brand = document.createElement("div");
     brand.className = "chrome-bar__brand";
+
+    // Papier-Warnung links vom Logo -- auf ausdruecklichen Wunsch, "falls es
+    // geht": der Bondrucker beantwortet eine ESC/POS-Statusabfrage (siehe
+    // server/serve.js#queryPrinterPaperStatus), die Bit-Bedeutung ist aber
+    // nur best-effort ermittelt (nicht an einer wirklich leeren Rolle
+    // gegengetestet). Bleibt deshalb bewusst UNSICHTBAR, ausser bei einer
+    // eindeutigen Warnung ("low"/"empty") -- bei "unknown"/Fehler/keinem
+    // Drucker lieber gar nichts anzeigen als etwas potenziell Falsches.
+    const paperWarnIcon = document.createElement("div");
+    paperWarnIcon.className = "chrome-bar__paper-warn";
+    paperWarnIcon.style.display = "none";
+    paperWarnIcon.innerHTML = icons.warningTriangle;
+    brand.appendChild(paperWarnIcon);
+
     const logo = document.createElement("img");
     logo.className = "chrome-bar__logo";
     logo.src = brandLogo;
     logo.alt = "Neiphos";
     brand.appendChild(logo);
+
+    const refreshPaperWarning = () => {
+      fetch("./api/system/printer/paper")
+        .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+        .then((data: { available: boolean; paper?: "ok" | "low" | "empty" | "unknown" }) => {
+          if (!data.available || data.paper === "ok" || data.paper === "unknown" || !data.paper) {
+            paperWarnIcon.style.display = "none";
+            return;
+          }
+          paperWarnIcon.classList.toggle("chrome-bar__paper-warn--empty", data.paper === "empty");
+          paperWarnIcon.title = data.paper === "empty" ? "Kein Papier mehr im Bondrucker -- bitte Rolle wechseln." : "Papier im Bondrucker wird knapp.";
+          paperWarnIcon.style.display = "flex";
+        })
+        // Kein Server/kein Drucker (z. B. lokale Entwicklung) -- lautlos
+        // wirkungslos bleiben, wie auch sonst bei allen /api/system/*-Aufrufen
+        // ohne echten Pi.
+        .catch(() => {
+          paperWarnIcon.style.display = "none";
+        });
+    };
+    refreshPaperWarning();
+    window.setInterval(refreshPaperWarning, 60_000);
 
     // Geheimer Admin-Zugang: zehnmal auf das Logo tippen, innerhalb von 15
     // Sekunden -- ersetzt den bisherigen, staendig sichtbaren "Admin"-Button

@@ -156,10 +156,13 @@ function createTrainSpotterGame(): MinigameModule {
     renderDone();
     if (outcome !== "none") {
       const gameName = contentTheme === "trains" ? "den Zug-Spotter" : "den Hüpftierspotter";
+      const gameTitle = contentTheme === "trains" ? "Zug-Spotter" : "Hüpftierspotter";
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${formatTime(elapsed)} — ${outcome === "tied-best" ? "eingestellte Bestzeit" : "neue Bestzeit"} für ${gameName}!`,
+          gameTitle,
+          scoreText: formatTime(elapsed),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

@@ -193,6 +193,8 @@ function createCountPassengersGame(): MinigameModule {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle: "Passagiere zählen",
+          scoreText: `${formatDiff(diff)} (${level.label})`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

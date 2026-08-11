@@ -313,6 +313,8 @@ function createTrainSimGame(): MinigameModule {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${formatLegCount(legsCompleted)} bis zum Neiphos Festival — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle: "Zugsimulator",
+          scoreText: formatLegCount(legsCompleted),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

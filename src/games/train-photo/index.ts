@@ -226,6 +226,8 @@ function createTrainPhotoGame(): MinigameModule {
         highscoreTimer = null;
         closeHighscoreModal = promptHighscoreName({
           message: `${formatScore(score)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle: "Zugfoto",
+          scoreText: `${formatScore(score)} (${level.label})`,
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;

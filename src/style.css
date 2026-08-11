@@ -350,8 +350,11 @@ button {
   padding-top: 6px;
   padding-left: calc(10px + var(--safe-left));
   padding-right: calc(10px + var(--safe-right));
-  background: var(--panel-alt);
-  border-top: 1px solid var(--panel-border);
+  /* Auf ausdruecklichen Wunsch KEIN eigener Hintergrund/Rand mehr (war
+     var(--panel-alt) + Trennlinie) -- angelehnt an die VBB-Vorlage, wo die
+     Fussleisten-Elemente (bis auf den umrandeten Sprachwaehler) direkt auf
+     dem normalen Seitenhintergrund sitzen, ohne eigene abgesetzte Leiste. */
+  background: transparent;
   /* Gleiche Ueberlegung wie bei .chrome-bar: muss ueber jedem Modal-Scrim
      (1000) und jedem Spiel-Bottom-Sheet erreichbar bleiben. */
   z-index: 1100;
@@ -588,27 +591,28 @@ button {
 }
 
 .menu-grid {
-  display: grid;
-  /* Spaltenzahl + Kachelbreite werden per JS anhand der tatsaechlich
-     verfuegbaren Breite UND Hoehe berechnet (siehe menu/MainMenu.ts,
-     computeGridLayout) und hier als konkrete px-Werte gesetzt -- reines
-     CSS-Grid kennt keine verfuegbare Hoehe, das reicht nicht, wenn die
-     Kacheln den Bildschirm wirklich ausfuellen sollen. Der Wert hier ist
-     nur ein Platzhalter, bis der erste ResizeObserver-Callback feuert. */
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* War selbst ein CSS-Grid -- jetzt nur noch der AEUSSERE Stapel der
+     Kachel-"Cluster" (siehe .menu-cluster, MainMenu.ts#TILE_CLUSTERS): eine
+     Spalte aus Cluster-Bloecken, mit einer deutlich groesseren Luecke
+     ZWISCHEN den Bloecken als INNERHALB eines Blocks (dort greift das
+     kleinere Gap von .menu-cluster) -- auf ausdruecklichen Wunsch, angelehnt
+     an die VBB-Vorlage, wo thematisch zusammengehoerige Tasten dicht
+     beieinander stehen. */
+  display: flex;
+  flex-direction: column;
   /* "safe center": zentriert wie gewohnt, solange alles reinpasst, faellt
      aber auf Start-Ausrichtung zurueck statt Inhalt zu ueberlaufen, wenn der
      Inhalt hoeher/breiter als der Container ist. Ohne "safe" wird bei
      Ueberlauf mit reinem "center" das erste Element oben abgeschnitten UND
      ist nicht mehr dorthin scrollbar (bekannte CSS-Falle bei
      overflow:auto + align/justify-content:center). */
+  align-items: safe center;
   justify-content: safe center;
-  align-content: safe center;
-  /* Nur ein Platzhalter bis zum ersten ResizeObserver-Callback, wie bei
-     grid-template-columns oben -- der tatsaechliche, an die Bildschirmbreite
-     gekoppelte Gap-Wert (mehr Luecke zwischen den Kacheln, auf
-     ausdruecklichen Wunsch) wird von MainMenu.ts#gapForContainer gesetzt. */
-  gap: 16px;
+  /* Nur ein Platzhalter bis zum ersten ResizeObserver-Callback -- der
+     tatsaechliche, an die Bildschirmbreite gekoppelte Gap-Wert (Luecke
+     ZWISCHEN Clustern) wird von MainMenu.ts#clusterGapForContainer
+     gesetzt. */
+  gap: 40px;
   width: 100%;
   flex: 1;
   min-height: 0;
@@ -621,6 +625,22 @@ button {
   overflow: hidden;
 }
 
+/* Ein einzelner Kachel-"Cluster" (siehe .menu-grid-Kommentar) -- ganz normales
+   3-Spalten-Kachelraster wie vorher direkt in .menu-grid, nur jetzt je
+   Cluster ein eigener Block mit eigenem (kleinen) internen Gap. */
+.menu-cluster {
+  display: grid;
+  /* Spaltenzahl + Kachelbreite werden per JS anhand der tatsaechlich
+     verfuegbaren Breite UND Hoehe berechnet (siehe menu/MainMenu.ts,
+     computeGridLayout) und hier als konkrete px-Werte gesetzt -- reines
+     CSS-Grid kennt keine verfuegbare Hoehe, das reicht nicht, wenn die
+     Kacheln den Bildschirm wirklich ausfuellen sollen. Der Wert hier ist
+     nur ein Platzhalter, bis der erste ResizeObserver-Callback feuert. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  justify-content: safe center;
+  gap: 16px;
+}
+
 .menu-tile {
   position: relative;
   display: flex;
@@ -628,15 +648,17 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: clamp(8px, 1.6vw, 14px);
-  /* Weniger Leerraum als vorher (war fix 10px 16px) -- naeher an der
-     VBB-Vorlage, deren Tasten den Text dichter am Rand zeigen, auf
-     ausdruecklichen Wunsch. In vw/vh statt fixer px, damit es auf kleinen
-     UND grossen Bildschirmen gleichermassen passt (--menu-tile-scale
-     skaliert zusaetzlich noch Schrift/Icon, siehe unten). */
-  padding: clamp(6px, 1.4vh, 12px) clamp(10px, 2vw, 20px);
+  /* Nochmal weniger vertikaler Leerraum als vorher (war clamp(6px,1.4vh,12px)
+     oben/unten) -- auf ausdruecklichen Wunsch noch flacher, naeher an der
+     VBB-Vorlage, deren Tasten den Text dicht am oberen/unteren Rand zeigen.
+     In vw/vh statt fixer px, damit es auf kleinen UND grossen Bildschirmen
+     gleichermassen passt (--menu-tile-scale skaliert zusaetzlich noch
+     Schrift/Icon, siehe unten). */
+  padding: clamp(3px, 0.7vh, 8px) clamp(10px, 2vw, 20px);
   /* Muss mit TILE_ASPECT in menu/MainMenu.ts uebereinstimmen -- die
-     Spaltenzahl wird dort anhand genau dieses Seitenverhaeltnisses berechnet. */
-  aspect-ratio: 2.35 / 1;
+     Spaltenzahl wird dort anhand genau dieses Seitenverhaeltnisses berechnet.
+     War 2.35 -- auf ausdruecklichen Wunsch deutlich flacher. */
+  aspect-ratio: 3.3 / 1;
   border-radius: clamp(10px, 1.4vw, 16px);
   /* Deutlich kraeftiger als vorher (war 1px) -- angelehnt an die dicke,
      dunkle Umrahmung der Tasten in der VBB-Vorlage. */

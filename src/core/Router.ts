@@ -264,14 +264,21 @@ export class Router {
     refreshPaperWarning();
     window.setInterval(refreshPaperWarning, 60_000);
 
-    const rightCol = document.createElement("div");
-    rightCol.style.display = "flex";
-    rightCol.style.flexDirection = "column";
-    rightCol.style.alignItems = "flex-end";
-    rightCol.style.gap = "3px";
-    rightCol.append(paperWarn, unreadBadge);
+    const notifyCol = document.createElement("div");
+    notifyCol.style.display = "flex";
+    notifyCol.style.flexDirection = "column";
+    // War flex-end (rechtsbuendig, als die Spalte noch rechts stand) -- auf
+    // ausdruecklichen Wunsch jetzt links, angelehnt an die VBB-Vorlage
+    // (Sprachwaehler links, einzelner Button rechts): linksbuendig, damit
+    // der Text natuerlich am selben Rand wie die Fussleiste beginnt.
+    notifyCol.style.alignItems = "flex-start";
+    notifyCol.style.gap = "3px";
+    notifyCol.append(paperWarn, unreadBadge);
 
-    bar.append(feedbackBtn, credit, rightCol);
+    // Auf ausdruecklichen Wunsch Seiten getauscht (war Feedback-Button
+    // links/Meldungen rechts) -- angelehnt an die VBB-Vorlage, wo der
+    // einzelne Fussleisten-Button rechts sitzt.
+    bar.append(notifyCol, credit, feedbackBtn);
 
     // Der Credit-Block ist per CSS zur GANZEN Leiste zentriert (nicht mehr
     // nur innerhalb einer Gitter-Luecke, siehe .chrome-footer-credit), auf
@@ -279,15 +286,16 @@ export class Router {
     // verfuegbaren Platz"). Reines CSS kann dabei aber nicht gleichzeitig
     // "echte Seitenmitte" UND "nie mit den Nachbarn ueberlappen" garantieren,
     // wenn eine Seite (hier: der immer sichtbare Feedback-Button) deutlich
-    // breiter ist als die andere (rechte Spalte oft leer) -- ein max-width
+    // breiter ist als die andere (Meldungs-Spalte oft leer) -- ein max-width
     // gross genug fuer die Mitte war dann breit genug, um sichtbar unter den
     // Feedback-Button zu ragen (gemeldeter/reproduzierter Bug). Deshalb hier
     // dynamisch per JS begrenzt: die kleinere der beiden Distanzen
-    // Mitte->Button-Kante bzw. Mitte->rechte-Spalte-Kante (minus etwas
+    // Mitte->Meldungsspalten-Kante bzw. Mitte->Button-Kante (minus etwas
     // Sicherheitsabstand) bestimmt die maximale Halbbreite -- ResizeObserver
     // statt nur einmaligem Berechnen, weil sich sowohl die Fensterbreite als
-    // auch die rechte Spalte selbst aendern kann (Papier-Warnung/Ungelesen-
-    // Hinweis blenden sich unabhaengig voneinander erst nachtraeglich ein).
+    // auch die Meldungs-Spalte selbst aendern kann (Papier-Warnung/
+    // Ungelesen-Hinweis blenden sich unabhaengig voneinander erst
+    // nachtraeglich ein).
     const GAP_PX = 16;
     // Nur ein winziger Mindestwert (nicht z. B. 70 oder 24px, beides beim
     // Testen zu hoch): jeder groessere Mindestwert liess den Block bei
@@ -303,17 +311,20 @@ export class Router {
       const barRect = bar.getBoundingClientRect();
       if (barRect.width === 0) return; // Leiste (noch) nicht sichtbar/layoutet
       const half = barRect.width / 2;
+      // notifyCol steht jetzt LINKS, feedbackBtn RECHTS (siehe bar.append
+      // oben) -- die Distanz-Berechnung folgt dem, unabhaengig davon, wie
+      // breit die jeweilige Seite gerade tatsaechlich ist.
+      const notifyRect = notifyCol.getBoundingClientRect();
       const btnRect = feedbackBtn.getBoundingClientRect();
-      const rightRect = rightCol.getBoundingClientRect();
-      const leftHalf = half - (btnRect.right - barRect.left) - GAP_PX;
-      const rightHalf = half - (barRect.right - rightRect.left) - GAP_PX;
+      const leftHalf = half - (notifyRect.right - barRect.left) - GAP_PX;
+      const rightHalf = half - (barRect.right - btnRect.left) - GAP_PX;
       const safeHalf = Math.max(MIN_HALF_WIDTH_PX, Math.min(leftHalf, rightHalf));
       credit.style.maxWidth = `${Math.round(safeHalf * 2)}px`;
     };
     const creditWidthObserver = new ResizeObserver(updateCreditMaxWidth);
     creditWidthObserver.observe(bar);
     creditWidthObserver.observe(feedbackBtn);
-    creditWidthObserver.observe(rightCol);
+    creditWidthObserver.observe(notifyCol);
     updateCreditMaxWidth();
 
     return bar;

@@ -1419,6 +1419,28 @@ const server = http.createServer(async (req, res) => {
       // Anfrage (z. B. eine periodische Papierstand-Abfrage aus core/
       // Router.ts) dazwischenfunken. Nutzt dafuer queryPrinterPaperStatusRaw
       // (OHNE eigene Verpackung), siehe Kommentar dort.
+      //
+      // WICHTIG (erneut gemeldeter Gibberish-Vorfall TROTZ obiger
+      // Serialisierung, ausserdem "Ticket wird zu frueh abgeschnitten"):
+      // fs.writeFile() liefert seine Callback, sobald der Kernel-Treiber die
+      // Bytes per USB an den Drucker UEBERGEBEN hat -- nicht, wenn der
+      // Drucker sie fertig AUSGEDRUCKT hat. Ein Thermodruck von ~577
+      // Bildzeilen braucht mechanisch mehrere Sekunden (Kopf fahren, Papier
+      // vorschieben), die USB-Uebertragung selbst dauert dagegen nur
+      // Millisekunden. Bisher gab withPrinterDevice die Warteschlange schon
+      // frei, sobald schreiben "fertig" war -- ein zweiter Druckauftrag
+      // (z. B. beim wiederholten Testdrucken im Adminbereich kurz
+      // hintereinander) konnte dadurch mitten in den noch laufenden
+      // physischen Druck der Lok hineinschreiben und ihn korrumpieren/
+      // abschneiden, genau wie beim urspruenglichen Papierstand-Abfrage-
+      // Vorfall oben, nur diesmal zwischen zwei Druckauftraegen statt
+      // Druck+Statusabfrage. PRINT_SETTLE_MS haelt die Warteschlange nach
+      // einem ERFOLGREICHEN Schreiben deshalb noch zusaetzlich offen, bevor
+      // der naechste Auftrag (Druck oder Statusabfrage) drankommt -- grob
+      // geschaetzt (keine Datenblatt-Angabe zur genauen Druckgeschwindigkeit
+      // dieses Modells vorhanden), aber deutlich groszuegiger als die
+      // tatsaechlich benoetigte Zeit, auf der sicheren Seite.
+      const PRINT_SETTLE_MS = 4000;
       await withPrinterDevice(
         () =>
           new Promise((resolve) => {
@@ -1436,7 +1458,7 @@ const server = http.createServer(async (req, res) => {
                   return;
                 }
                 sendJson(res, 200, { ok: true });
-                resolve();
+                setTimeout(resolve, PRINT_SETTLE_MS);
               });
             });
           }),

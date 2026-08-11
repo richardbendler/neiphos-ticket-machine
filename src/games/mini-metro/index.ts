@@ -169,11 +169,13 @@ const WAGON_GAP = 4;
 // vorraetiger Lok/vorraetigem Waggon, gezeichnet mit denselben drawLoco/
 // drawWagon-Funktionen wie auf der Strecke -- etwas kleiner als TRAIN_W/H,
 // damit mehrere gestapelte Fahrzeuge nicht zu viel Platz im schmalen
-// Seiten-Panel beanspruchen. Neutrale graue Farbe, da ein Depot-Fahrzeug
-// noch keiner Linie (und damit keiner Linienfarbe) zugeordnet ist.
+// Seiten-Panel beanspruchen. Neutrale Farbe, da ein Depot-Fahrzeug noch
+// keiner Linie (und damit keiner Linienfarbe) zugeordnet ist -- auf
+// ausdruecklichen Wunsch SCHWARZ statt grau (war zu blass/schlecht zu
+// erkennen).
 const DEPOT_ITEM_W = 30;
 const DEPOT_ITEM_H = 18;
-const DEPOT_ITEM_COLOR = "#8a8f98";
+const DEPOT_ITEM_COLOR = "#000000";
 
 // Ein "Tag" ist ein kurzes, beschleunigtes Intervall (siehe Datei-Kommentar
 // oben) -- sieben Tage pro "Woche", am Wochenwechsel gibt es automatisch
@@ -316,6 +318,12 @@ const ANNOUNCEMENTS_STORAGE_KEY = "ntm:mini-metro:announcementsEnabled";
 const ANNOUNCEMENT_INTERVAL_MIN_S = 7;
 const ANNOUNCEMENT_INTERVAL_MAX_S = 13;
 
+// Ab wie vielen Sekunden ununterbrochenen Herumstehens im Depot der
+// gelbe Hinweis erscheint (siehe showDepotHint) -- lang genug, dass es
+// nicht sofort beim ersten Zoegern nervt, aber deutlich kuerzer als eine
+// ganze Spielwoche.
+const DEPOT_HINT_DELAY_S = 25;
+
 function loadAnnouncementsEnabled(): boolean {
   try {
     return localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) === "1";
@@ -354,6 +362,14 @@ function createMiniMetroGame(): MinigameModule {
   let started = false;
   let tutorialDismissed = false;
   let tutorialPulseTimer = 0;
+  // Depot-Hinweis (siehe showDepotHint): laeuft weiter, solange mindestens
+  // eine Lok/ein Waggon ungenutzt im Depot steht, wird auf 0 zurueckgesetzt,
+  // sobald das Depot wieder komplett leer ist. depotHintShown sorgt dafuer,
+  // dass der Hinweis auf ausdruecklichen Wunsch NUR EINMAL pro Runde
+  // erscheint (nicht bei jedem erneuten Liegenlassen).
+  let depotIdleTimerS = 0;
+  let depotHintShown = false;
+  let depotHintEl: HTMLDivElement | null = null;
   let closeIntro: (() => void) | null = null;
   let closeHighscoreModal: (() => void) | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
@@ -453,6 +469,9 @@ function createMiniMetroGame(): MinigameModule {
   let depotColEl: HTMLDivElement;
   let locoDepotEl: HTMLDivElement;
   let wagonDepotEl: HTMLDivElement;
+  // Fuer showDepotHint -- braucht env.overlay auch ausserhalb von init() (der
+  // Hinweis kann jederzeit waehrend tick() aufploppen).
+  let overlayEl: HTMLElement;
   // Fuers Umrechnen von Client- in Canvas-/Weltkoordinaten beim Ziehen eines
   // Depot-Fahrzeugs (siehe wireResourceDrag) -- die Depot-Elemente sind
   // normale DOM-Canvases ausserhalb des Spiel-Canvas, das Ziel (Linien-Kreis
@@ -998,9 +1017,9 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   /** Fuer das Anhaengen eines Waggons (siehe tryAttachWagonAt) -- sucht den Zug, dessen AKTUELLE gezeichnete Position dem Tipp am naechsten ist. */
-  function trainAt(x: number, y: number): { line: Line; train: Train } | null {
+  function trainAt(x: number, y: number, radius = 26): { line: Line; train: Train } | null {
     let best: { line: Line; train: Train } | null = null;
-    let bestDist = 26;
+    let bestDist = radius;
     for (const line of lines) {
       if (!line || line.stationIds.length < 2) continue;
       for (const train of line.trains) {
@@ -1289,6 +1308,37 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   /**
+   * Gelber Hinweis-Popup neben dem Depot (auf ausdruecklichen Wunsch, "wie
+   * auch dieser Start-Hinweis" -- selbe Grundidee wie drawTutorialArrow:
+   * Pfeil + Text, hier aber als echtes DOM-Element mit Okay-Button statt
+   * Canvas-Zeichnung, weil ein Klick-Ziel gebraucht wird). Erscheint,
+   * sobald mindestens eine Lok/ein Waggon DEPOT_HINT_DELAY_S Sekunden am
+   * Stueck ungenutzt im Depot steht (siehe tick()), und dann bewusst nur
+   * EIN EINZIGES Mal pro Runde (depotHintShown) -- nicht bei jedem
+   * erneuten Liegenlassen.
+   */
+  function showDepotHint(): void {
+    if (depotHintShown || depotHintEl) return;
+    depotHintShown = true;
+    const hint = document.createElement("div");
+    hint.className = "mm-depot-hint";
+    const text = document.createElement("p");
+    text.textContent = "Du hast noch ungenutzte Loks/Waggons im Depot -- zieh sie auf eine Linie!";
+    hint.appendChild(text);
+    const okBtn = document.createElement("button");
+    okBtn.type = "button";
+    okBtn.className = "btn mm-depot-hint__btn";
+    okBtn.textContent = "Okay";
+    okBtn.addEventListener("click", () => {
+      hint.remove();
+      depotHintEl = null;
+    });
+    hint.appendChild(okBtn);
+    overlayEl.appendChild(hint);
+    depotHintEl = hint;
+  }
+
+  /**
    * Kleine Analog-Uhr oben rechts: ein Zeiger, der einmal im Kreis laeuft
    * pro Tageshaelfte (DAY_HALF_S) -- zwei Umlaeufe ergeben also einen
    * ganzen Spieltag, wie gewuenscht. Erste Haelfte = "hell" (Sonne,
@@ -1351,29 +1401,45 @@ function createMiniMetroGame(): MinigameModule {
     }, 3000);
   }
 
-  /** Direktes Ziehziel fuer eine Lok aus dem Depot (siehe wireResourceDrag): ein Linien-Kreis rechts unter dem Zeiger. */
+  // Grosszuegiger Fang-Radius um einen Linien-Kreis herum (dessen sichtbare
+  // Groesse selbst nur 34px ist, siehe .mm-line-circle) -- ein Finger auf
+  // einem echten Touchscreen verdeckt beim Loslassen genau die Stelle, die
+  // er treffen soll, "pixelgenau" ist auf einem Kiosk-Touchscreen unrealistisch.
+  // Gemeldeter Bug: "ich sehe den Zug visuell mitgezogen, kann ihn aber
+  // nirgendwo absetzen" -- die vorherige Pruefung per document.elementFromPoint
+  // verlangte einen exakten Treffer auf den 34px-Button, das ist beim
+  // tatsaechlichen Loslassen mit dem Finger kaum zuverlaessig zu treffen.
+  const LOCO_DROP_RADIUS = 46;
+
+  /** Direktes Ziehziel fuer eine Lok aus dem Depot (siehe wireResourceDrag): der NAEHESTE Linien-Kreis (mit echter Linie) im Fang-Radius um den Loslass-Punkt -- nicht mehr per exaktem Treffer, siehe LOCO_DROP_RADIUS. */
   function tryAttachLocoAt(clientX: number, clientY: number): boolean {
-    const el = document.elementFromPoint(clientX, clientY);
-    const circleBtn = el?.closest(".mm-line-circle") as HTMLElement | null;
-    if (!circleBtn) return false;
-    const index = lineCircles.indexOf(circleBtn as HTMLButtonElement);
-    if (index < 0) return false;
-    const line = lines[index];
-    if (!line || line.stationIds.length < 2) return false;
+    let bestIndex = -1;
+    let bestDist = LOCO_DROP_RADIUS;
+    for (let i = 0; i < lineCircles.length; i++) {
+      const line = lines[i];
+      if (!line || line.stationIds.length < 2) continue;
+      const r = lineCircles[i].getBoundingClientRect();
+      const dist = Math.hypot(r.left + r.width / 2 - clientX, r.top + r.height / 2 - clientY);
+      if (dist <= bestDist) {
+        bestDist = dist;
+        bestIndex = i;
+      }
+    }
+    if (bestIndex < 0) return false;
     spareLoks -= 1;
-    line.trains.push(createTrain());
+    lines[bestIndex]!.trains.push(createTrain());
     updateCounters();
     renderLineColumn();
     return true;
   }
 
-  /** Direktes Ziehziel fuer einen Waggon aus dem Depot (siehe wireResourceDrag): ein fahrender Zug auf dem Canvas unter dem Zeiger. */
+  /** Direktes Ziehziel fuer einen Waggon aus dem Depot (siehe wireResourceDrag): der naeheste fahrende Zug im (grosszuegigen) Fang-Radius, siehe LOCO_DROP_RADIUS-Kommentar -- beim Ablegen mit dem Finger denselben Grund. */
   function tryAttachWagonAt(clientX: number, clientY: number): boolean {
     if (!canvasEl) return false;
     const rect = canvasEl.getBoundingClientRect();
     if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return false;
     const world = screenToWorld(clientX - rect.left, clientY - rect.top);
-    const hit = trainAt(world.x, world.y);
+    const hit = trainAt(world.x, world.y, LOCO_DROP_RADIUS);
     if (!hit) return false;
     hit.train.wagons += 1;
     hit.train.capacity = BASE_CAPACITY + hit.train.wagons * WAGON_CAPACITY;
@@ -1569,6 +1635,10 @@ function createMiniMetroGame(): MinigameModule {
     armedDeleteIndex = null;
     tutorialDismissed = false;
     tutorialPulseTimer = 0;
+    depotIdleTimerS = 0;
+    depotHintShown = false;
+    depotHintEl?.remove();
+    depotHintEl = null;
     zooming = false;
     zoomStation = null;
     zoomElapsedS = 0;
@@ -2334,6 +2404,15 @@ function createMiniMetroGame(): MinigameModule {
 
     tutorialPulseTimer += dt;
 
+    if (!depotHintShown) {
+      if (spareLoks > 0 || spareWagons > 0) {
+        depotIdleTimerS += dt;
+        if (depotIdleTimerS >= DEPOT_HINT_DELAY_S) showDepotHint();
+      } else {
+        depotIdleTimerS = 0;
+      }
+    }
+
     // Zielwert haengt nur von der aktuellen Haltestellenzahl ab, die
     // tatsaechliche Annaeherung ist bewusst sehr traege (siehe
     // WORLD_ZOOM_LERP_RATE) -- dadurch verschwimmt jeder einzelne Schritt zu
@@ -2419,6 +2498,7 @@ function createMiniMetroGame(): MinigameModule {
       exitGame = env.exit;
       lastSize = env.size;
       canvasEl = env.canvas;
+      overlayEl = env.overlay;
       for (const src of PASSENGER_SPRITES) getImage(src);
       lines = new Array(MAX_LINE_SLOTS).fill(null);
 
@@ -2635,6 +2715,7 @@ function createMiniMetroGame(): MinigameModule {
       armedStationDeleteTimer = null;
       highscoreBanner?.destroy();
       depotColEl?.remove();
+      depotHintEl?.remove();
       announcementPanelEl?.remove();
       speedRowEl?.remove();
       lineColumnEl?.remove();

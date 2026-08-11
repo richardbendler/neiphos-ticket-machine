@@ -57,13 +57,21 @@ const TEMPLATES: Record<TicketVariant, TicketTemplate> = {
 // (die rechte Box endet dort schon) und quer ueber fast die gesamte
 // Kartenbreite laufen, nur vom runden ZORNTRAIN-Stempel unten rechts
 // begrenzt -- deshalb je Zeile ein eigenes x/maxX-Paar statt einer
-// gemeinsamen Konstante. x startet jeweils knapp hinter dem eigenen Label
-// (per Bildanalyse gemessen, "TAGES-HIGHSCORE" ist als laengstes Label
-// fuer die maxX-Berechnung der dynamischen Zeile massgeblich).
+// gemeinsamen Konstante. x startet jeweils knapp hinter dem eigenen Label.
+//
+// dynamic.x war zunaechst bei 580 -- deutlich zu grosszuegig, per erneuter
+// Pixelanalyse (Lumineszenz-Scan der drei Vorlagen, y=745-790) endet selbst
+// das laengste Label ("TAGES-HIGHSCORE") schon bei x~479, "HIGHSCORE"/
+// "ERRUNGENSCHAFT" sogar noch frueher -- der alte Wert liess dadurch eine
+// deutlich sichtbare, unerwuenschte Luecke (gemeldeter Bug: "da lässt Du
+// eine zu große Lücke... direkt neben den jeweiligen Begriff schreiben").
+// Jetzt 497 (knapp hinter dem laengsten Label + etwas Puffer), einheitlich
+// fuer alle drei Vorlagen -- der Unterschied zwischen den Labels ist mit
+// nur ca. 7px ohnehin kaum wahrnehmbar.
 const FIELD_LINES = {
   name: { x: 200, maxX: 640, y: 624 },
   game: { x: 215, maxX: 640, y: 708 },
-  dynamic: { x: 580, maxX: 1100, y: 795 },
+  dynamic: { x: 497, maxX: 1100, y: 795 },
   purchasedAt: { x: 500, maxX: 1180, y: 879 },
 };
 const FIELD_FONT = "700 61px 'Barlow Semi Condensed', sans-serif";

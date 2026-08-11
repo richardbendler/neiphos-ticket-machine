@@ -534,7 +534,7 @@ function systemAdminHeaders(): HeadersInit {
 function renderSystemSection(): HTMLDivElement {
   const section = document.createElement("div");
   section.style.margin = "16px 0";
-  section.append(renderScreensaverControl(), renderVolumeControl(), renderAudioOutputControl(), renderWifiControl());
+  section.append(renderScreensaverControl(), renderVolumeControl(), renderAudioOutputControl(), renderPrinterControl(), renderWifiControl());
   return section;
 }
 
@@ -831,6 +831,81 @@ function renderAudioOutputControl(): HTMLDivElement {
         refreshBtn.textContent = "Aktualisieren";
       });
   });
+
+  return wrap;
+}
+
+/**
+ * Angeschlossener USB-Bondrucker (siehe server/serve.js, Abschnitt "System:
+ * Drucker") -- ganz bewusst nur ein simpler Status + Testdruck-Button statt
+ * einer vollen Druckerverwaltung: fuer das Ticket-/Bon-Format reicht ein
+ * roher ESC/POS-Textausdruck, kein CUPS-Warteschlangen-UI noetig.
+ */
+function renderPrinterControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "18px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Bondrucker:";
+  wrap.appendChild(title);
+
+  const status = document.createElement("p");
+  status.style.fontWeight = "600";
+  status.style.margin = "0 0 8px";
+  status.textContent = "Status wird geprüft …";
+  wrap.appendChild(status);
+
+  const testBtn = document.createElement("button");
+  testBtn.type = "button";
+  testBtn.className = "btn btn--ghost";
+  testBtn.style.fontSize = "0.82rem";
+  testBtn.textContent = "🖨️ Testdruck";
+  wrap.appendChild(testBtn);
+
+  function refreshStatus(): void {
+    fetch("./api/system/printer/status", { headers: systemAdminHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: { available: boolean }) => {
+        if (data.available) {
+          status.textContent = "✅ Drucker erkannt";
+          status.style.color = "var(--success)";
+          testBtn.disabled = false;
+        } else {
+          status.textContent = "❌ Kein Drucker gefunden (angeschlossen? Gruppe „lp“ eingerichtet?)";
+          status.style.color = "var(--danger)";
+          testBtn.disabled = true;
+        }
+      })
+      .catch(() => {
+        status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
+        status.style.color = "var(--text-muted)";
+        testBtn.disabled = true;
+      });
+  }
+  refreshStatus();
+
+  guardedClick(testBtn, () => {
+    testBtn.disabled = true;
+    testBtn.textContent = "Druckt …";
+    fetch("./api/system/printer/test", { method: "POST", headers: systemAdminHeaders() })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data: { ok?: boolean; error?: string }) => {
+        if (!data.ok) {
+          status.textContent = `❌ Testdruck fehlgeschlagen${data.error ? ` (${data.error})` : ""}.`;
+          status.style.color = "var(--danger)";
+        }
+      })
+      .catch(() => {
+        status.textContent = "❌ Testdruck fehlgeschlagen.";
+        status.style.color = "var(--danger)";
+      })
+      .finally(() => {
+        testBtn.disabled = false;
+        testBtn.textContent = "🖨️ Testdruck";
+      });
+  }, 1000);
 
   return wrap;
 }

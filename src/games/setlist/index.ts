@@ -1,6 +1,5 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { openModal } from "../../core/modal";
-import { registerGame } from "../registry";
 
 const GAME_ID = "setlist";
 
@@ -10,7 +9,7 @@ const GAME_ID = "setlist";
  * Hinweis-Dialog statt eines Canvas-Spiels; "Zurueck zum Menue" verlaesst
  * ueber env.exit() sofort wieder.
  */
-function createSetlistPlaceholder(): MinigameModule {
+export function createSetlistPlaceholder(): MinigameModule {
   let closeDialog: (() => void) | null = null;
 
   return {
@@ -50,12 +49,3 @@ function createSetlistPlaceholder(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Setlist-Puzzle",
-  subtitle: "Puzzle die Setlist richtig zusammen",
-  icon: "musicNote",
-  badge: "SL",
-  accent: "#6a3fb5",
-  create: createSetlistPlaceholder,
-});

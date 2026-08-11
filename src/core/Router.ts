@@ -11,8 +11,6 @@ import { isGameEnabled } from "./storage";
 import { syncPublicDataFromServer } from "./sync";
 import { playHighscoreOpenSound } from "./sound";
 import { renderMainMenu } from "../menu/MainMenu";
-import { renderHighscoreBoard } from "../menu/HighscoreBoard";
-import { openAdminPanel } from "../admin/AdminPanel";
 import { openFeedbackDialog } from "./feedbackPrompt";
 import { fetchUnreadFeedbackCount } from "./feedback";
 import brandLogo from "../assets/brand/neiphos-logo.png";
@@ -144,8 +142,14 @@ export class Router {
       secretTapTimestamps = secretTapTimestamps.filter((t) => now - t <= SECRET_TAP_WINDOW_MS);
       if (secretTapTimestamps.length >= SECRET_TAP_COUNT) {
         secretTapTimestamps = [];
-        openAdminPanel(() => {
-          if (this.screenEl?.classList.contains("menu-screen")) this.showMenu();
+        // Dynamischer Import statt statischem -- der Adminbereich (ueber
+        // 2000 Zeilen) wird dadurch NICHT mehr in jedes normale Seiten-
+        // laden eingebacken, sondern nur noch fuer die seltenen Faelle
+        // nachgeladen, in denen wirklich zehnmal aufs Logo getippt wird.
+        void import("../admin/AdminPanel").then(({ openAdminPanel }) => {
+          openAdminPanel(() => {
+            if (this.screenEl?.classList.contains("menu-screen")) this.showMenu();
+          });
         });
       }
     });
@@ -268,6 +272,50 @@ export class Router {
     rightCol.append(paperWarn, unreadBadge);
 
     bar.append(feedbackBtn, credit, rightCol);
+
+    // Der Credit-Block ist per CSS zur GANZEN Leiste zentriert (nicht mehr
+    // nur innerhalb einer Gitter-Luecke, siehe .chrome-footer-credit), auf
+    // ausdruecklichen Wunsch ("an der Seite mittig zentrieren, nicht an dem
+    // verfuegbaren Platz"). Reines CSS kann dabei aber nicht gleichzeitig
+    // "echte Seitenmitte" UND "nie mit den Nachbarn ueberlappen" garantieren,
+    // wenn eine Seite (hier: der immer sichtbare Feedback-Button) deutlich
+    // breiter ist als die andere (rechte Spalte oft leer) -- ein max-width
+    // gross genug fuer die Mitte war dann breit genug, um sichtbar unter den
+    // Feedback-Button zu ragen (gemeldeter/reproduzierter Bug). Deshalb hier
+    // dynamisch per JS begrenzt: die kleinere der beiden Distanzen
+    // Mitte->Button-Kante bzw. Mitte->rechte-Spalte-Kante (minus etwas
+    // Sicherheitsabstand) bestimmt die maximale Halbbreite -- ResizeObserver
+    // statt nur einmaligem Berechnen, weil sich sowohl die Fensterbreite als
+    // auch die rechte Spalte selbst aendern kann (Papier-Warnung/Ungelesen-
+    // Hinweis blenden sich unabhaengig voneinander erst nachtraeglich ein).
+    const GAP_PX = 16;
+    // Nur ein winziger Mindestwert (nicht z. B. 70 oder 24px, beides beim
+    // Testen zu hoch): jeder groessere Mindestwert liess den Block bei
+    // einem breiten Feedback-Button auf schmalen Bildschirmen weiterhin
+    // SICHTBAR ueber ihn hinausragen (per Screenshot verifiziert: "Du
+    // willst im" landete hinter "Feedback geben"). "Nie ueberlappen" hat
+    // ausdruecklich Vorrang vor einer bestimmten Mindestbreite -- im
+    // Zweifel (sehr schmaler Bildschirm + breiter Button) duerfen die
+    // Zeilen eben stark umbrechen bzw. die kurzen (nowrap) Zeilen per
+    // Ellipsis kuerzen, siehe .chrome-footer-credit__line.
+    const MIN_HALF_WIDTH_PX = 8;
+    const updateCreditMaxWidth = () => {
+      const barRect = bar.getBoundingClientRect();
+      if (barRect.width === 0) return; // Leiste (noch) nicht sichtbar/layoutet
+      const half = barRect.width / 2;
+      const btnRect = feedbackBtn.getBoundingClientRect();
+      const rightRect = rightCol.getBoundingClientRect();
+      const leftHalf = half - (btnRect.right - barRect.left) - GAP_PX;
+      const rightHalf = half - (barRect.right - rightRect.left) - GAP_PX;
+      const safeHalf = Math.max(MIN_HALF_WIDTH_PX, Math.min(leftHalf, rightHalf));
+      credit.style.maxWidth = `${Math.round(safeHalf * 2)}px`;
+    };
+    const creditWidthObserver = new ResizeObserver(updateCreditMaxWidth);
+    creditWidthObserver.observe(bar);
+    creditWidthObserver.observe(feedbackBtn);
+    creditWidthObserver.observe(rightCol);
+    updateCreditMaxWidth();
+
     return bar;
   }
 
@@ -344,10 +392,22 @@ export class Router {
     this.stopClock();
     this.chromeGameTitle.textContent = "Highscores";
     this.setNavMode("elsewhere");
-    const element = renderHighscoreBoard();
-    this.root.appendChild(element);
-    this.screenEl = element;
-    playHighscoreOpenSound();
+    // Dynamischer Import statt statischem -- das Highscore-Board wird dadurch
+    // nur noch nachgeladen, wenn diese Ansicht wirklich geoeffnet wird, statt
+    // bei jedem App-Start eingebacken zu sein (siehe auch der Admin-Import
+    // weiter oben in dieser Datei).
+    const placeholder = document.createElement("div");
+    placeholder.className = "screen-loading";
+    placeholder.innerHTML = `<span>Lädt …</span>`;
+    this.root.appendChild(placeholder);
+    this.screenEl = placeholder;
+    void import("../menu/HighscoreBoard").then(({ renderHighscoreBoard }) => {
+      if (this.screenEl !== placeholder) return; // zwischenzeitlich schon wieder verlassen
+      const element = renderHighscoreBoard();
+      placeholder.replaceWith(element);
+      this.screenEl = element;
+      playHighscoreOpenSound();
+    });
   }
 
   private startGame(id: string): void {
@@ -420,55 +480,68 @@ export class Router {
         // gesetzt.
         if (this.screenEl !== stage) return;
 
-        const game = meta.create();
-        this.activeGame = game;
+        // meta.create() kann selbst ein Promise liefern (siehe
+        // GameMeta.create-Kommentar): die meisten Spiele laden ihre
+        // Implementierung erst hier per dynamischem import() nach, statt
+        // schon beim App-Start. Derselbe Ladehinweis wie fuer das
+        // synchrone init() unten deckt deshalb jetzt BEIDE potenziell
+        // langsamen Schritte ab -- Promise.resolve() macht den `await`-losen
+        // Pfad fuer synchron bleibende Spiele (noch nicht umgestellte/sehr
+        // kleine Module) unveraendert genauso schnell wie zuvor.
+        void Promise.resolve(meta.create()).then((game) => {
+          // Zwischenzeitlich schon wieder verlassen (z. B. sofort auf Menue
+          // getippt, noch WAEHREND der dynamische Import laeuft) -- dann gar
+          // nicht erst initialisieren.
+          if (this.screenEl !== stage) return;
+          this.activeGame = game;
 
-        const onResize = () => {
-          env.size = resize();
-          game.onResize?.(env);
-        };
-        window.addEventListener("resize", onResize);
-        window.addEventListener("orientationchange", onResize);
-        this.teardownFns.push(() => {
-          window.removeEventListener("resize", onResize);
-          window.removeEventListener("orientationchange", onResize);
-        });
+          const onResize = () => {
+            env.size = resize();
+            game.onResize?.(env);
+          };
+          window.addEventListener("resize", onResize);
+          window.addEventListener("orientationchange", onResize);
+          this.teardownFns.push(() => {
+            window.removeEventListener("resize", onResize);
+            window.removeEventListener("orientationchange", onResize);
+          });
 
-        const onDown = (e: PointerEvent) => game.onPointerDown?.(toCanvasPoint(canvas, e), env);
-        const onMove = (e: PointerEvent) => game.onPointerMove?.(toCanvasPoint(canvas, e), env);
-        const onUp = (e: PointerEvent) => game.onPointerUp?.(toCanvasPoint(canvas, e), env);
-        canvas.addEventListener("pointerdown", onDown);
-        canvas.addEventListener("pointermove", onMove);
-        canvas.addEventListener("pointerup", onUp);
-        canvas.addEventListener("pointercancel", onUp);
-        this.teardownFns.push(() => {
-          canvas.removeEventListener("pointerdown", onDown);
-          canvas.removeEventListener("pointermove", onMove);
-          canvas.removeEventListener("pointerup", onUp);
-          canvas.removeEventListener("pointercancel", onUp);
-        });
+          const onDown = (e: PointerEvent) => game.onPointerDown?.(toCanvasPoint(canvas, e), env);
+          const onMove = (e: PointerEvent) => game.onPointerMove?.(toCanvasPoint(canvas, e), env);
+          const onUp = (e: PointerEvent) => game.onPointerUp?.(toCanvasPoint(canvas, e), env);
+          canvas.addEventListener("pointerdown", onDown);
+          canvas.addEventListener("pointermove", onMove);
+          canvas.addEventListener("pointerup", onUp);
+          canvas.addEventListener("pointercancel", onUp);
+          this.teardownFns.push(() => {
+            canvas.removeEventListener("pointerdown", onDown);
+            canvas.removeEventListener("pointermove", onMove);
+            canvas.removeEventListener("pointerup", onUp);
+            canvas.removeEventListener("pointercancel", onUp);
+          });
 
-        this.sessionStartedAt = performance.now();
+          this.sessionStartedAt = performance.now();
 
-        const loop = new GameLoop((dt) => {
-          // Waehrend z. B. die Highscore-Namenseingabe oder der Bildschirmschoner
-          // offen ist, bringt Weiterrendern nichts (beide liegen komplett drueber)
-          // und kostet auf schwacher Hardware (Pi 3) spuerbar Leistung -- siehe
-          // hasOpenModal()-Kommentar in modal.ts.
-          if (hasOpenModal() || isScreensaverActive()) return;
-          game.update(dt, env);
-          game.render(env);
-        });
-        this.activeLoop = loop;
+          const loop = new GameLoop((dt) => {
+            // Waehrend z. B. die Highscore-Namenseingabe oder der Bildschirmschoner
+            // offen ist, bringt Weiterrendern nichts (beide liegen komplett drueber)
+            // und kostet auf schwacher Hardware (Pi 3) spuerbar Leistung -- siehe
+            // hasOpenModal()-Kommentar in modal.ts.
+            if (hasOpenModal() || isScreensaverActive()) return;
+            game.update(dt, env);
+            game.render(env);
+          });
+          this.activeLoop = loop;
 
-        void Promise.resolve(game.init(env)).then(() => {
-          // Init kann async sein (z. B. Netz-/Datenaufbereitung) -- Loop erst
-          // danach starten, damit update()/render() nie auf halbfertigem
-          // Zustand laufen.
-          if (this.activeGame === game) {
-            loadingEl.remove();
-            loop.start();
-          }
+          void Promise.resolve(game.init(env)).then(() => {
+            // Init kann async sein (z. B. Netz-/Datenaufbereitung) -- Loop erst
+            // danach starten, damit update()/render() nie auf halbfertigem
+            // Zustand laufen.
+            if (this.activeGame === game) {
+              loadingEl.remove();
+              loop.start();
+            }
+          });
         });
       });
     });

@@ -8,7 +8,6 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { buildMenuButton } from "../../core/menuButton";
 import { guardedClick } from "../../core/guardedClick";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
-import { registerGame } from "../registry";
 
 /**
  * "Hüpftier-Glück" -- klassischer Ein-Arm-Bandit (drei Walzen statt
@@ -155,7 +154,7 @@ function formatCredits(value: number): string {
   return value === 1 ? "1 Credit" : `${value} Credits`;
 }
 
-function createHopperSlotsGame(): MinigameModule {
+export function createHopperSlotsGame(): MinigameModule {
   // -------- Investitionsphase-Zustand (vor jeder Runde neu, siehe startInvestPhase)
   // In CREDITS gefuehrt (nicht Einheiten!) -- siehe Datei-Kommentar bei
   // adjustInvest, warum das wichtig ist. Die tatsaechliche Wirkung
@@ -730,13 +729,3 @@ function createHopperSlotsGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Hüpftier-Glück",
-  subtitle: "Hüpft dir dein Glück",
-  icon: "hopper",
-  badge: "GS",
-  accent: "#a53a97",
-  create: createHopperSlotsGame,
-  highscoreCategories: [{ board: "default", label: "Höchststand", direction: "higher-better", formatValue: formatPoints }],
-});

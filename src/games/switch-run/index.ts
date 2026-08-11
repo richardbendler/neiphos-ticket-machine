@@ -6,7 +6,6 @@ import { checkTicketEligibility, isTicketEligible, describeTicketReason, primary
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { startTrainChug, stopTrainChug, preloadTrainChug, playSwitchSuccessSound, playSwitchCrashSound } from "../../core/sound";
-import { registerGame } from "../registry";
 import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "switch-run";
@@ -46,7 +45,7 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-function createSwitchRunGame(): MinigameModule {
+export function createSwitchRunGame(): MinigameModule {
   let phase: Phase = "approaching";
   let started = false;
   let countdown = BASE_COUNTDOWN;
@@ -632,13 +631,3 @@ function createSwitchRunGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Weichenspiel",
-  subtitle: "Links, Mitte oder Rechts?",
-  icon: "fork",
-  badge: "WS",
-  accent: "#8c6dab",
-  create: createSwitchRunGame,
-  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatSwitches }],
-});

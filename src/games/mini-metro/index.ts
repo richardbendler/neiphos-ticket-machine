@@ -10,7 +10,6 @@ import { buildMenuButton } from "../../core/menuButton";
 import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound, playRandomStationAnnouncement } from "../../core/sound";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
-import { registerGame } from "../registry";
 
 /**
  * "Hüpftier-Metro" (ursprünglich als "Mini Metro" eingefuehrt, siehe
@@ -345,7 +344,7 @@ function randomAnnouncementInterval(): number {
   return ANNOUNCEMENT_INTERVAL_MIN_S + Math.random() * (ANNOUNCEMENT_INTERVAL_MAX_S - ANNOUNCEMENT_INTERVAL_MIN_S);
 }
 
-function createMiniMetroGame(): MinigameModule {
+export function createMiniMetroGame(): MinigameModule {
   let stations: Station[] = [];
   let lines: (Line | null)[] = [];
   let maxLines = INITIAL_LINE_SLOTS;
@@ -2724,13 +2723,3 @@ function createMiniMetroGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Hüpftier-Metro",
-  subtitle: "Bringe Hüpftiere von A nach B",
-  icon: "metroMap",
-  badge: "MM",
-  accent: "#0059a4",
-  create: createMiniMetroGame,
-  highscoreCategories: [{ board: "default", label: "Passagiere", direction: "higher-better", formatValue: formatDelivered }],
-});

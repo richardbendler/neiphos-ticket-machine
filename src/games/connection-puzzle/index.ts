@@ -8,7 +8,6 @@ import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/hig
 import { showGameIntro } from "../../core/gameIntro";
 import { createBerlinMap, type BerlinMapHandle } from "../../core/berlinMap";
 import { playTrainChugBurst, preloadTrainChug } from "../../core/sound";
-import { registerGame } from "../registry";
 import { pickRandomPair, validateLineSequence, type LineRoute } from "./graph";
 import { renderScreen, type Phase, type ScreenState } from "./ui";
 
@@ -31,7 +30,7 @@ interface RoundState {
   attempt: number;
 }
 
-function createConnectionPuzzleGame(): MinigameModule {
+export function createConnectionPuzzleGame(): MinigameModule {
   let allStations: string[] = [];
   let highscoreBanner: HighscoreBannerHandle;
 
@@ -329,17 +328,3 @@ function createConnectionPuzzleGame(): MinigameModule {
     },
   };
 }
-
-registerGame({
-  id: GAME_ID,
-  // Weiches Trennzeichen (U+00AD) an der Wortfuge -- ohne das bricht der
-  // Browser das lange, zusammengesetzte Wort in der schmalen Menu-Kachel
-  // an einer zufaelligen Stelle statt an der Silbengrenze um.
-  title: "Verbindungs­suche",
-  subtitle: "Finde die schnellste Route",
-  icon: "route",
-  badge: "VS",
-  accent: "#0f7a86",
-  create: createConnectionPuzzleGame,
-  highscoreCategories: [{ board: "default", label: "Bestwert", direction: "higher-better", formatValue: formatPoints }],
-});

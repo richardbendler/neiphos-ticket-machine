@@ -6,7 +6,6 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
-import { registerGame } from "../registry";
 import { buildMenuButton } from "../../core/menuButton";
 
 const GAME_ID = "train-quartet";
@@ -154,7 +153,7 @@ function formatStatValue(key: keyof TrainStats, value: number): string {
   return meta.unit ? `${rounded} ${meta.unit}` : `${rounded}`;
 }
 
-function createTrainQuartetGame(): MinigameModule {
+export function createTrainQuartetGame(): MinigameModule {
   let playerDeck: TrainCard[] = [];
   let cpuDeck: TrainCard[] = [];
   let pot: TrainCard[] = [];
@@ -952,13 +951,3 @@ function createTrainQuartetGame(): MinigameModule {
   };
 }
 
-registerGame({
-  id: GAME_ID,
-  title: "Zug-Quartett",
-  subtitle: "Vergleiche Werte mit 20 echten Zügen",
-  icon: "cards",
-  badge: "ZQ",
-  accent: "#7e5330",
-  create: createTrainQuartetGame,
-  highscoreCategories: [{ board: "default", label: "Meiste gesammelte Karten", direction: "higher-better", formatValue: formatCardCount }],
-});

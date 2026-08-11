@@ -4,6 +4,7 @@ import { trainCards, STAT_LABELS, type TrainCard, type TrainStats } from "../../
 import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { registerGame } from "../registry";
 import { buildMenuButton } from "../../core/menuButton";
@@ -321,17 +322,29 @@ function createTrainQuartetGame(): MinigameModule {
 
   function finishGame(): void {
     const outcomeResult = getHighscoreOutcome(GAME_ID, playerDeck.length, "higher-better");
-    if (outcomeResult === "none") return;
+    const ticketResult = checkTicketEligibility({ gameId: GAME_ID, value: playerDeck.length, direction: "higher-better", highscoreOutcome: outcomeResult });
+    if (outcomeResult === "none" && !isTicketEligible(ticketResult)) return;
     highscoreTimer = setTimeout(() => {
       highscoreTimer = null;
+      const gameTitle = "Zug-Quartett";
+      const scoreText = formatCardCount(playerDeck.length);
+      const { title, message } = describeTicketReason(
+        ticketResult,
+        `${scoreText} gesammelt — ${outcomeResult === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+        gameTitle,
+        scoreText,
+      );
       closeHighscoreModal = promptHighscoreName({
-        message: `${formatCardCount(playerDeck.length)} gesammelt — ${outcomeResult === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-        gameTitle: "Zug-Quartett",
-        scoreText: formatCardCount(playerDeck.length),
+        title,
+        message,
+        gameTitle,
+        scoreText,
+        ticketReason: primaryTicketReason(ticketResult),
         onDone: (name) => {
           closeHighscoreModal = null;
           if (name === null) return;
           highscoreBanner.update(recordHighscore(GAME_ID, name, playerDeck.length, "higher-better"));
+          recordDailyBestIfApplicable(GAME_ID, undefined, name, playerDeck.length, "higher-better");
           cachedPlayAreaTop = measurePlayAreaTop();
         },
       });

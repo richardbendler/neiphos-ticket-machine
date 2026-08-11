@@ -10,7 +10,9 @@ import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
 import { playHighscoreOpenSound } from "../core/sound";
-import { printTicket } from "../core/ticket";
+import { printTicket, friendlyPrintErrorMessage } from "../core/ticket";
+import { openPaperChangeInstructions } from "../core/paperChangeInstructions";
+import { getTicketMethods, setTicketMethod, type TicketMethodSettings, MILESTONE_GAMES, getMilestones, setMilestone } from "../core/ticketMethods";
 import {
   isScreensaverEnabled,
   setScreensaverEnabled,
@@ -865,6 +867,16 @@ function renderPrinterControl(): HTMLDivElement {
   testBtn.textContent = "🖨️ Testdruck";
   wrap.appendChild(testBtn);
 
+  const changePaperBtn = document.createElement("button");
+  changePaperBtn.type = "button";
+  changePaperBtn.className = "btn btn--ghost";
+  changePaperBtn.style.fontSize = "0.78rem";
+  changePaperBtn.style.marginLeft = "8px";
+  changePaperBtn.style.display = "none";
+  changePaperBtn.textContent = "📄 Anleitung: Papier wechseln";
+  changePaperBtn.addEventListener("click", () => openPaperChangeInstructions());
+  wrap.appendChild(changePaperBtn);
+
   function refreshStatus(): void {
     fetch("./api/system/printer/status", { headers: systemAdminHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
@@ -873,24 +885,29 @@ function renderPrinterControl(): HTMLDivElement {
           status.textContent = "❌ Kein Drucker gefunden (angeschlossen? Gruppe „lp“ eingerichtet?)";
           status.style.color = "var(--danger)";
           testBtn.disabled = true;
+          changePaperBtn.style.display = "none";
           return;
         }
         testBtn.disabled = false;
         if (data.paper === "empty") {
           status.textContent = "⚠️ Drucker erkannt, aber Papier ist leer";
           status.style.color = "var(--danger)";
+          changePaperBtn.style.display = "inline-flex";
         } else if (data.paper === "low") {
           status.textContent = "⚠️ Drucker erkannt, Papier wird knapp";
           status.style.color = "var(--accent-dark)";
+          changePaperBtn.style.display = "inline-flex";
         } else {
           status.textContent = "✅ Drucker erkannt";
           status.style.color = "var(--success)";
+          changePaperBtn.style.display = "none";
         }
       })
       .catch(() => {
         status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
         status.style.color = "var(--text-muted)";
         testBtn.disabled = true;
+        changePaperBtn.style.display = "none";
       });
   }
   refreshStatus();
@@ -902,11 +919,12 @@ function renderPrinterControl(): HTMLDivElement {
   guardedClick(testBtn, () => {
     testBtn.disabled = true;
     testBtn.textContent = "Druckt …";
-    void printTicket({}, systemAdminHeaders())
+    void printTicket("basic", {}, systemAdminHeaders())
       .then((result) => {
         if (!result.ok) {
-          status.textContent = `❌ Testdruck fehlgeschlagen${result.error ? ` (${result.error})` : ""}.`;
+          status.textContent = `❌ ${friendlyPrintErrorMessage(result.error)}`;
           status.style.color = "var(--danger)";
+          if (result.error === "paper_empty") changePaperBtn.style.display = "inline-flex";
         }
       })
       .finally(() => {
@@ -916,6 +934,152 @@ function renderPrinterControl(): HTMLDivElement {
   }, 1000);
 
   return wrap;
+}
+
+/**
+ * Ticket-Verdienstwege -- auf ausdruecklichen Wunsch unabhaengig
+ * voneinander per Checkbox an-/ausschaltbar (nicht "entweder oder"), siehe
+ * core/ticketMethods.ts fuer die Kombinationslogik/Rangfolge. "Fester
+ * Meilenstein" hat direkt daneben einen eigenen Untermenue-Zugang zum
+ * Bearbeiten der Schwellwerte je Spiel -- nur anklickbar, sobald diese
+ * Checkbox selbst aktiviert ist.
+ */
+function renderTicketMethodsControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.margin = "18px 0 8px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Ticket-Verdienstwege:";
+  wrap.appendChild(title);
+
+  const hint = document.createElement("p");
+  hint.style.fontSize = "0.78rem";
+  hint.style.color = "var(--text-faint)";
+  hint.style.margin = "0 0 10px";
+  hint.textContent = "Unabhängig voneinander aktivierbar -- bestimmt, wann der „Speichern und als Ticket drucken“-Button im Highscore-Dialog erscheint.";
+  wrap.appendChild(hint);
+
+  const methods = getTicketMethods();
+
+  function makeRow(key: keyof TicketMethodSettings, label: string): { row: HTMLLabelElement; checkbox: HTMLInputElement } {
+    const row = document.createElement("label");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "10px";
+    row.style.padding = "8px 10px";
+    row.style.border = "1px solid var(--panel-border)";
+    row.style.borderRadius = "var(--radius-sm)";
+    row.style.cursor = "pointer";
+    row.style.marginBottom = "6px";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.style.width = "20px";
+    checkbox.style.height = "20px";
+    checkbox.style.flexShrink = "0";
+    checkbox.checked = methods[key];
+    row.appendChild(checkbox);
+
+    const text = document.createElement("span");
+    text.textContent = label;
+    text.style.flex = "1";
+    row.appendChild(text);
+
+    checkbox.addEventListener("change", () => {
+      setTicketMethod(key, checkbox.checked);
+    });
+
+    return { row, checkbox };
+  }
+
+  const highscoreRow = makeRow("highscore", "Highscore");
+  wrap.appendChild(highscoreRow.row);
+
+  const milestoneRow = makeRow("milestone", "Fester Meilenstein");
+  const milestoneEditBtn = document.createElement("button");
+  milestoneEditBtn.type = "button";
+  milestoneEditBtn.className = "btn btn--ghost";
+  milestoneEditBtn.style.fontSize = "0.72rem";
+  milestoneEditBtn.style.padding = "6px 10px";
+  milestoneEditBtn.style.flexShrink = "0";
+  milestoneEditBtn.textContent = "Meilensteine bearbeiten →";
+  milestoneEditBtn.disabled = !milestoneRow.checkbox.checked;
+  milestoneRow.checkbox.addEventListener("change", () => {
+    milestoneEditBtn.disabled = !milestoneRow.checkbox.checked;
+  });
+  milestoneEditBtn.addEventListener("click", (e) => {
+    // Verhindert, dass der Klick auf den Button (er sitzt INNERHALB des
+    // <label>) zusaetzlich die Checkbox umschaltet -- ein Klick hier soll
+    // ausschliesslich das Untermenue oeffnen.
+    e.preventDefault();
+    e.stopPropagation();
+    openMilestonesModal();
+  });
+  milestoneRow.row.appendChild(milestoneEditBtn);
+  wrap.appendChild(milestoneRow.row);
+
+  const dailyRow = makeRow("dailyBoard", "Tagesbestenliste (setzt sich täglich um 6 Uhr morgens zurück)");
+  wrap.appendChild(dailyRow.row);
+
+  return wrap;
+}
+
+/** Untermenue zum Bearbeiten aller Meilenstein-Schwellwerte (ein Wert je Spiel, siehe core/ticketMethods.ts#MILESTONE_GAMES). */
+function openMilestonesModal(): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "Meilensteine bearbeiten";
+    panel.appendChild(h2);
+
+    const hint = paragraph("Je Spiel EIN fester Schwellwert (unabhängig von einer evtl. gewählten Schwierigkeitsstufe) -- wird erreicht, gibt's ein Ticket.");
+    hint.style.fontSize = "0.8rem";
+    panel.appendChild(hint);
+
+    const milestones = getMilestones();
+    for (const game of MILESTONE_GAMES) {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "10px";
+      row.style.padding = "8px 0";
+      row.style.borderTop = "1px solid var(--panel-border)";
+
+      const label = document.createElement("span");
+      label.style.flex = "1";
+      label.innerHTML = `${game.title}<br><span style="font-size:0.72rem;color:var(--text-faint)">${game.direction === "higher-better" ? "mind." : "höchstens"} … ${game.unit}</span>`;
+      row.appendChild(label);
+
+      const input = document.createElement("input");
+      input.type = "number";
+      input.inputMode = "decimal";
+      input.value = String(milestones[game.gameId] ?? 0);
+      input.style.width = "84px";
+      input.style.padding = "8px";
+      input.style.fontSize = "1rem";
+      input.style.border = "1px solid var(--btn-border)";
+      input.style.borderRadius = "var(--radius-sm)";
+      input.style.textAlign = "right";
+      input.addEventListener("change", () => {
+        const parsed = Number(input.value);
+        if (Number.isFinite(parsed)) setMilestone(game.gameId, parsed);
+      });
+      row.appendChild(input);
+
+      panel.appendChild(row);
+    }
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "btn btn--accent";
+    closeBtn.style.width = "100%";
+    closeBtn.style.marginTop = "14px";
+    closeBtn.textContent = "Fertig";
+    closeBtn.addEventListener("click", close);
+    panel.appendChild(closeBtn);
+  });
 }
 
 function renderWifiControl(): HTMLDivElement {
@@ -1337,6 +1501,9 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
     );
   });
   panel.appendChild(highscoreResetBtn);
+
+  // --- Ticket-Verdienstwege ---------------------------------------------
+  panel.appendChild(renderTicketMethodsControl());
 
   // --- Spiele ein-/ausblenden ------------------------------------------
   const gamesTitle = document.createElement("p");

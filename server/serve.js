@@ -1343,9 +1343,25 @@ const server = http.createServer(async (req, res) => {
       const init = Buffer.from([0x1b, 0x40]);
       const feed = Buffer.from([0x1b, 0x64, 0x04]); // ESC d 4 -- vier Zeilen vorschieben zum bequemen Abreissen
       const full = Buffer.concat([init, header, bodyBuf, feed]);
+
+      // Papierstand vorab pruefen -- ein leerer Papierstatus faellt beim
+      // reinen Schreiben (fs.writeFile) meist NICHT als Fehler auf (der
+      // Drucker puffert die Daten einfach), erst die explizite Statusabfrage
+      // erkennt das zuverlaessig. Liefert dadurch eine praezise, dem Client
+      // uebersetzbare Fehlerursache statt eines rohen ENOENT/EACCES (siehe
+      // auch core/highscorePrompt.ts fuer die deutsche Nutzermeldung dazu --
+      // insbesondere fuer den Fall "auf einem normalen Webserver ganz ohne
+      // angeschlossenen Drucker deployed", wo /dev/usb/lp0 gar nicht existiert).
+      const paperStatus = await queryPrinterPaperStatus();
+      if (paperStatus && paperStatus.empty) {
+        sendJson(res, 200, { ok: false, error: "paper_empty" });
+        return;
+      }
+
       fs.writeFile(PRINTER_DEVICE, full, (err) => {
         if (err) {
-          sendJson(res, 500, { ok: false, error: String(err.message || err) });
+          const reason = err.code === "ENOENT" ? "printer_not_found" : err.code === "EACCES" ? "permission_denied" : "write_failed";
+          sendJson(res, 500, { ok: false, error: reason });
           return;
         }
         sendJson(res, 200, { ok: true });

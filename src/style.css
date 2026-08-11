@@ -314,27 +314,6 @@ button {
   flex-shrink: 0;
 }
 
-/* Papier-Warnung links vom Logo (siehe Router.ts#refreshPaperWarning) --
-   bernsteinfarben bei "wird knapp", rot bei "leer" (Modifier-Klasse). */
-.chrome-bar__paper-warn {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: clamp(20px, 6vw, 28px);
-  height: clamp(20px, 6vw, 28px);
-  flex-shrink: 0;
-  color: var(--accent-dark);
-}
-
-.chrome-bar__paper-warn--empty {
-  color: var(--danger);
-}
-
-.chrome-bar__paper-warn svg {
-  width: 100%;
-  height: 100%;
-}
-
 .chrome-bar__wordmark {
   font-family: var(--font-display);
   font-weight: 800;
@@ -417,6 +396,36 @@ button {
 }
 
 .chrome-footer-btn__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Papier-Warnung unten rechts (siehe Router.ts#refreshPaperWarning) --
+   bernsteinfarben bei "wird knapp", rot bei "leer" (Modifier-Klasse), mit
+   Text daneben statt nur dem Warndreieck allein. */
+.chrome-footer-paper-warn {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-dark);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+.chrome-footer-paper-warn--empty {
+  color: var(--danger);
+}
+
+.chrome-footer-paper-warn__icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.chrome-footer-paper-warn__icon svg {
   width: 100%;
   height: 100%;
 }
@@ -719,21 +728,23 @@ button {
   min-height: 0;
   overflow-y: auto;
   touch-action: pan-y;
-  /* Vorher eine einzelne, ueber die volle Breite laufende Spalte -- dadurch
-     wurde die Liste bei vielen Spielen sehr lang (viel Scrollen) und breite
-     Karten mit nur kurzen Zeileninhalten wirkten unnoetig ausgestaucht.
-     Grid mit auto-fill/minmax laesst so viele Spalten nebeneinander zu, wie
-     auf den jeweiligen Bildschirm passen (faellt auf schmalen Kiosk-Breiten
-     automatisch auf 1 Spalte zurueck), align-items:start verhindert, dass
-     kurze Karten auf die Hoehe der laengsten Nachbarkarte gestreckt werden. */
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  align-items: start;
-  gap: 14px;
+  /* Echtes Mehrspalten-Layout (CSS "columns", kein Grid) -- Grid haette
+     JEDE Reihe auf die Hoehe ihrer laengsten Karte gestreckt, wodurch
+     zwischen kurzen Nachbarkarten grosse Luecken entstanden (gemeldet:
+     "Platz nicht gut ausgenutzt"). Mit "columns" packt sich jede Karte
+     stattdessen einfach direkt unter die vorherige IN DERSELBEN Spalte --
+     echtes Masonry-Verhalten, keine erzwungene Zeilenhoehe. "5 240px" =
+     hoechstens 5 Spalten, faellt aber auf schmaleren (Kiosk-Hochformat-)
+     Breiten automatisch auf weniger/1 Spalte zurueck, sobald keine 240px
+     pro Spalte mehr reinpassen. */
+  columns: 5 240px;
+  column-gap: 14px;
   padding-right: 4px;
 }
 
 .highscore-board__game {
+  break-inside: avoid;
+  margin-bottom: 14px;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
   /* Bewusst KEIN "overflow: hidden" mehr, um die abgerundeten Ecken an
@@ -779,6 +790,11 @@ button {
   align-items: flex-end;
   gap: 2px;
   text-align: right;
+  /* Flex-Items koennen sich sonst (Standard "min-width: auto") nicht unter
+     ihre eigene Inhaltsbreite verkleinern lassen -- bei einem sehr langen
+     Namen lief der Inhalt dadurch bisher ueber den Kartenrand hinaus statt
+     wie gewuenscht umzubrechen (gemeldeter Bug). */
+  min-width: 0;
 }
 
 .highscore-board__row:first-of-type {
@@ -801,9 +817,28 @@ button {
 
 .highscore-board__value-main {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Erlaubt einen Umbruch -- bevorzugt an der Luecke ZWISCHEN Wert und
+     Namen (siehe .highscore-board__value-num/-name unten), nie mitten im
+     Wert. */
+  white-space: normal;
+  text-align: right;
+}
+
+.highscore-board__value-num {
   white-space: nowrap;
+}
+
+.highscore-board__value-name {
+  /* Ein sehr langer Name OHNE Leerzeichen (z. B. "RICHARDDDDDDDDDD") haette
+     sonst trotz des Umbruchs zwischen Wert und Name die Kartenbreite
+     gesprengt (gemeldeter Bug, Screenshot zeigte Ueberlauf in die
+     Nachbarspalte) -- anywhere erlaubt als letzten Ausweg auch einen
+     Umbruch MITTEN im Namen, genau wie ausdruecklich gewuenscht ("im
+     Zweifel ... einen Umbruch im Namen"). Bei normalen (kuerzeren oder
+     mehrteiligen) Namen bricht es weiterhin zuerst an Leerzeichen bzw. an
+     der Luecke zum Wert.
+  */
+  overflow-wrap: anywhere;
 }
 
 .highscore-board__value strong {
@@ -972,17 +1007,35 @@ button {
    core/highscorePrompt.ts) -- bewusst eine ANDERE Akzentfarbe als der
    goldene Tastatur-eigene "Speichern"-Button, damit auf einen Blick klar
    ist, dass es zwei eigenstaendige, gleichwertig druckbare Optionen sind,
-   nicht nur eine Variante derselben Aktion. */
+   nicht nur eine Variante derselben Aktion. Zusaetzlich bewusst AUFFAELLIGER
+   als das normale "Speichern" (groesser, dickerer Rand, sanft pulsierender
+   Glanz) -- auf ausdruecklichen Wunsch: viele wuerden sonst intuitiv/aus
+   Gewohnheit den gewohnten gelben Speichern-Button in der Tastatur druecken
+   und den (eigentlich attraktiveren) Ticket-Weg gar nicht bemerken. */
 .hs-print-btn {
   background: linear-gradient(180deg, var(--primary-light), var(--primary));
   color: #ffffff;
-  border-color: var(--primary-dark);
-  box-shadow: 0 3px 0 var(--primary-dark);
+  border: 2px solid var(--primary-dark);
+  font-size: 1.08rem;
+  padding: 15px 22px;
+  box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 4px rgba(31, 179, 196, 0.28);
+  animation: hs-print-btn-pulse 1.8s ease-in-out infinite;
 }
 
 .hs-print-btn:active {
   box-shadow: none;
+  animation: none;
   background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+}
+
+@keyframes hs-print-btn-pulse {
+  0%,
+  100% {
+    box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 4px rgba(31, 179, 196, 0.28);
+  }
+  50% {
+    box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 9px rgba(31, 179, 196, 0.05);
+  }
 }
 
 .btn__icon svg {

@@ -3,6 +3,7 @@ import { theme } from "../../core/theme";
 import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { buildMenuButton } from "../../core/menuButton";
 import { guardedClick } from "../../core/guardedClick";
@@ -401,17 +402,29 @@ function createHopperSlotsGame(): MinigameModule {
     // ein Zwischenhoch, das man wieder verspielt hat, soll nicht als
     // Bestleistung zaehlen.
     const outcome = getHighscoreOutcome(GAME_ID, balance, "higher-better");
-    if (outcome !== "none") {
+    const ticketResult = checkTicketEligibility({ gameId: GAME_ID, value: balance, direction: "higher-better", highscoreOutcome: outcome });
+    if (outcome !== "none" || isTicketEligible(ticketResult)) {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
+        const gameTitle = "Hüpftier-Glück";
+        const scoreText = formatPoints(balance);
+        const { title, message } = describeTicketReason(
+          ticketResult,
+          `${scoreText} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle,
+          scoreText,
+        );
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatPoints(balance)} erreicht — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-          gameTitle: "Hüpftier-Glück",
-          scoreText: formatPoints(balance),
+          title,
+          message,
+          gameTitle,
+          scoreText,
+          ticketReason: primaryTicketReason(ticketResult),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
             highscoreBanner.update(recordHighscore(GAME_ID, name, balance, "higher-better"));
+            recordDailyBestIfApplicable(GAME_ID, undefined, name, balance, "higher-better");
           },
         });
       }, 900);

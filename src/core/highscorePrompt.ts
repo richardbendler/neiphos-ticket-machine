@@ -2,7 +2,15 @@ import { openModal } from "./modal";
 import { OnScreenKeyboard } from "./OnScreenKeyboard";
 import { icons } from "./icons";
 import { playHighscoreOpenSound } from "./sound";
-import { printTicket } from "./ticket";
+import { printTicket, friendlyPrintErrorMessage, type TicketVariant } from "./ticket";
+import type { TicketReasonKind } from "./ticketMethods";
+import { openPaperChangeInstructions } from "./paperChangeInstructions";
+
+const TICKET_VARIANT_BY_REASON: Record<Exclude<TicketReasonKind, null>, TicketVariant> = {
+  highscore: "highscore",
+  dailyBoard: "dailyHighscore",
+  milestone: "milestone",
+};
 
 /**
  * Zeigt einen Modal-Dialog mit Bildschirmtastatur zur Namenseingabe an,
@@ -24,6 +32,16 @@ export function promptHighscoreName(opts: {
   /** Fuer den Ticket-Druck: Spielname und formatierter Punktestand (siehe core/ticket.ts#TicketFields). */
   gameTitle: string;
   scoreText: string;
+  /**
+   * Welcher Verdienstweg (falls ueberhaupt einer) das Ticket ausloest --
+   * null bedeutet: kein Ticket-Button. Bestimmt sowohl, OB der Ticket-
+   * Druck-Button ueberhaupt angezeigt wird (der Dialog selbst kann auch
+   * OHNE einen aktuellen Highscore erscheinen, z. B. bei einem erreichten
+   * Meilenstein oder Tagesbestwert, siehe core/ticketMethods.ts), als auch
+   * WELCHE der drei beschrifteten Ticket-Vorlagen gedruckt wird (siehe
+   * core/ticket.ts#TicketVariant).
+   */
+  ticketReason: TicketReasonKind;
   /** null bedeutet: Nutzer hat keinen Namen eingetragen -- dann darf gar kein Highscore gespeichert werden. */
   onDone: (name: string | null) => void;
 }): () => void {
@@ -83,22 +101,28 @@ export function promptHighscoreName(opts: {
       // farblich abgesetztes Element mit Ticket-Symbol, direkt unter der
       // Tastatur, damit auf den ersten Blick klar ist, dass es zusaetzlich
       // zum normalen "Speichern" (in der Tastatur) noch diese zweite
-      // Moeglichkeit gibt.
-      const printBtn = document.createElement("button");
-      printBtn.type = "button";
-      printBtn.className = "btn hs-print-btn";
-      printBtn.style.width = "100%";
-      printBtn.style.marginTop = "10px";
-      printBtn.innerHTML = `<span class="btn__icon">${icons.ticket}</span>Speichern und als Ticket drucken`;
-      printBtn.addEventListener("click", () => {
-        const trimmed = kb.getValue().trim();
-        close();
-        opts.onDone(trimmed || null);
-        void printTicket({ name: trimmed, game: opts.gameTitle, score: opts.scoreText }).then((result) => {
-          showTicketPrintResult(result);
+      // Moeglichkeit gibt. Nur wenn tatsaechlich ein aktivierter
+      // Ticket-Verdienstweg zutrifft (siehe core/ticketMethods.ts) --
+      // sonst ganz weg statt nur deaktiviert, um keine falschen
+      // Erwartungen zu wecken.
+      if (opts.ticketReason !== null) {
+        const variant = TICKET_VARIANT_BY_REASON[opts.ticketReason];
+        const printBtn = document.createElement("button");
+        printBtn.type = "button";
+        printBtn.className = "btn hs-print-btn";
+        printBtn.style.width = "100%";
+        printBtn.style.marginTop = "10px";
+        printBtn.innerHTML = `<span class="btn__icon">${icons.ticket}</span>Speichern und als Ticket drucken`;
+        printBtn.addEventListener("click", () => {
+          const trimmed = kb.getValue().trim();
+          close();
+          opts.onDone(trimmed || null);
+          void printTicket(variant, { name: trimmed, game: opts.gameTitle, score: opts.scoreText }).then((result) => {
+            showTicketPrintResult(result);
+          });
         });
-      });
-      panel.appendChild(printBtn);
+        panel.appendChild(printBtn);
+      }
 
       const skipBtn = document.createElement("button");
       skipBtn.type = "button";
@@ -120,7 +144,7 @@ export function promptHighscoreName(opts: {
   );
 }
 
-/** Eigener kleiner Folge-Dialog NUR nach "Speichern und als Ticket drucken" (siehe promptHighscoreName) -- meldet entweder den Bar-Hinweis oder, falls der Druck fehlschlug, eine kurze Fehlermeldung. */
+/** Eigener kleiner Folge-Dialog NUR nach "Speichern und als Ticket drucken" (siehe promptHighscoreName) -- meldet entweder den Bar-Hinweis oder, falls der Druck fehlschlug, eine freundliche Fehlermeldung. */
 function showTicketPrintResult(result: { ok: boolean; error?: string }): void {
   openModal((panel, close) => {
     const iconWrap = document.createElement("div");
@@ -139,7 +163,7 @@ function showTicketPrintResult(result: { ok: boolean; error?: string }): void {
     p.style.fontSize = "0.95rem";
     p.textContent = result.ok
       ? "Mit diesem Ticket kannst du dir nun einen Shot an der Bar abholen. Lass es vorher noch beim Schaffner stempeln."
-      : `Bitte am Automaten melden. ${result.error ? `(${result.error})` : ""}`.trim();
+      : friendlyPrintErrorMessage(result.error);
     panel.appendChild(p);
 
     const okBtn = document.createElement("button");
@@ -149,6 +173,22 @@ function showTicketPrintResult(result: { ok: boolean; error?: string }): void {
     okBtn.style.marginTop = "12px";
     okBtn.textContent = "Alles klar";
     okBtn.addEventListener("click", close);
-    panel.appendChild(okBtn);
+
+    // Bei leerem Papier zusaetzlich ein auffaelliger, eigenstaendiger Weg
+    // direkt zur Wechsel-Anleitung -- auf ausdruecklichen Wunsch, damit man
+    // nicht erst rueckwaerts im Admin-Bereich danach suchen muss.
+    if (!result.ok && result.error === "paper_empty") {
+      const changeBtn = document.createElement("button");
+      changeBtn.type = "button";
+      changeBtn.className = "btn hs-print-btn";
+      changeBtn.style.width = "100%";
+      changeBtn.style.marginTop = "10px";
+      changeBtn.innerHTML = `<span class="btn__icon">${icons.ticket}</span>Papier wechseln -- Anleitung`;
+      changeBtn.addEventListener("click", () => openPaperChangeInstructions());
+      panel.appendChild(changeBtn);
+      panel.appendChild(okBtn);
+    } else {
+      panel.appendChild(okBtn);
+    }
   });
 }

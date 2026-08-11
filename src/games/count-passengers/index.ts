@@ -5,6 +5,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { buildMenuButton } from "../../core/menuButton";
 import { promptHighscoreName } from "../../core/highscorePrompt";
+import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
@@ -188,17 +189,29 @@ function createCountPassengersGame(): MinigameModule {
     if (!selectedLevel) return;
     const level = selectedLevel;
     const outcome = getHighscoreOutcome(GAME_ID, diff, "lower-better", level.key);
-    if (outcome !== "none") {
+    const ticketResult = checkTicketEligibility({ gameId: GAME_ID, board: level.key, value: diff, direction: "lower-better", highscoreOutcome: outcome });
+    if (outcome !== "none" || isTicketEligible(ticketResult)) {
       highscoreTimer = setTimeout(() => {
         highscoreTimer = null;
+        const gameTitle = "Passagiere zählen";
+        const scoreText = `${formatDiff(diff)} (${level.label})`;
+        const { title, message } = describeTicketReason(
+          ticketResult,
+          `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
+          gameTitle,
+          scoreText,
+        );
         closeHighscoreModal = promptHighscoreName({
-          message: `${formatDiff(diff)} bei ${level.label} — ${outcome === "tied-best" ? "eingestellter Bestwert!" : "neuer Bestwert!"}`,
-          gameTitle: "Passagiere zählen",
-          scoreText: `${formatDiff(diff)} (${level.label})`,
+          title,
+          message,
+          gameTitle,
+          scoreText,
+          ticketReason: primaryTicketReason(ticketResult),
           onDone: (name) => {
             closeHighscoreModal = null;
             if (name === null) return;
             highscoreBanner.update(recordHighscore(GAME_ID, name, diff, "lower-better", level.key));
+            recordDailyBestIfApplicable(GAME_ID, level.key, name, diff, "lower-better");
           },
         });
       }, HIGHSCORE_POPUP_DELAY_MS);

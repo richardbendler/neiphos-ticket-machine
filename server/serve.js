@@ -1381,16 +1381,37 @@ const server = http.createServer(async (req, res) => {
       }
       const xL = bytesPerRow & 0xff;
       const xH = (bytesPerRow >> 8) & 0xff;
-      const yL = height & 0xff;
-      const yH = (height >> 8) & 0xff;
-      const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
       const init = Buffer.from([0x1b, 0x40]);
       // ESC d 5 -- fuenf Zeilen vorschieben zum bequemen Abreissen (war erst
       // 4: zu wenig, Ticket musste von Hand nachgezogen werden; dann 8: zu
       // viel, unnoetig viel Leerraum/Papier am Ende verschwendet -- 5 als
       // Mittelweg).
       const feed = Buffer.from([0x1b, 0x64, 0x05]);
-      const full = Buffer.concat([init, header, bodyBuf, feed]);
+
+      // Der Rasterbefehl "GS v 0" wird NICHT als ein einziger Block mit der
+      // vollen Bildhoehe gesendet, sondern in Baendern von je max.
+      // RASTER_BAND_HEIGHT Zeilen aufgeteilt (mehrere aufeinanderfolgende
+      // "GS v 0"-Befehle in EINEM Schreibvorgang). Grund: die Ticket-Vorlagen
+      // sind quer gedreht deutlich hoeher als breit (bis zu ~580 Zeilen bei
+      // 48 Byte/Zeile, ueber 27 KB Bilddaten in einem einzigen Befehl) --
+      // billige Thermodrucker haben oft nur einen kleinen internen
+      // Bildpuffer und laufen bei so grossen Einzelbefehlen ueber, was sich
+      // genau als verschobener/zerrissener Ausdruck mit fehlendem Ende
+      // aeussert (reproduziertes Symptom trotz korrektem, mehrfach visuell
+      // verifiziertem Rendering in core/ticket.ts -- siehe dortige
+      // Kommentare). Baenderung behebt das, da der Drucker jedes Band
+      // einzeln abarbeiten und den Puffer dazwischen leeren kann.
+      const RASTER_BAND_HEIGHT = 200;
+      const bands = [];
+      for (let rowStart = 0; rowStart < height; rowStart += RASTER_BAND_HEIGHT) {
+        const bandHeight = Math.min(RASTER_BAND_HEIGHT, height - rowStart);
+        const bandBuf = bodyBuf.subarray(rowStart * bytesPerRow, (rowStart + bandHeight) * bytesPerRow);
+        const byL = bandHeight & 0xff;
+        const byH = (bandHeight >> 8) & 0xff;
+        const bandHeader = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, byL, byH]);
+        bands.push(bandHeader, bandBuf);
+      }
+      const full = Buffer.concat([init, ...bands, feed]);
 
       // Papierstand-Check UND der eigentliche Rasterdruck laufen ABSICHTLICH
       // gemeinsam in EINEM withPrinterDevice-Block (nicht als zwei getrennte

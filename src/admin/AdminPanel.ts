@@ -867,12 +867,15 @@ function renderPrinterControl(): HTMLDivElement {
   testBtn.textContent = "🖨️ Testdruck";
   wrap.appendChild(testBtn);
 
+  // Auf ausdruecklichen Wunsch immer sichtbar direkt hinter dem Testdruck-
+  // Button (nicht erst wenn der Status schon "leer/knapp" meldet) -- so
+  // findet man die Anleitung auch vorsorglich, ohne erst auf ein Problem
+  // warten zu muessen.
   const changePaperBtn = document.createElement("button");
   changePaperBtn.type = "button";
   changePaperBtn.className = "btn btn--ghost";
   changePaperBtn.style.fontSize = "0.78rem";
   changePaperBtn.style.marginLeft = "8px";
-  changePaperBtn.style.display = "none";
   changePaperBtn.textContent = "📄 Anleitung: Papier wechseln";
   changePaperBtn.addEventListener("click", () => openPaperChangeInstructions());
   wrap.appendChild(changePaperBtn);
@@ -885,29 +888,24 @@ function renderPrinterControl(): HTMLDivElement {
           status.textContent = "❌ Kein Drucker gefunden (angeschlossen? Gruppe „lp“ eingerichtet?)";
           status.style.color = "var(--danger)";
           testBtn.disabled = true;
-          changePaperBtn.style.display = "none";
           return;
         }
         testBtn.disabled = false;
         if (data.paper === "empty") {
           status.textContent = "⚠️ Drucker erkannt, aber Papier ist leer";
           status.style.color = "var(--danger)";
-          changePaperBtn.style.display = "inline-flex";
         } else if (data.paper === "low") {
           status.textContent = "⚠️ Drucker erkannt, Papier wird knapp";
           status.style.color = "var(--accent-dark)";
-          changePaperBtn.style.display = "inline-flex";
         } else {
           status.textContent = "✅ Drucker erkannt";
           status.style.color = "var(--success)";
-          changePaperBtn.style.display = "none";
         }
       })
       .catch(() => {
         status.textContent = "Nicht verfügbar (läuft das gerade auf einem echten Pi mit server/serve.js?).";
         status.style.color = "var(--text-muted)";
         testBtn.disabled = true;
-        changePaperBtn.style.display = "none";
       });
   }
   refreshStatus();
@@ -924,7 +922,6 @@ function renderPrinterControl(): HTMLDivElement {
         if (!result.ok) {
           status.textContent = `❌ ${friendlyPrintErrorMessage(result.error)}`;
           status.style.color = "var(--danger)";
-          if (result.error === "paper_empty") changePaperBtn.style.display = "inline-flex";
         }
       })
       .finally(() => {

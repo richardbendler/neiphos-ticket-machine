@@ -89,6 +89,14 @@ const MAX_LINE_SLOTS = LINE_COLORS.length;
 // Auf ausdruecklichen Wunsch 30% dicker (war 5).
 const LINE_WIDTH = 6.5;
 
+// War lange Zeit zugleich eine harte Spawn-Obergrenze in spawnStation() --
+// dadurch blieben Runden, die laenger als ca. eine Minute liefen, auf ewig
+// bei genau 12 Haltestellen stehen (mehrfach gemeldeter Bug: "es kommen
+// keine neuen mehr"). Auf ausdruecklichen Wunsch spawnen Haltestellen jetzt
+// unbegrenzt weiter, solange die Runde laeuft -- MAX_STATIONS bleibt nur
+// noch als Bezugsgroesse fuer den Kamera-Auszoom-Fortschritt (tick(),
+// zoomProgress) bestehen: ab dieser Haltestellenzahl ist der Auszoom
+// vollstaendig, mehr Haltestellen zoomen nicht noch weiter raus.
 const MAX_STATIONS = 12;
 const STATION_RADIUS = 15;
 const PASSENGER_SPAWN_INTERVAL_S = 15;
@@ -213,14 +221,6 @@ const INITIAL_CLUSTER_RADIUS = 150;
 const WORLD_ZOOM_MIN = 0.62;
 const WORLD_ZOOM_LERP_RATE = 0.12;
 
-// Sicherheitsabstand des Tutorial-Pfeils zur Kopfzeile (86px hoch, siehe
-// --header-h in style.css): der oberste gezeichnete Text lag beim frueheren
-// festen Versatz (MARGIN_TOP - 22) teils nur ~3px unterhalb der Kopfzeile
-// -- je nach Bildschirmhoehe/Schriftrendering reichte das nicht, der Text
-// wurde vom Header angeschnitten (gemeldet). tipY wird jetzt zusaetzlich
-// gegen diesen Mindestwert geclampt, unabhaengig von der Bildschirmhoehe.
-const TUTORIAL_HEADER_CLEARANCE = 110;
-
 const imageCache = new Map<string, HTMLImageElement>();
 function getImage(src: string): HTMLImageElement {
   let img = imageCache.get(src);
@@ -235,18 +235,21 @@ function getImage(src: string): HTMLImageElement {
 // Abwechslung braucht es bei der kleinen Darstellungsgroesse nicht, welches
 // Tier es ist, ist ohnehin nur Deko (das kleine Formsymbol zeigt das Ziel).
 const PASSENGER_SPRITES = hopperAnimalCards.slice(0, 8).map((c) => c.image);
-// Auf ausdruecklichen Wunsch groesser (war 13px) und mit dem Formsymbol
-// DANEBEN statt DARueBERLIEGEND -- vorher verdeckte der Kreis-Chip einen
-// Teil des Huepftier-Sprites.
-const PASSENGER_SPRITE_SIZE = 20;
+// Auf ausdruecklichen Wunsch groesser (war 13px, dann 20px, jetzt nochmal
+// 30% groesser) und mit dem Formsymbol DANEBEN statt DARueBERLIEGEND --
+// vorher verdeckte der Kreis-Chip einen Teil des Huepftier-Sprites.
+const PASSENGER_SPRITE_SIZE = 26;
 // Auf ausdruecklichen Wunsch: der Abstand INNERHALB eines Paares (Tier +
 // sein Formsymbol) ist jetzt deutlich kleiner als der Abstand ZWISCHEN zwei
 // verschiedenen Paaren -- vorher waren beide Abstaende (3px/5px) zu aehnlich,
 // bei mehreren wartenden Huepftieren war dadurch nicht klar erkennbar,
-// welches Formsymbol zu welchem Tier gehoert.
-const PASSENGER_BADGE_GAP = 1;
+// welches Formsymbol zu welchem Tier gehoert. Auf weiteren Wunsch noch
+// dichter ans Tier heran (war 1px) -- beruehrt es jetzt praktisch.
+const PASSENGER_BADGE_GAP = 0;
 const PASSENGER_ITEM_GAP = 12;
-const SHAPE_BADGE_RADIUS = 6;
+// Auf ausdruecklichen Wunsch 20% kleiner (war 6px), passend zum jetzt
+// groesseren Huepftier-Sprite daneben.
+const SHAPE_BADGE_RADIUS = 4.8;
 
 let idSeq = 1;
 function nextId(): number {
@@ -257,10 +260,10 @@ interface Passenger {
   id: number;
   destShape: StationShape;
   sprite: string;
-  // Ziel-Haltestelle des AKTUELLEN Fahrtabschnitts -- entweder schon das
-  // Endziel (destShape erreicht) oder eine Umstiege-Haltestelle, an der der
-  // Passagier wieder aussteigt und auf eine andere Linie wartet (siehe
-  // findNextHop/arriveAtStation). null, solange der Passagier noch wartet.
+  // Naechste physische Haltestelle DIESES Zuges (siehe arriveAtStation) --
+  // entweder schon das Endziel (destShape erreicht) oder eine
+  // Umstiege-Haltestelle, an der der Passagier wieder aussteigt und auf eine
+  // andere Linie wartet. null, solange der Passagier noch wartet.
   nextStop: number | null;
 }
 
@@ -331,6 +334,11 @@ function createMiniMetroGame(): MinigameModule {
   // gleichmaessig auf Zeit/Zuege/Passagier-Nachschub/Ueberlastung, ohne
   // dass jede einzelne Konstante angefasst werden muss.
   let gameSpeed: 0 | 1 | 2 = 1;
+
+  // Nur waehrend WIRKLICH mindestens ein Zug auf einer Linie faehrt (siehe
+  // tick()/updateTrainChug) laeuft das Zug-Grundrauschen -- verhindert, dass
+  // es schon vor der ersten gezogenen Linie zu hoeren ist (gemeldeter Bug).
+  let trainChugPlaying = false;
 
   let weeklyModalOpen = false;
   let armedDeleteIndex: number | null = null;
@@ -499,7 +507,6 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   function spawnStation(size: { width: number; height: number }, shape?: StationShape, clusterRadius?: number): void {
-    if (stations.length >= MAX_STATIONS) return;
     const pos = randomStationPosition(size, clusterRadius);
     if (!pos) return;
     // Jede zehnte gespawnte Haltestelle (ueber alle Haltestellen dieser
@@ -543,20 +550,12 @@ function createMiniMetroGame(): MinigameModule {
 
   // ------------------------------------------------------------------ Linien
 
-  /**
-   * Nachbarschafts-Graph aus allen aktuell verlegten Linien (Kante = zwei
-   * auf einer Linie direkt aufeinanderfolgende Haltestellen, unabhaengig
-   * davon welche Linie das ist) -- Grundlage fuer die Umstiege-Suche
-   * (findNextHop). Wird bewusst bei jeder Ankunft frisch gebaut statt
-   * dauerhaft gepflegt: bei maximal neun Haltestellen/sechs Linien voellig
-   * vernachlaessigbarer Aufwand, dafuer immer garantiert konsistent mit dem
-   * gerade aktuellen Streckennetz (der Spieler kann es jederzeit umbauen).
-   */
-  function buildAdjacency(): Map<number, Set<number>> {
+  /** Wie buildAdjacency, aber ohne die Kanten EINER bestimmten Linie -- siehe stationsReachableAhead. */
+  function buildAdjacencyExcluding(excludeLine: Line): Map<number, Set<number>> {
     const adj = new Map<number, Set<number>>();
     for (const s of stations) adj.set(s.id, new Set());
     for (const line of lines) {
-      if (!line) continue;
+      if (!line || line === excludeLine) continue;
       for (let i = 0; i < line.stationIds.length - 1; i++) {
         const a = line.stationIds[i];
         const b = line.stationIds[i + 1];
@@ -568,38 +567,46 @@ function createMiniMetroGame(): MinigameModule {
   }
 
   /**
-   * Naechster Halt auf dem kuerzesten Weg (in Haltestellen-Schritten, nicht
-   * Distanz) von fromId zu einer BELIEBIGEN Haltestelle mit passender Form
-   * -- per Breitensuche ueber den Streckennetz-Graphen. Liefert null, wenn
-   * (noch) keine Verbindung existiert. Der Passagier muss den Rest der
-   * Route nicht kennen: er faehrt bis zu diesem naechsten Halt (das kann
-   * auch schon das Endziel sein), steigt dort ggf. um und die Suche laeuft
-   * bei der naechsten Ankunft dort erneut -- so bleibt die Logik robust
-   * gegenueber einem sich waehrend der Fahrt aendernden Streckennetz.
+   * Alle Haltestellen, die ein Zug ab jetzt OHNE Umkehren noch erreichen
+   * wird: erst die verbleibenden Haltestellen dieser Linie in der
+   * aktuellen Fahrtrichtung (bei einer Ringlinie faehrt er ohnehin
+   * frueher oder spaeter an jeder davon vorbei), dann -- ab JEDER davon --
+   * rekursiv/transitiv alles, was ueber andere Linien erreichbar ist
+   * (Umstieg zaehlt unabhaengig von deren Richtung, siehe Datei-Kommentar
+   * bei buildAdjacencyExcluding: die TRANSITIVE Ausweitung nutzt bewusst
+   * NICHT nochmal die Kanten dieser Linie selbst, sonst wuerde ueber die
+   * direkte Nachbarschaft zur Ausgangs-Haltestelle faelschlich auch die
+   * Gegenrichtung als "erreichbar" durchsickern).
+   *
+   * Grundlage fuer die Einstiegs-Entscheidung in arriveAtStation: ein
+   * Fahrgast steigt nur ein, wenn seine Zielform auf diesem Weg ueberhaupt
+   * noch vorkommt -- sonst lieber auf die Rueckfahrt/einen anderen Zug
+   * warten, statt unnoetig Kapazitaet zu blockieren (gemeldeter Wunsch).
    */
-  function findNextHop(adj: Map<number, Set<number>>, fromId: number, destShape: StationShape): number | null {
-    const visited = new Set<number>([fromId]);
-    const queue: number[] = [fromId];
-    const prev = new Map<number, number>();
-    let goal: number | null = null;
+  function stationsReachableAhead(line: Line, fromIdx: number, dir: 1 | -1): Set<number> {
+    const ahead = new Set<number>();
+    if (isRingLine(line)) {
+      for (const id of line.stationIds) ahead.add(id);
+    } else {
+      let idx = fromIdx;
+      while (idx >= 0 && idx < line.stationIds.length) {
+        ahead.add(line.stationIds[idx]);
+        idx += dir;
+      }
+    }
+    const adjOther = buildAdjacencyExcluding(line);
+    const visited = new Set(ahead);
+    const queue = [...ahead];
     while (queue.length > 0) {
       const cur = queue.shift()!;
-      if (cur !== fromId && stationById(cur).shape === destShape) {
-        goal = cur;
-        break;
-      }
-      for (const nb of adj.get(cur) ?? []) {
+      for (const nb of adjOther.get(cur) ?? []) {
         if (!visited.has(nb)) {
           visited.add(nb);
-          prev.set(nb, cur);
           queue.push(nb);
         }
       }
     }
-    if (goal === null) return null;
-    let n = goal;
-    while (prev.get(n) !== fromId) n = prev.get(n)!;
-    return n;
+    return visited;
   }
 
   function ensureTrainOnNewLine(line: Line): void {
@@ -631,12 +638,29 @@ function createMiniMetroGame(): MinigameModule {
     return result;
   }
 
-  /** Je betroffener Linie EIN Symbol, positioniert "weg von der Linie" (Gegenrichtung der Summe aller Nachbarrichtungen an dieser Haltestelle auf dieser Linie). */
-  function getRemoveBadgePositions(stationId: number): Array<{ lineIndex: number; x: number; y: number; color: string }> {
+  /**
+   * Je betroffener Linie normalerweise EIN Symbol, positioniert "weg von der
+   * Linie" (Gegenrichtung der Summe aller Nachbarrichtungen an dieser
+   * Haltestelle auf dieser Linie).
+   *
+   * Ausnahme (auf ausdruecklichen Wunsch): beruehrt eine Linie diese
+   * Haltestelle ZWEIMAL (z. B. eine Ringlinie, die hier raus- und wieder
+   * reinfaehrt) UND mindestens eines der beiden Vorkommen ist ein echtes
+   * Linienende, ist "nimm diese Haltestelle aus der Linie" mehrdeutig --
+   * es gibt zwei unterschiedliche Ergebnisse je nachdem, welche der beiden
+   * Seiten gekappt wird. In diesem Fall gibt es je Vorkommen ein eigenes,
+   * einzeln antippbares Symbol (occurrenceIdx gesetzt) statt nur eines, das
+   * automatisch beide Vorkommen entfernt (siehe removeStationOccurrenceFromLine
+   * vs. removeStationFromLine). Liegen dagegen BEIDE Vorkommen mitten in der
+   * Linie (reines Durchfahren, kein Linienende betroffen), bleibt es beim
+   * bisherigen einzelnen Symbol -- da ist das Ergebnis eindeutig.
+   */
+  function getRemoveBadgePositions(
+    stationId: number,
+  ): Array<{ lineIndex: number; x: number; y: number; color: string; occurrenceIdx?: number }> {
     const station = stationById(stationId);
-    return getLinesAtStation(stationId).map((lineIndex, i, arr) => {
-      const line = lines[lineIndex]!;
-      const idx = line.stationIds.indexOf(stationId);
+
+    function awayDirection(line: Line, idx: number): { x: number; y: number } {
       const neighborIds: number[] = [];
       if (idx > 0) neighborIds.push(line.stationIds[idx - 1]);
       if (idx < line.stationIds.length - 1) neighborIds.push(line.stationIds[idx + 1]);
@@ -652,22 +676,48 @@ function createMiniMetroGame(): MinigameModule {
       }
       let awayX = -sumX;
       let awayY = -sumY;
-      let awayLen = Math.hypot(awayX, awayY);
+      const awayLen = Math.hypot(awayX, awayY);
       if (awayLen < 0.001) {
         awayX = 0;
         awayY = -1;
-        awayLen = 1;
+      } else {
+        awayX /= awayLen;
+        awayY /= awayLen;
       }
-      const baseAngle = Math.atan2(awayY / awayLen, awayX / awayLen);
-      // Bei mehreren betroffenen Linien die Symbole leicht faechern, damit
-      // sie sich nicht gegenseitig ueberlappen.
+      return { x: awayX, y: awayY };
+    }
+
+    const raw: Array<{ lineIndex: number; color: string; occurrenceIdx?: number; away: { x: number; y: number } }> = [];
+    for (const lineIndex of getLinesAtStation(stationId)) {
+      const line = lines[lineIndex]!;
+      const occurrences: number[] = [];
+      line.stationIds.forEach((id, idx) => {
+        if (id === stationId) occurrences.push(idx);
+      });
+      const touchesEnd = occurrences.some((idx) => idx === 0 || idx === line.stationIds.length - 1);
+      if (occurrences.length >= 2 && touchesEnd) {
+        for (const idx of occurrences) {
+          raw.push({ lineIndex, color: line.color, occurrenceIdx: idx, away: awayDirection(line, idx) });
+        }
+      } else {
+        const idx = occurrences[0];
+        raw.push({ lineIndex, color: line.color, away: awayDirection(line, idx) });
+      }
+    }
+
+    // Bei mehreren betroffenen Symbolen (egal ob mehrere Linien oder mehrere
+    // Vorkommen derselben Linie) leicht faechern, damit sie sich nicht
+    // gegenseitig ueberlappen.
+    return raw.map((b, i, arr) => {
+      const baseAngle = Math.atan2(b.away.y, b.away.x);
       const spread = (i - (arr.length - 1) / 2) * 0.5;
       const angle = baseAngle + spread;
       return {
-        lineIndex,
+        lineIndex: b.lineIndex,
+        occurrenceIdx: b.occurrenceIdx,
         x: station.x + Math.cos(angle) * DELETE_BADGE_OFFSET,
         y: station.y + Math.sin(angle) * DELETE_BADGE_OFFSET,
-        color: line.color,
+        color: b.color,
       };
     });
   }
@@ -717,22 +767,45 @@ function createMiniMetroGame(): MinigameModule {
    * ALLE Vorkommen dieser Haltestelle auf der Linie, nicht nur das erste --
    * visuell gibt es ja nur einen Haltestellen-Punkt zum Antippen.
    */
+  /** Eine einzelne Position im stationIds-Array entfernen, mit passender Index-Nachfuehrung der Zuege -- gemeinsam genutzt von removeStationFromLine (alle Vorkommen) und removeStationOccurrenceFromLine (nur ein Vorkommen). */
+  function removeStationIndexFromLine(line: Line, idx: number): void {
+    if (idx === 0) {
+      line.stationIds.shift();
+      for (const t of line.trains) t.fromIdx = Math.max(0, t.fromIdx - 1);
+    } else if (idx === line.stationIds.length - 1) {
+      line.stationIds.pop();
+    } else {
+      reindexTrainsForSplice(line, idx);
+      line.stationIds.splice(idx, 1);
+    }
+  }
+
   function removeStationFromLine(lineIndex: number, stationId: number): void {
     const line = lines[lineIndex];
     if (!line) return;
     let idx = line.stationIds.indexOf(stationId);
     while (idx !== -1) {
-      if (idx === 0) {
-        line.stationIds.shift();
-        for (const t of line.trains) t.fromIdx = Math.max(0, t.fromIdx - 1);
-      } else if (idx === line.stationIds.length - 1) {
-        line.stationIds.pop();
-      } else {
-        reindexTrainsForSplice(line, idx);
-        line.stationIds.splice(idx, 1);
-      }
+      removeStationIndexFromLine(line, idx);
       idx = line.stationIds.indexOf(stationId);
     }
+    for (const t of line.trains) clampTrainIndex(line, t);
+    if (line.stationIds.length < 2) line.trains = [];
+    renderLineColumn();
+  }
+
+  /**
+   * Entfernt NUR EIN bestimmtes Vorkommen einer Haltestelle aus der Linie
+   * (per Array-Index, nicht per stationId) -- fuer den Sonderfall, dass
+   * dieselbe Haltestelle zweimal auf derselben Linie liegt und mindestens
+   * eines der beiden Vorkommen ein echtes Linienende ist (siehe
+   * getRemoveBadgePositions). Anders als removeStationFromLine bleibt das
+   * JEWEILS ANDERE Vorkommen unangetastet stehen.
+   */
+  function removeStationOccurrenceFromLine(lineIndex: number, occurrenceIdx: number): void {
+    const line = lines[lineIndex];
+    if (!line) return;
+    if (occurrenceIdx < 0 || occurrenceIdx >= line.stationIds.length) return;
+    removeStationIndexFromLine(line, occurrenceIdx);
     for (const t of line.trains) clampTrainIndex(line, t);
     if (line.stationIds.length < 2) line.trains = [];
     renderLineColumn();
@@ -948,22 +1021,28 @@ function createMiniMetroGame(): MinigameModule {
   function arriveAtStation(line: Line, train: Train, station: Station): void {
     train.dwell = TRAIN_DWELL_S;
     train.boardTimer = 0; // erster wartender Fahrgast darf sofort einsteigen
-    // Erst abladen (Ziel des aktuellen Fahrtabschnitts erreicht), dann erst
-    // einladen -- macht sofort wieder Platz frei fuer neue Fahrgaeste an
-    // derselben Haltestelle.
+    // Erst abladen, dann erst einladen -- macht sofort wieder Platz frei
+    // fuer neue Fahrgaeste an derselben Haltestelle.
+    //
+    // WICHTIG (gemeldeter Bug: "nicht alle passenden Passagiere werden
+    // abgelegt"): die Endziel-Pruefung (station.shape === p.destShape) laeuft
+    // JETZT IMMER zuerst, unabhaengig vom gespeicherten nextStop -- ein
+    // Fahrgast, dessen Zielform genau hier erreicht ist, steigt IMMER aus,
+    // auch wenn sein zuletzt gesetztes nextStop (naechster Umstiegs-Halt,
+    // ueber eine andere Route berechnet) zufaellig noch auf eine ANDERE
+    // Haltestelle zeigte. Nur wenn die Zielform hier NICHT erreicht ist,
+    // zaehlt nextStop noch (Umstieg an genau dieser Haltestelle noetig).
     const staying: Passenger[] = [];
     for (const p of train.carrying) {
-      if (p.nextStop !== station.id) {
-        staying.push(p);
-        continue;
-      }
       if (station.shape === p.destShape) {
         delivered += 1;
-      } else {
+      } else if (p.nextStop === station.id) {
         // Umstiege-Haltestelle erreicht: zurueck in die Warteschlange, die
         // naechste Ankunft (egal welche Linie) sucht von hier aus weiter.
         p.nextStop = null;
         station.waiting.push(p);
+      } else {
+        staying.push(p);
       }
     }
     train.carrying = staying;
@@ -972,15 +1051,25 @@ function createMiniMetroGame(): MinigameModule {
     // NICHT sofort aus station.waiting entfernt/in train.carrying verschoben
     // -- das passiert gestaffelt in stepTrain (siehe BOARD_STAGGER_S), damit
     // sie sichtbar nacheinander einsteigen statt alle im selben Frame.
-    const adj = buildAdjacency();
+    //
+    // Auf ausdruecklichen Wunsch "smart" einsteigen: nur, wenn die Zielform
+    // des Fahrgasts ueberhaupt noch in der AKTUELLEN Fahrtrichtung dieses
+    // Zuges vorkommt (direkt auf dieser Linie oder -- rekursiv/transitiv --
+    // ueber eine von dort erreichbare Anschlusslinie), siehe
+    // stationsReachableAhead. Kommt die Zielform nur noch in der
+    // Gegenrichtung vor, bleibt der Fahrgast lieber stehen (wartet auf die
+    // Rueckfahrt bzw. einen anderen Zug), statt unnoetig Kapazitaet zu
+    // blockieren.
+    const nextIdx = nextTrainIdx(line, train.fromIdx, train.dir);
+    const nextStopId = line.stationIds[nextIdx];
+    const aheadIds = stationsReachableAhead(line, train.fromIdx, train.dir);
+    const aheadShapes = new Set(stations.filter((s) => aheadIds.has(s.id)).map((s) => s.shape));
     const boarding: Passenger[] = [];
     for (const p of station.waiting) {
       if (train.carrying.length + boarding.length >= train.capacity) continue;
-      const nextHop = findNextHop(adj, station.id, p.destShape);
-      if (nextHop !== null && line.stationIds.includes(nextHop)) {
-        p.nextStop = nextHop;
-        boarding.push(p);
-      }
+      if (!aheadShapes.has(p.destShape)) continue;
+      p.nextStop = nextStopId;
+      boarding.push(p);
     }
     train.boardQueue = boarding;
     updateCounters();
@@ -1286,12 +1375,28 @@ function createMiniMetroGame(): MinigameModule {
     });
   }
 
+  /** Startet/stoppt das Zug-Grundrauschen je nachdem, ob gerade wirklich ein Zug auf einer Linie faehrt (siehe tick()) -- vermeidet unnoetige startTrainChug()/stopTrainChug()-Aufrufe bei unveraendertem Zustand. */
+  function updateTrainChug(anyTrainRunning: boolean): void {
+    if (anyTrainRunning && !trainChugPlaying) {
+      trainChugPlaying = true;
+      // Durchgehendes, leises Zug-Grundrauschen -- deutlich leiser als bei
+      // den Spielen mit einer einzelnen animierten Fahrt (dort 0.35), da es
+      // hier ggf. die ganze Runde ueber im Hintergrund laeuft und nicht der
+      // eigentliche Fokusmoment ist.
+      startTrainChug(0.1);
+    } else if (!anyTrainRunning && trainChugPlaying) {
+      trainChugPlaying = false;
+      stopTrainChug();
+    }
+  }
+
   /** Startet den Kamera-Zoom auf die ueberlastete Haltestelle -- triggerGameOver() (unveraendert, inkl. Text und Highscore-Delay) folgt erst nach GAMEOVER_ZOOM_S, siehe tick(). */
   function beginGameOverZoom(station: Station): void {
     if (gameOver || zooming) return;
     zooming = true;
     zoomStation = station;
     zoomElapsedS = 0;
+    trainChugPlaying = false;
     stopTrainChug();
   }
 
@@ -1396,13 +1501,13 @@ function createMiniMetroGame(): MinigameModule {
     setGameSpeed(1);
     disarmStationDelete();
     gameOverPanel.style.display = "none";
-    // Durchgehendes, leises Zug-Grundrauschen fuer die ganze Runde -- deutlich
-    // leiser als bei den Spielen mit einer einzelnen animierten Fahrt (dort
-    // 0.35), da es hier die ganze Zeit im Hintergrund laeuft und nicht der
-    // eigentliche Fokusmoment ist. Hier statt in onStart(), damit auch
-    // "Nochmal spielen" (ruft direkt resetGame() auf, ohne die Anleitung
-    // erneut zu zeigen) den Loop zuverlaessig neu startet.
-    startTrainChug(0.1);
+    // Das leise Zug-Grundrauschen startet NICHT hier automatisch mit der
+    // Runde, sondern erst in tick(), sobald wirklich ein Zug faehrt (siehe
+    // updateTrainChug) -- auf ausdruecklichen Wunsch: vorher lief der Sound
+    // schon los, bevor ueberhaupt eine Linie gezogen war (gemeldeter Bug).
+    // trainChugPlaying muss trotzdem bei jeder neuen Runde zurueckgesetzt
+    // werden, falls die vorherige Runde mit laufendem Sound endete.
+    trainChugPlaying = false;
     // Start = genau eine Haltestelle je Form (Nutzerwunsch) -- lastSize wird
     // in tick() laufend aktualisiert, siehe dort.
     for (const shape of SHAPES) spawnStation(lastSize, shape, INITIAL_CLUSTER_RADIUS);
@@ -1784,30 +1889,32 @@ function createMiniMetroGame(): MinigameModule {
     if (tutorialDismissed || stations.length === 0) return;
     const bounce = Math.sin(tutorialPulseTimer * 3.4) * 6;
     const cx = size.width / 2;
-    // tipY nach unten gegen TUTORIAL_HEADER_CLEARANCE geclampt (siehe dort)
-    // -- bleibt dadurch auf JEDER Bildschirmhoehe unterhalb der Kopfzeile,
-    // statt (wie zuvor bei kurzen Bildschirmen) teilweise darunter zu
-    // verschwinden.
-    const tipY = Math.max(MARGIN_TOP - 22, TUTORIAL_HEADER_CLEARANCE + 64) + bounce;
+    // War frueher oben unter der Kopfzeile (Pfeil zeigte nach unten zu den
+    // Haltestellen) -- dort konnte der Text vom Highscore-Banner ueberdeckt
+    // werden (gemeldeter Bug). Jetzt stattdessen unten im Spielfeld, Pfeil
+    // zeigt nach OBEN zu den Haltestellen -- dort ist garantiert Platz
+    // (siehe MARGIN_BOTTOM), unabhaengig davon, ob/wo gerade ein
+    // Highscore-Banner eingeblendet ist.
+    const tipY = size.height - MARGIN_BOTTOM - 85 + bounce;
     ctx.fillStyle = theme.accent;
     ctx.beginPath();
     ctx.moveTo(cx, tipY);
-    ctx.lineTo(cx - 18, tipY - 20);
-    ctx.lineTo(cx - 8, tipY - 20);
-    ctx.lineTo(cx - 8, tipY - 36);
-    ctx.lineTo(cx + 8, tipY - 36);
-    ctx.lineTo(cx + 8, tipY - 20);
-    ctx.lineTo(cx + 18, tipY - 20);
+    ctx.lineTo(cx - 18, tipY + 20);
+    ctx.lineTo(cx - 8, tipY + 20);
+    ctx.lineTo(cx - 8, tipY + 36);
+    ctx.lineTo(cx + 8, tipY + 36);
+    ctx.lineTo(cx + 8, tipY + 20);
+    ctx.lineTo(cx + 18, tipY + 20);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = theme.accent;
     ctx.font = `800 22px ${theme.fontDisplay}`;
     ctx.textAlign = "center";
-    ctx.fillText("Ziehe deine erste Linie!", cx, tipY - 46);
+    ctx.fillText("Ziehe deine erste Linie!", cx, tipY + 58);
     ctx.font = `700 13px ${theme.fontDisplay}`;
     ctx.fillStyle = theme.textMuted;
-    ctx.fillText("Verbinde zwei Haltestellen mit dem Finger", cx, tipY - 64);
+    ctx.fillText("Verbinde zwei Haltestellen mit dem Finger", cx, tipY + 76);
   }
 
   // ---------------------------------------------------------------- Eingabe
@@ -1921,7 +2028,11 @@ function createMiniMetroGame(): MinigameModule {
       const badges = getRemoveBadgePositions(armedDeleteStationId);
       const hit = badges.find((b) => Math.hypot(b.x - x, b.y - y) <= DELETE_BADGE_RADIUS + 8);
       if (hit) {
-        removeStationFromLine(hit.lineIndex, armedDeleteStationId);
+        if (hit.occurrenceIdx !== undefined) {
+          removeStationOccurrenceFromLine(hit.lineIndex, hit.occurrenceIdx);
+        } else {
+          removeStationFromLine(hit.lineIndex, armedDeleteStationId);
+        }
         disarmStationDelete();
         return;
       }
@@ -2209,10 +2320,13 @@ function createMiniMetroGame(): MinigameModule {
       }
     }
 
+    let anyTrainRunning = false;
     for (const line of lines) {
       if (!line || line.stationIds.length < 2) continue;
+      if (line.trains.length > 0) anyTrainRunning = true;
       for (const train of line.trains) stepTrain(line, train, dt);
     }
+    updateTrainChug(anyTrainRunning);
   }
 
   return {

@@ -43,15 +43,23 @@ const TEMPLATES: Record<TicketVariant, TicketTemplate> = {
 };
 
 // Pixelkoordinaten der vier Beschriftungslinien, per Bildanalyse an der
-// Vorlage (1537x1023px, "Version Highscore.png" u. ae.) vermessen -- NAME/
-// SPIEL/[dynamisches Feld]/KAUFDATUM & UHRZEIT sitzen bei allen drei
-// beschrifteten Vorlagen an identischer Position, nur das Label-Wort des
-// dritten Feldes unterscheidet sich (schon Teil der jeweiligen Bilddatei).
-// x: 73 bis 657 ist die Linie selbst, Text faengt mit etwas Einzug bei 95
-// an und schreibt sich auf die Linie (wie handschriftlich ausgefuellt).
-const FIELD_X = 95;
-const FIELD_MAX_X = 640;
-const FIELD_LINES_Y = { name: 558, game: 640, dynamic: 723, purchasedAt: 810 };
+// Vorlage (urspruenglich 1537x1023px, "Version Highscore.png" u. ae.)
+// vermessen -- NAME/SPIEL/[dynamisches Feld]/KAUFDATUM & UHRZEIT sitzen bei
+// allen drei beschrifteten Vorlagen an identischer Position, nur das
+// Label-Wort des dritten Feldes unterscheidet sich (schon Teil der
+// jeweiligen Bilddatei).
+//
+// Die Vorlagen wurden nachtraeglich um den ungenutzten, unbedruckten
+// Hintergrundrand herum zugeschnitten (gemeldet: "relativ viel Platz an der
+// Seite", der Druck soll die volle Druckerbreite ausnutzen -- siehe
+// Datei-Kommentar zur Quer-Rotation, der Bildhoehe wird 1:1 zur
+// Druckbreite). Zuschnitt war links 15px, oben 16px (per Bildanalyse
+// ermittelt, fuer alle drei beschrifteten Vorlagen identisch) -- die
+// urspruenglich vermessenen Koordinaten unten sind deshalb um genau diesen
+// Betrag verschoben, NICHT neu vermessen.
+const FIELD_X = 95 - 15;
+const FIELD_MAX_X = 640 - 15;
+const FIELD_LINES_Y = { name: 624, game: 708, dynamic: 795, purchasedAt: 879 };
 const FIELD_FONT = "700 34px 'Barlow Semi Condensed', sans-serif";
 const FIELD_COLOR = "#7a1400";
 

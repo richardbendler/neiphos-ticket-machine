@@ -56,6 +56,10 @@ const FEEDBACK_DIR = process.env.FEEDBACK_DIR ? path.resolve(process.env.FEEDBAC
 const HIGHSCORES_DIR = path.resolve(ROOT, "..", "highscores");
 const STATS_DIR = path.resolve(ROOT, "..", "stats");
 const SETTINGS_FILE = path.resolve(ROOT, "..", "settings.json");
+// Zeichen-Geraet des angeschlossenen USB-Bondruckers (siehe Endpunkte unten
+// bei "System: Drucker") -- ueber process.env ueberschreibbar, falls das
+// Geraet auf einem anderen Pi/Setup unter einem anderen Pfad auftaucht.
+const PRINTER_DEVICE = process.env.PRINTER_DEVICE || "/dev/usb/lp0";
 
 // ------------------------------------------------------------- .env.local
 //
@@ -1173,6 +1177,43 @@ const server = http.createServer(async (req, res) => {
       execFile("nmcli", ["device", "disconnect", "wlan0"], (error, stdout, stderr) => {
         if (error) {
           sendJson(res, 500, { ok: false, error: String(stderr || error.message || error).trim() });
+          return;
+        }
+        sendJson(res, 200, { ok: true });
+      });
+      return;
+    }
+
+    // ------------------------------------------------------ System: Drucker
+    //
+    // Angeschlossener USB-Bondrucker meldet sich beim Kernel als Klasse-7-
+    // Druckergeraet (usblp) und landet dadurch als simples Zeichen-Geraet
+    // unter /dev/usb/lp0 -- fuer ein Kassenbon-/Ticket-Format reicht rohes
+    // Schreiben mit ein paar ESC/POS-Steuerbytes (Initialisierung + Text),
+    // ein vollwertiges CUPS-Setup mit PPD-Treiber ist fuer diesen simplen
+    // Anwendungsfall nicht noetig. flipper muss dafuer in der Gruppe "lp"
+    // sein (siehe deployment/README), sonst schlaegt das Schreiben mit
+    // EACCES fehl.
+    if (url.pathname === "/api/system/printer/status" && req.method === "GET") {
+      if (!requireAdmin(req, res)) return;
+      fs.access(PRINTER_DEVICE, fs.constants.W_OK, (err) => {
+        sendJson(res, 200, { available: !err });
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/system/printer/test" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      const ESC = "\x1B";
+      const payload =
+        `${ESC}@` + // ESC @ = Drucker-Initialisierung (setzt Formatierung/Puffer zurueck)
+        "Neiphos Ticket Machine\n" +
+        "Drucker-Testdruck\n" +
+        "Wenn Du das lesen kannst,\n" +
+        "funktioniert es!\n\n\n\n\n";
+      fs.writeFile(PRINTER_DEVICE, Buffer.from(payload, "binary"), (err) => {
+        if (err) {
+          sendJson(res, 500, { ok: false, error: String(err.message || err) });
           return;
         }
         sendJson(res, 200, { ok: true });

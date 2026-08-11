@@ -23,8 +23,15 @@ type BoardMode = "all" | "daily";
  * Verdienstweg im Admin-Panel aktiviert ist, siehe core/ticketMethods.ts)
  * -- eigener Umschalt-Button oben, zeigt statt der Allzeit-Bestwerte die
  * seit dem letzten 6-Uhr-Reset erspielten Tagesbestwerte.
+ *
+ * onPlay: fuer den "Jetzt spielen"-Button je Schwierigkeitsstufe/Variante
+ * (siehe renderList unten) -- startet auf ausdruecklichen Wunsch direkt
+ * GENAU dieses Spiel in GENAU dieser Variante (board), statt nur ins
+ * Hauptmenue zu fuehren. board entspricht dabei 1:1 GameEnv#initialBoard,
+ * das einzelne Spiele mit mehreren Varianten (z. B. Geschwindigkeitsstufen)
+ * auswerten koennen, um ihre eigene Auswahl zu ueberspringen.
  */
-export function renderHighscoreBoard(): HTMLElement {
+export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => void): HTMLElement {
   const screen = document.createElement("div");
   screen.className = "menu-screen";
 
@@ -87,10 +94,19 @@ export function renderHighscoreBoard(): HTMLElement {
         const row = document.createElement("div");
         row.className = "highscore-board__row";
 
+        // Label + Bestwerte bleiben eine eigene Unterzeile (bisheriges
+        // Layout, nebeneinander) -- der "Jetzt spielen"-Button kommt auf
+        // ausdruecklichen Wunsch IMMER in eine eigene, neue Zeile DARUNTER
+        // (waechst dadurch in die Hoehe statt in die Breite), statt sich
+        // die Zeile mit Label/Werten zu teilen.
+        const mainRow = document.createElement("div");
+        mainRow.className = "highscore-board__row-main";
+        row.appendChild(mainRow);
+
         const label = document.createElement("span");
         label.className = "highscore-board__label";
         label.textContent = category.label;
-        row.appendChild(label);
+        mainRow.appendChild(label);
 
         const board = mode === "all" ? getHighscoreBoard(game.id, category.board) : getDailyBestBoard(game.id, category.board);
 
@@ -118,13 +134,20 @@ export function renderHighscoreBoard(): HTMLElement {
             `;
             valueWrap.appendChild(value);
           }
-          row.appendChild(valueWrap);
+          mainRow.appendChild(valueWrap);
         } else {
           const value = document.createElement("span");
           value.className = "highscore-board__value highscore-board__value--empty";
           value.textContent = mode === "all" ? "Noch kein Highscore" : "Heute noch kein Versuch";
-          row.appendChild(value);
+          mainRow.appendChild(value);
         }
+
+        const playBtn = document.createElement("button");
+        playBtn.type = "button";
+        playBtn.className = "btn btn--ghost highscore-board__play-btn";
+        playBtn.textContent = "▶ Jetzt spielen";
+        playBtn.addEventListener("click", () => onPlay(game.id, category.board));
+        row.appendChild(playBtn);
 
         section.appendChild(row);
       }

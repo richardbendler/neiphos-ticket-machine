@@ -803,13 +803,31 @@ button {
 }
 
 .highscore-board__row {
+  /* Bisher selbst die Zeile mit Label+Werten nebeneinander -- jetzt nur
+     noch der AEUSSERE Rahmen: .highscore-board__row-main uebernimmt dieses
+     Layout, der "Jetzt spielen"-Button (siehe menu/HighscoreBoard.ts)
+     kommt auf ausdruecklichen Wunsch IMMER in eine eigene, neue Zeile
+     DARUNTER ("eher in die Höhe wächst als in die Breite") statt sich mit
+     Label/Werten eine Zeile zu teilen. */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 0.85rem;
+}
+
+.highscore-board__row-main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 12px;
-  border-top: 1px solid var(--panel-border);
-  font-size: 0.85rem;
+}
+
+.highscore-board__play-btn {
+  align-self: flex-start;
+  font-size: 0.76rem;
+  padding: 4px 12px;
 }
 
 .highscore-board__values {

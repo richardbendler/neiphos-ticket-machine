@@ -602,9 +602,17 @@ function createTrainPhotoGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatScore);
 
-      renderSpeedPanel();
-      renderSheet();
-      updateShutterVisibility();
+      // "Jetzt spielen" bei einer bestimmten Stufe aus dem Highscore-Board
+      // (siehe GameEnv#initialBoard) -- ueberspringt die eigene
+      // Stufenauswahl und startet direkt in genau dieser Stufe.
+      const initialLevel = env.initialBoard ? SPEED_LEVELS.find((l) => l.key === env.initialBoard) : undefined;
+      if (initialLevel) {
+        selectSpeed(initialLevel);
+      } else {
+        renderSpeedPanel();
+        renderSheet();
+        updateShutterVisibility();
+      }
 
       closeIntro = showGameIntro({
         title: "Zugfoto",

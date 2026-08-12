@@ -1410,11 +1410,21 @@ const server = http.createServer(async (req, res) => {
       const xL = bytesPerRow & 0xff;
       const xH = (bytesPerRow >> 8) & 0xff;
       const init = Buffer.from([0x1b, 0x40]);
-      // ESC d 5 -- fuenf Zeilen vorschieben zum bequemen Abreissen (war erst
-      // 4: zu wenig, Ticket musste von Hand nachgezogen werden; dann 8: zu
-      // viel, unnoetig viel Leerraum/Papier am Ende verschwendet -- 5 als
-      // Mittelweg).
-      const feed = Buffer.from([0x1b, 0x64, 0x05]);
+      // War "ESC d 5" (fuenf ZEILEN vorschieben, mit dem Standard-
+      // Zeilenabstand von 1/6 Zoll/4.23mm macht das ca. 21mm -- Historie:
+      // erst 4 Zeilen (zu wenig, musste von Hand nachgezogen werden), dann
+      // 8 (zu viel Leerpapier), dann 5 als Mittelweg). Auf ausdruecklichen
+      // Wunsch ("hinten zwei, drei Millimeter abschneiden") jetzt "ESC J n"
+      // statt "ESC d n" -- ESC J feedet in einer FEINEREN Einheit (bei
+      // diesem 203dpi-Drucker, siehe PRINTER_WIDTH_DOTS-Kommentar in
+      // core/ticket.ts: 384 Dots auf ~48mm Druckbreite = 8 Dots/mm = 203dpi,
+      // 1 ESC-J-Einheit = 1/203 Zoll = 0.125mm) statt in ganzen Zeilen, laesst
+      // sich damit praeziser auf "ein paar Millimeter weniger" abstimmen als
+      // mit der vorherigen Ganzzahl-Zeilen-Aufloesung. 148 Einheiten =
+      // 148*0.125mm = 18.5mm (statt vorher ca. 21mm) -- rechnerisch
+      // hergeleitet, nicht am echten Geraet nachgemessen (kein Datenblatt
+      // vorhanden), ggf. weiter anpassen falls zu viel/wenig.
+      const feed = Buffer.from([0x1b, 0x4a, 148]);
 
       // Der Rasterbefehl "GS v 0" wird NICHT als ein einziger Block mit der
       // vollen Bildhoehe gesendet, sondern in Baendern von je max.
@@ -1529,15 +1539,15 @@ const server = http.createServer(async (req, res) => {
       //
       // MS_PER_PRINTED_ROW=20 (zusammen mit dem staerkeren Dichte-Zuschlag)
       // war die ERSTE Konfiguration, die live nachweislich sauber druckte
-      // (~577 Zeilen in ~23s Uebertragungszeit) -- auf Wunsch danach als
-      // Kompromiss auf 14 gesenkt (~30% schneller, ca. 16s), RASTER_BAND_
-      // HEIGHT und der Dichte-Zuschlag bleiben UNVERAENDERT (das war die
-      // einzige bisher bestaetigt funktionierende Kombination, hier
-      // testweise nur EIN Hebel gleichzeitig aendern statt mehrere auf
-      // einmal zu riskieren). Falls erneut Gibberish auftritt: zuerst
-      // wieder auf 20 zurueckstellen, bevor an anderen Werten gedreht wird.
+      // (~577 Zeilen in ~23s Uebertragungszeit). Auf 14 gesenkt (~16s) war
+      // ebenfalls live bestaetigt sauber, aber laut Rueckmeldung weiterhin
+      // "absurd langsam" -- auf 10 weiter gesenkt (ca. 11-12s). RASTER_BAND_
+      // HEIGHT und der Dichte-Zuschlag bleiben weiterhin unveraendert (siehe
+      // oben). Falls erneut Gibberish auftritt: zuerst wieder auf 14 (schon
+      // bestaetigt sauber), dann erst auf 20 zurueckstellen, statt direkt an
+      // anderen Werten zu drehen.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 14;
+      const MS_PER_PRINTED_ROW = 10;
       const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>

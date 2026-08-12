@@ -1543,22 +1543,23 @@ const server = http.createServer(async (req, res) => {
       // MS_PER_PRINTED_ROW=20 (zusammen mit dem staerkeren Dichte-Zuschlag)
       // war die ERSTE Konfiguration, die live nachweislich sauber druckte
       // (~577 Zeilen in ~23s Uebertragungszeit). Seitdem schrittweise
-      // gesenkt, JEWEILS live bestaetigt weiterhin sauber (kein Gibberish
-      // mehr gemeldet) UND per Log-Zeitstempel objektiv gemessen: 14
-      // (~16s), 10 (gemessen 11.6s), 7 (gemessen 8.4s), 5 (gemessen 6.1-6.2s,
-      // zweimal hintereinander sauber getestet), jetzt testweise 4 (ca.
-      // 5s erwartet). Naehert sich MS_MIN_PER_BAND (10ms) als Untergrenze
-      // pro Band an -- ab hier bringt weiteres Senken abnehmenden Ertrag,
-      // da duenne (helle) Baender ohnehin schon an der Untergrenze
-      // haengen, nur noch dichte/dunkle Baender werden durch eine weitere
-      // Senkung spuerbar schneller (und genau dort lag die Gibberish-
-      // Stelle beim urspruenglichen Vorfall -- also mit Bedacht weiter
-      // senken). RASTER_BAND_HEIGHT und der Dichte-Zuschlag bleiben
-      // weiterhin unveraendert (siehe oben). Falls erneut Gibberish
-      // auftritt: schrittweise zurueck zur letzten bestaetigt sauberen
-      // Stufe (5, dann 7, dann 10, dann 14, dann 20).
+      // gesenkt: 14 (~16s), 10 (11.6s), 7 (8.4s), 5 (6.1-6.2s, zweimal
+      // sauber), dann 4 (~5.1-5.3s) -- bei 4 kam laut Rueckmeldung nach
+      // mehreren weiteren Testdrucken WIEDER vereinzelt Gibberish
+      // ("kleine Parts", nicht mehr durchgehend sauber wie bei 5).
+      // Deshalb zurueck auf 5 -- das war die letzte Stufe, die AUCH bei
+      // wiederholtem Testen (2x hintereinander, siehe Log) durchgehend
+      // sauber blieb. 4 war demnach schon ueber die tatsaechliche
+      // Belastungsgrenze dieses Druckers hinaus, auch wenn die ersten
+      // Tests dort noch zufaellig sauber liefen -- offenbar reicht ein
+      // einzelner sauberer Testdruck NICHT als verlässlicher Beweis fuer
+      // eine Stufe, mehrere Wiederholungen sind noetig. RASTER_BAND_HEIGHT
+      // und der Dichte-Zuschlag bleiben weiterhin unveraendert (siehe
+      // oben). Falls WEITERHIN/ERNEUT Gibberish auftritt: schrittweise
+      // weiter zurueck (7, dann 10, dann 14, dann 20) -- NICHT wieder auf
+      // 4 oder darunter gehen, das ist jetzt als unzuverlaessig bekannt.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 4;
+      const MS_PER_PRINTED_ROW = 5;
       const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>

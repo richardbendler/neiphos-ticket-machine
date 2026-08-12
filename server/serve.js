@@ -1543,23 +1543,24 @@ const server = http.createServer(async (req, res) => {
       // MS_PER_PRINTED_ROW=20 (zusammen mit dem staerkeren Dichte-Zuschlag)
       // war die ERSTE Konfiguration, die live nachweislich sauber druckte
       // (~577 Zeilen in ~23s Uebertragungszeit). Seitdem schrittweise
-      // gesenkt: 14 (~16s), 10 (11.6s), 7 (8.4s), 5 (6.1-6.2s, zweimal
-      // sauber), dann 4 (~5.1-5.3s) -- bei 4 kam laut Rueckmeldung nach
-      // mehreren weiteren Testdrucken WIEDER vereinzelt Gibberish
-      // ("kleine Parts", nicht mehr durchgehend sauber wie bei 5).
-      // Deshalb zurueck auf 5 -- das war die letzte Stufe, die AUCH bei
-      // wiederholtem Testen (2x hintereinander, siehe Log) durchgehend
-      // sauber blieb. 4 war demnach schon ueber die tatsaechliche
-      // Belastungsgrenze dieses Druckers hinaus, auch wenn die ersten
-      // Tests dort noch zufaellig sauber liefen -- offenbar reicht ein
-      // einzelner sauberer Testdruck NICHT als verlässlicher Beweis fuer
-      // eine Stufe, mehrere Wiederholungen sind noetig. RASTER_BAND_HEIGHT
-      // und der Dichte-Zuschlag bleiben weiterhin unveraendert (siehe
-      // oben). Falls WEITERHIN/ERNEUT Gibberish auftritt: schrittweise
-      // weiter zurueck (7, dann 10, dann 14, dann 20) -- NICHT wieder auf
-      // 4 oder darunter gehen, das ist jetzt als unzuverlaessig bekannt.
+      // gesenkt: 14 (~16s), 10 (11.6s), 7 (8.4s), 5 (6.1-6.2s) -- 5 wirkte
+      // nach 2 Testdrucken sauber, brachte aber bei einem SPAETEREN echten
+      // Highscore-Ticket (an anderer Stelle, ein Stueck spaeter im Alltags-
+      // betrieb) wieder Gibberish. Danach kurz auf 4 gesenkt, dort ebenfalls
+      // vereinzelt Gibberish -- WICHTIGE ERKENNTNIS: dieser Drucker faellt
+      // offenbar nicht bei einer sauberen Schwelle klar aus, sondern das
+      // Risiko ist eher GRADUELL/statistisch (mal klappt eine Stufe mehrfach,
+      // dann doch nicht) -- ein paar saubere Testdrucke sind also KEIN
+      // verlaesslicher Beweis, dass eine Stufe wirklich sicher ist, auch
+      // 5 nicht. Deshalb jetzt vorsichtshalber wieder auf 7 zurueck (die
+      // Stufe DAVOR, mit dem groessten bisherigen Sicherheitsabstand unter
+      // den halbwegs schnellen Stufen). RASTER_BAND_HEIGHT und der Dichte-
+      // Zuschlag bleiben weiterhin unveraendert (siehe oben). Falls
+      // WEITERHIN Gibberish auftritt: weiter zurueck (10, dann 14, dann 20)
+      // -- 4 und 5 gelten inzwischen beide als nicht zuverlaessig genug,
+      // dorthin nicht mehr zurueckgehen.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 5;
+      const MS_PER_PRINTED_ROW = 7;
       const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>

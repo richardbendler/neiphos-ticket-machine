@@ -74,8 +74,13 @@ const FIELD_LINES = {
   dynamic: { x: 497, maxX: 1100, y: 795 },
   purchasedAt: { x: 500, maxX: 1180, y: 879 },
 };
-const FIELD_FONT = "700 61px 'Barlow Semi Condensed', sans-serif";
+const FIELD_FONT_SIZE = 61;
+const FIELD_FONT = `700 ${FIELD_FONT_SIZE}px 'Barlow Semi Condensed', sans-serif`;
 const FIELD_COLOR = "#7a1400";
+// Auf ausdruecklichen Wunsch sitzt der Wert etwas tiefer als die reine
+// vertikale Zentrierung (FIELD_ROW_HEIGHT/2) ergeben wuerde -- 10% der
+// eigenen Schrifthoehe zusaetzlich nach unten.
+const FIELD_VERTICAL_NUDGE = FIELD_FONT_SIZE * 0.1;
 // Zeilenhoehe je Feld -- der Reihenabstand zwischen den vier Feldern liegt
 // (per Bildanalyse) recht einheitlich bei ~84-87px, das jeweilige Label
 // sitzt IM Bereich oberhalb der eigenen Linie (field.y markiert die Linie
@@ -118,7 +123,7 @@ function drawFieldValue(ctx: CanvasRenderingContext2D, field: { x: number; maxX:
     text = text.slice(0, -1);
   }
   if (text !== value) text = text.slice(0, -1) + "…";
-  ctx.fillText(text, field.x, field.y - FIELD_ROW_HEIGHT / 2);
+  ctx.fillText(text, field.x, field.y - FIELD_ROW_HEIGHT / 2 + FIELD_VERTICAL_NUDGE);
 }
 
 /** Rendert das Ticket in normaler (breiter) Ausrichtung auf die vermessene Bild-Vorlage, skaliert auf 384px Hoehe, dreht danach um 90° fuers Querformat (siehe Datei-Kommentar). */

@@ -33,13 +33,15 @@ interface TicketTemplate {
   url: string;
   /** Label des dritten Feldes (nur zur Doku -- der Text selbst steht schon fest in der Bild-Vorlage). */
   fieldLabel: string | null;
+  /** Start-x des dynamischen Feldwerts, knapp hinter dem JEWEILIGEN Label-Wort dieser Vorlage -- siehe FIELD_LINES-Kommentar unten, warum das nicht mehr eine gemeinsame Konstante ist. null bei "basic" (kein drittes Feld). */
+  dynamicX: number | null;
 }
 
 const TEMPLATES: Record<TicketVariant, TicketTemplate> = {
-  basic: { url: ticketBasicUrl, fieldLabel: null },
-  highscore: { url: ticketHighscoreUrl, fieldLabel: "HIGHSCORE" },
-  dailyHighscore: { url: ticketDailyHighscoreUrl, fieldLabel: "TAGES-HIGHSCORE" },
-  milestone: { url: ticketMilestoneUrl, fieldLabel: "ERRUNGENSCHAFT" },
+  basic: { url: ticketBasicUrl, fieldLabel: null, dynamicX: null },
+  highscore: { url: ticketHighscoreUrl, fieldLabel: "HIGHSCORE", dynamicX: 305 },
+  dailyHighscore: { url: ticketDailyHighscoreUrl, fieldLabel: "TAGES-HIGHSCORE", dynamicX: 440 },
+  milestone: { url: ticketMilestoneUrl, fieldLabel: "ERRUNGENSCHAFT", dynamicX: 438 },
 };
 
 // Pixelkoordinaten je Feld, per Bildanalyse an der (bereits zugeschnittenen,
@@ -59,19 +61,25 @@ const TEMPLATES: Record<TicketVariant, TicketTemplate> = {
 // begrenzt -- deshalb je Zeile ein eigenes x/maxX-Paar statt einer
 // gemeinsamen Konstante. x startet jeweils knapp hinter dem eigenen Label.
 //
-// dynamic.x war zunaechst bei 580 -- deutlich zu grosszuegig, per erneuter
-// Pixelanalyse (Lumineszenz-Scan der drei Vorlagen, y=745-790) endet selbst
-// das laengste Label ("TAGES-HIGHSCORE") schon bei x~479, "HIGHSCORE"/
-// "ERRUNGENSCHAFT" sogar noch frueher -- der alte Wert liess dadurch eine
-// deutlich sichtbare, unerwuenschte Luecke (gemeldeter Bug: "da lässt Du
-// eine zu große Lücke... direkt neben den jeweiligen Begriff schreiben").
-// Jetzt 497 (knapp hinter dem laengsten Label + etwas Puffer), einheitlich
-// fuer alle drei Vorlagen -- der Unterschied zwischen den Labels ist mit
-// nur ca. 7px ohnehin kaum wahrnehmbar.
+// dynamic.x war zunaechst bei 580, dann einheitlich bei 497 (knapp hinter
+// dem LAENGSTEN Label "TAGES-HIGHSCORE") fuer alle drei Vorlagen -- auf
+// ausdruecklichen Wunsch ("bei dem kuerzesten Wort... links eintragen")
+// jetzt PRO VORLAGE ein eigener Wert (siehe TEMPLATES.dynamicX oben), knapp
+// hinter dem jeweils EIGENEN Label-Wort statt einheitlich hinter dem
+// laengsten -- bei "HIGHSCORE" (deutlich kuerzer als "TAGES-HIGHSCORE"/
+// "ERRUNGENSCHAFT") liess die gemeinsame Position sonst eine deutlich
+// sichtbare Luecke. Per Lumineszenz-Scan (y=735-780, dunkle Pixel-Cluster)
+// frisch vermessen: "HIGHSCORE" endet bei x~284, "ERRUNGENSCHAFT" bei
+// x~417, "TAGES-HIGHSCORE" bei x~420 (deutlich weiter auseinander als die
+// bei der letzten Messung angenommenen ~7px -- die Bild-Vorlagen wurden
+// zwischenzeitlich offenbar von der Orga ausgetauscht/aktualisiert).
+// dynamic.x bleibt hier deshalb nur noch als Fallback/Dokumentation stehen,
+// tatsaechlich verwendet wird TEMPLATES[variant].dynamicX (siehe
+// renderTicketCanvas).
 const FIELD_LINES = {
   name: { x: 200, maxX: 640, y: 624 },
   game: { x: 215, maxX: 640, y: 708 },
-  dynamic: { x: 497, maxX: 1100, y: 795 },
+  dynamic: { maxX: 1100, y: 795 },
   purchasedAt: { x: 500, maxX: 1180, y: 879 },
 };
 const FIELD_FONT_SIZE = 61;
@@ -142,7 +150,7 @@ export async function renderTicketCanvas(variant: TicketVariant, fields: TicketF
   if (variant !== "basic") {
     drawFieldValue(dctx, FIELD_LINES.name, fields.name?.trim() || "");
     drawFieldValue(dctx, FIELD_LINES.game, fields.game?.trim() || "");
-    drawFieldValue(dctx, FIELD_LINES.dynamic, fields.score?.trim() || "");
+    drawFieldValue(dctx, { ...FIELD_LINES.dynamic, x: template.dynamicX! }, fields.score?.trim() || "");
     drawFieldValue(dctx, FIELD_LINES.purchasedAt, formatPurchasedAt());
   }
 

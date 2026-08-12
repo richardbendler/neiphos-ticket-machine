@@ -1429,7 +1429,23 @@ const server = http.createServer(async (req, res) => {
       // verifiziertem Rendering in core/ticket.ts -- siehe dortige
       // Kommentare). Baenderung behebt das, da der Drucker jedes Band
       // einzeln abarbeiten und den Puffer dazwischen leeren kann.
-      const RASTER_BAND_HEIGHT = 200;
+      //
+      // War zunaechst 200 -- trotz Pacing zwischen den Baendern (siehe unten)
+      // wurde weiterhin Gibberish gemeldet, und zwar wiederholt "nach
+      // ungefaehr der Haelfte des Tickets". Grund: ein einzelnes Band von 200
+      // Zeilen sind 200*48 = 9600 Byte, die node fs.write() als EIN
+      // Schreibvorgang an den Kernel/USB-Treiber uebergibt -- der liefert
+      // diesen Block dem Drucker in wenigen Millisekunden ueber USB aus,
+      // WEIT schneller als die anschliessende Pause vor dem naechsten Band
+      // greifen kann. Ist der interne Bildpuffer des Druckers kleiner als
+      // 9600 Byte (bei diesem generischen Modell nicht dokumentiert, aber
+      // plausibel), laeuft er schon WAEHREND dieses einen grossen Schreib-
+      // vorgangs ueber -- die Pause DANACH kommt dann zu spaet. Deutlich
+      // kleinere Baender (deren einzelner Schreibvorgang dadurch selbst bei
+      // voller USB-Geschwindigkeit nur einen kleinen Bruchteil eines
+      // realistischen Druckerpuffers fuellen kann) beheben das strukturell,
+      // unabhaengig von der genauen (unbekannten) Puffergroesse.
+      const RASTER_BAND_HEIGHT = 24;
       const bands = [];
       for (let rowStart = 0; rowStart < height; rowStart += RASTER_BAND_HEIGHT) {
         const bandHeight = Math.min(RASTER_BAND_HEIGHT, height - rowStart);
@@ -1437,7 +1453,21 @@ const server = http.createServer(async (req, res) => {
         const byL = bandHeight & 0xff;
         const byH = (bandHeight >> 8) & 0xff;
         const bandHeader = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, byL, byH]);
-        bands.push({ buffer: Buffer.concat([bandHeader, bandBuf]), rows: bandHeight });
+        // Schwaerzungsanteil dieses Bandes (0..1) -- fliesst unten in die
+        // Pause nach dem Band ein (siehe MS_PER_PRINTED_ROW-Kommentar):
+        // ein Thermodruckkopf braucht fuer stark schwarze Zeilen (z. B. den
+        // runden ZORNTRAIN-Stempel) mehr Energie/Zeit pro Zeile als fuer
+        // duennen Text, die feste Zeilenpauschale allein unterschaetzt
+        // solche Stellen sonst systematisch.
+        let blackBits = 0;
+        for (let i = 0; i < bandBuf.length; i++) {
+          let byte = bandBuf[i];
+          byte = byte - ((byte >> 1) & 0x55);
+          byte = (byte & 0x33) + ((byte >> 2) & 0x33);
+          blackBits += (byte + (byte >> 4)) & 0x0f;
+        }
+        const blackRatio = bandBuf.length > 0 ? blackBits / (bandBuf.length * 8) : 0;
+        bands.push({ buffer: Buffer.concat([bandHeader, bandBuf]), rows: bandHeight, blackRatio });
       }
 
       // Papierstand-Check UND der eigentliche Rasterdruck laufen ABSICHTLICH
@@ -1476,8 +1506,20 @@ const server = http.createServer(async (req, res) => {
       // (MS_PER_PRINTED_ROW, konservativ geschaetzt) -- der Drucker bekommt
       // dadurch Zeit, seinen Puffer zu leeren, bevor das naechste Band
       // eintrifft.
+      //
+      // MS_PER_PRINTED_ROW war zunaechst 4 -- trotz Baenderung weiterhin
+      // gemeldetes Gibberish (siehe Kommentar bei RASTER_BAND_HEIGHT oben)
+      // deutet darauf hin, dass diese Schaetzung zu knapp war. Jetzt 7 als
+      // deutlich groessere Sicherheitsmarge (kostet bei ~600 Zeilen gut 2s
+      // zusaetzliche Druckzeit -- fuer einen ohnehin mehrere Sekunden
+      // dauernden Ticketdruck ein guter Tausch gegen einen zerstoerten
+      // Ausdruck), zusaetzlich per densityFactor skaliert (siehe blackRatio
+      // oben) sowie MS_MIN_PER_BAND als Untergrenze, damit auch das letzte,
+      // ggf. sehr kurze Restband dem Drucker genug Zeit zur Befehls-
+      // verarbeitung laesst.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 4;
+      const MS_PER_PRINTED_ROW = 7;
+      const MS_MIN_PER_BAND = 25;
       await withPrinterDevice(
         () =>
           new Promise((resolve) => {
@@ -1503,7 +1545,11 @@ const server = http.createServer(async (req, res) => {
                   await writeChunk(init);
                   for (const band of bands) {
                     await writeChunk(band.buffer);
-                    await sleep(band.rows * MS_PER_PRINTED_ROW);
+                    // Dichte-Zuschlag bis zu +60% Zeit bei nahezu vollflaechig
+                    // schwarzen Baendern (blackRatio nahe 1), siehe Kommentar
+                    // oben bei MS_PER_PRINTED_ROW.
+                    const densityFactor = 1 + band.blackRatio * 0.6;
+                    await sleep(Math.max(MS_MIN_PER_BAND, Math.round(band.rows * MS_PER_PRINTED_ROW * densityFactor)));
                   }
                   await writeChunk(feed);
                 })()

@@ -10,7 +10,7 @@ import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
 import { playHighscoreOpenSound } from "../core/sound";
-import { printTicket, friendlyPrintErrorMessage } from "../core/ticket";
+import { printTicket, printDiagnosticStrip, friendlyPrintErrorMessage } from "../core/ticket";
 import { openPaperChangeInstructions } from "../core/paperChangeInstructions";
 import { getTicketMethods, setTicketMethod, type TicketMethodSettings, MILESTONE_GAMES, type MilestoneGameDef, getMilestones, setMilestone } from "../core/ticketMethods";
 import {
@@ -879,6 +879,37 @@ function renderPrinterControl(): HTMLDivElement {
   changePaperBtn.textContent = "📄 Anleitung: Papier wechseln";
   changePaperBtn.addEventListener("click", () => openPaperChangeInstructions());
   wrap.appendChild(changePaperBtn);
+
+  // NUR fuer die Fehlersuche beim wiederholt gemeldeten Gibberish-Vorfall
+  // (siehe core/ticket.ts#printDiagnosticStrip) -- druckt bewusst nur einen
+  // kurzen Ausschnitt (100 statt ~577 Zeilen), um zu pruefen, ob ein
+  // deutlich kuerzeres Rasterbild zuverlaessig sauber druckt.
+  const diagBtn = document.createElement("button");
+  diagBtn.type = "button";
+  diagBtn.className = "btn btn--ghost";
+  diagBtn.style.fontSize = "0.78rem";
+  diagBtn.style.marginLeft = "8px";
+  diagBtn.textContent = "🔬 Kurzer Testdruck (Diagnose)";
+  wrap.appendChild(diagBtn);
+  guardedClick(
+    diagBtn,
+    () => {
+      diagBtn.disabled = true;
+      diagBtn.textContent = "Druckt …";
+      void printDiagnosticStrip(100, systemAdminHeaders())
+        .then((result) => {
+          if (!result.ok) {
+            status.textContent = `❌ ${friendlyPrintErrorMessage(result.error)}`;
+            status.style.color = "var(--danger)";
+          }
+        })
+        .finally(() => {
+          diagBtn.disabled = false;
+          diagBtn.textContent = "🔬 Kurzer Testdruck (Diagnose)";
+        });
+    },
+    1000,
+  );
 
   function refreshStatus(): void {
     fetch("./api/system/printer/status", { headers: systemAdminHeaders() })

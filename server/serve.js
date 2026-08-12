@@ -1545,15 +1545,20 @@ const server = http.createServer(async (req, res) => {
       // (~577 Zeilen in ~23s Uebertragungszeit). Seitdem schrittweise
       // gesenkt, JEWEILS live bestaetigt weiterhin sauber (kein Gibberish
       // mehr gemeldet) UND per Log-Zeitstempel objektiv gemessen: 14
-      // (~16s), 10 (gemessen 11.6s), 7 (gemessen 8.4s) -- trotz messbar
-      // ca. 30% Verbesserung je Stufe laut Rueckmeldung weiterhin subjektiv
-      // "sehr langsam", jetzt testweise 5 (ca. 6-7s erwartet). RASTER_BAND_
-      // HEIGHT und der Dichte-Zuschlag bleiben weiterhin unveraendert (siehe
-      // oben). Falls erneut Gibberish auftritt: schrittweise zurueck zur
-      // letzten bestaetigt sauberen Stufe (7, dann 10, dann 14, dann 20),
-      // statt direkt an anderen Werten zu drehen.
+      // (~16s), 10 (gemessen 11.6s), 7 (gemessen 8.4s), 5 (gemessen 6.1-6.2s,
+      // zweimal hintereinander sauber getestet), jetzt testweise 4 (ca.
+      // 5s erwartet). Naehert sich MS_MIN_PER_BAND (10ms) als Untergrenze
+      // pro Band an -- ab hier bringt weiteres Senken abnehmenden Ertrag,
+      // da duenne (helle) Baender ohnehin schon an der Untergrenze
+      // haengen, nur noch dichte/dunkle Baender werden durch eine weitere
+      // Senkung spuerbar schneller (und genau dort lag die Gibberish-
+      // Stelle beim urspruenglichen Vorfall -- also mit Bedacht weiter
+      // senken). RASTER_BAND_HEIGHT und der Dichte-Zuschlag bleiben
+      // weiterhin unveraendert (siehe oben). Falls erneut Gibberish
+      // auftritt: schrittweise zurueck zur letzten bestaetigt sauberen
+      // Stufe (5, dann 7, dann 10, dann 14, dann 20).
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 5;
+      const MS_PER_PRINTED_ROW = 4;
       const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>

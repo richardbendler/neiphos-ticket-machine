@@ -1445,7 +1445,15 @@ const server = http.createServer(async (req, res) => {
       // voller USB-Geschwindigkeit nur einen kleinen Bruchteil eines
       // realistischen Druckerpuffers fuellen kann) beheben das strukturell,
       // unabhaengig von der genauen (unbekannten) Puffergroesse.
-      const RASTER_BAND_HEIGHT = 24;
+      // War 24 -- laut Rueckmeldung trat das Gibberish TROTZDEM weiterhin auf
+      // (diesmal beschrieben als "endlos", bis der Drucker von Hand
+      // stromlos gemacht wurde -- deutet auf ein Firmware-Loop im
+      // verwirrten Rastermodus hin, kein sauberer Abbruch). Auf 12 weiter
+      // halbiert, siehe auch MS_PER_PRINTED_ROW unten (deutlich groessere
+      // Sicherheitsmarge) -- ohne Zugriff auf das Datenblatt bleibt das
+      // weiterhin Trial-and-Error, aber kleinere/langsamere Uebertragung
+      // kann strukturell nur helfen, nie schaden (kostet nur Druckzeit).
+      const RASTER_BAND_HEIGHT = 12;
       const bands = [];
       for (let rowStart = 0; rowStart < height; rowStart += RASTER_BAND_HEIGHT) {
         const bandHeight = Math.min(RASTER_BAND_HEIGHT, height - rowStart);
@@ -1517,8 +1525,13 @@ const server = http.createServer(async (req, res) => {
       // oben) sowie MS_MIN_PER_BAND als Untergrenze, damit auch das letzte,
       // ggf. sehr kurze Restband dem Drucker genug Zeit zur Befehls-
       // verarbeitung laesst.
+      // MS_PER_PRINTED_ROW war zwischenzeitlich 7 -- laut Rueckmeldung reichte
+      // auch das nicht (weiterhin Gibberish, diesmal "endlos" bis zum
+      // manuellen Stromlos-Machen). Deutlich weiter angehoben auf 18 --
+      // kostet bei ~600 Zeilen ca. 8s zusaetzliche Druckzeit, aber ein
+      // funktionierendes (wenn auch langsameres) Ticket ist klar wichtiger.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 7;
+      const MS_PER_PRINTED_ROW = 18;
       const MS_MIN_PER_BAND = 25;
       await withPrinterDevice(
         () =>
@@ -1543,8 +1556,15 @@ const server = http.createServer(async (req, res) => {
                 const sleep = (ms) => new Promise((res2) => setTimeout(res2, ms));
                 (async () => {
                   await writeChunk(init);
-                  for (const band of bands) {
+                  // Fortschritts-Log JE Band (nicht nur Start/Ende) -- rein zur
+                  // Fehlersuche beim wiederholt gemeldeten Gibberish-Vorfall:
+                  // zeigt im journalctl-Log live, bei welchem Band/welcher
+                  // Zeile ein Ausdruck tatsaechlich kippt, statt nur "irgendwo
+                  // dazwischen" vermuten zu muessen.
+                  for (let i = 0; i < bands.length; i++) {
+                    const band = bands[i];
                     await writeChunk(band.buffer);
+                    console.log(`[printer] #${jobId} Band ${i + 1}/${bands.length} geschrieben (${band.rows} Zeilen, Schwaerze ${Math.round(band.blackRatio * 100)}%, ${Date.now() - startedAt}ms seit Start)`);
                     // Dichte-Zuschlag bis zu +60% Zeit bei nahezu vollflaechig
                     // schwarzen Baendern (blackRatio nahe 1), siehe Kommentar
                     // oben bei MS_PER_PRINTED_ROW.

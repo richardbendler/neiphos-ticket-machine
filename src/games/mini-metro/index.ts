@@ -1067,7 +1067,7 @@ export function createMiniMetroGame(): MinigameModule {
    * Teil von stationIds (siehe isRingLine-Kommentar), keine Sonderbehandlung
    * noetig.
    */
-  function nearestPointOnLinePath(line: Line, x: number, y: number): { segIdx: number; ratio: number } | null {
+  function nearestPointOnLinePath(line: Line, x: number, y: number): { segIdx: number; ratio: number; dist: number } | null {
     let best: { segIdx: number; ratio: number; dist: number } | null = null;
     for (let i = 0; i < line.stationIds.length - 1; i++) {
       const a = stationById(line.stationIds[i]);
@@ -1080,6 +1080,20 @@ export function createMiniMetroGame(): MinigameModule {
       const py = a.y + dy * ratio;
       const dist = Math.hypot(px - x, py - y);
       if (!best || dist < best.dist) best = { segIdx: i, ratio, dist };
+    }
+    return best;
+  }
+
+  /** Wie nearestPointOnLinePath, aber durchsucht ALLE Linien (mit echter Linie, also mindestens 2 Haltestellen) und liefert die insgesamt naeheste Position -- fuer das Absetzen einer Lok aus dem Depot direkt auf eine bestehende Linie (siehe tryAttachLocoAt), wo (anders als beim Wiederabsetzen eines schon gegriffenen Zuges, dessen Linie ja bereits feststeht) die Ziel-Linie selbst erst noch gefunden werden muss. */
+  function nearestLineSegmentAt(x: number, y: number, radius: number): { lineIndex: number; segIdx: number; ratio: number } | null {
+    let best: { lineIndex: number; segIdx: number; ratio: number; dist: number } | null = null;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || line.stationIds.length < 2) continue;
+      const hit = nearestPointOnLinePath(line, x, y);
+      if (hit && hit.dist <= radius && (!best || hit.dist < best.dist)) {
+        best = { lineIndex: i, segIdx: hit.segIdx, ratio: hit.ratio, dist: hit.dist };
+      }
     }
     return best;
   }
@@ -1439,8 +1453,41 @@ export function createMiniMetroGame(): MinigameModule {
   // tatsaechlichen Loslassen mit dem Finger kaum zuverlaessig zu treffen.
   const LOCO_DROP_RADIUS = 46;
 
-  /** Direktes Ziehziel fuer eine Lok aus dem Depot (siehe wireResourceDrag): der NAEHESTE Linien-Kreis (mit echter Linie) im Fang-Radius um den Loslass-Punkt -- nicht mehr per exaktem Treffer, siehe LOCO_DROP_RADIUS. */
+  /**
+   * Direktes Ziehziel fuer eine Lok aus dem Depot (siehe wireResourceDrag).
+   *
+   * Zuerst wird geprueft, ob DIREKT AUF einer bestehenden Linie in der
+   * Kartenmitte losgelassen wurde -- auf ausdruecklichen Wunsch soll man
+   * eine Lok aus dem Depot GENAUSO praezise an einer bestimmten Stelle
+   * platzieren koennen wie eine bereits eingesetzte Lok beim Verschieben
+   * (siehe trainDrag/handleUp, nearestPointOnLinePath/placeTrainAtSegment).
+   * Bisher ging das nur ueber den viel groeberen Umweg der Linien-Kreise in
+   * der Palette (immer an Position 0 der Linie, gemeldeter Bug: "man will
+   * sie direkt an einer bestimmten Stelle platzieren aus dem Depot").
+   *
+   * Nur falls das nichts trifft (z. B. weil der sichtbare Kartenausschnitt
+   * gerade keine Linie zeigt), faellt es auf den bisherigen, groeberen Weg
+   * ueber den NAEHESTEN Linien-Kreis im Fang-Radius zurueck -- nicht mehr
+   * per exaktem Treffer, siehe LOCO_DROP_RADIUS.
+   */
   function tryAttachLocoAt(clientX: number, clientY: number): boolean {
+    if (canvasEl) {
+      const rect = canvasEl.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+        const world = screenToWorld(clientX - rect.left, clientY - rect.top);
+        const hit = nearestLineSegmentAt(world.x, world.y, LOCO_DROP_RADIUS);
+        if (hit) {
+          spareLoks -= 1;
+          const train = createTrain();
+          lines[hit.lineIndex]!.trains.push(train);
+          placeTrainAtSegment(train, hit.segIdx, hit.ratio);
+          updateCounters();
+          renderLineColumn();
+          return true;
+        }
+      }
+    }
+
     let bestIndex = -1;
     let bestDist = LOCO_DROP_RADIUS;
     for (let i = 0; i < lineCircles.length; i++) {

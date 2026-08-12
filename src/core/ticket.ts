@@ -267,3 +267,38 @@ export async function printTicket(variant: TicketVariant, fields: TicketFields, 
     return { ok: false, error: isNetworkError ? "network_error" : String((e as Error).message || e) };
   }
 }
+
+/**
+ * NUR fuer die Fehlersuche beim wiederholt gemeldeten Gibberish-Vorfall
+ * (siehe server/serve.js#printRasterJob-Kommentare): druckt dieselbe
+ * "basic"-Vorlage wie der normale Testdruck, aber auf `rows` Bildzeilen
+ * gekappt -- soll klaeren, ob ein deutlich KUERZERES Rasterbild
+ * zuverlaessig sauber druckt, waehrend die volle Ticketlaenge (~577
+ * Zeilen) weiterhin vereinzelt mitten im Bild kippt. Sauber bei kurz +
+ * weiterhin kaputt bei lang deutet auf ein Firmware-Problem des Druckers
+ * mit LANGEN zusammenhaengenden Rasterbildern hin (unabhaengig von
+ * Uebertragungstempo/Baenderung, die schon ausgereizt wurden) statt auf
+ * ein Timing-/Pufferproblem beim Senden.
+ */
+export async function printDiagnosticStrip(rows: number, adminHeaders: HeadersInit): Promise<PrintTicketResult> {
+  try {
+    const canvas = await renderTicketCanvas("basic", {});
+    const packed = packMonochrome(canvas);
+    const bytesPerRow = PRINTER_WIDTH_DOTS / 8;
+    const croppedHeight = Math.max(1, Math.min(rows, canvas.height));
+    const croppedPacked = packed.subarray(0, croppedHeight * bytesPerRow);
+    const res = await fetch(`./api/system/printer/raster?width=${PRINTER_WIDTH_DOTS}&height=${croppedHeight}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream", ...adminHeaders },
+      body: new Blob([croppedPacked]),
+    });
+    const data = await res.json().catch(() => ({}) as { ok?: boolean; error?: string });
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    const isNetworkError = e instanceof TypeError;
+    return { ok: false, error: isNetworkError ? "network_error" : String((e as Error).message || e) };
+  }
+}

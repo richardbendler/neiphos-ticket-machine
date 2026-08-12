@@ -1445,16 +1445,13 @@ const server = http.createServer(async (req, res) => {
       // voller USB-Geschwindigkeit nur einen kleinen Bruchteil eines
       // realistischen Druckerpuffers fuellen kann) beheben das strukturell,
       // unabhaengig von der genauen (unbekannten) Puffergroesse.
-      // Bewusst klein (12 Zeilen = 576 Byte je Schreibvorgang) -- schuetzt
-      // vor dem oben beschriebenen Einzel-Schreibvorgang-Puffer-Ueberlauf,
-      // unabhaengig von der genauen (unbekannten) Puffergroesse des
-      // Druckers. NICHT die Ursache des seltener auftretenden "Gibberish
-      // mitten in einem LANGEN Ticket"-Vorfalls (siehe ausfuehrlicher
-      // Kommentar weiter unten bei PRINT_SETTLE_MS) -- das haengt an der
-      // GESAMTLAENGE des zusammenhaengenden Rasterbilds, nicht an der
-      // Baendergroesse, per Live-Test mit kurzen vs. langen Testdrucken
-      // verifiziert.
-      const RASTER_BAND_HEIGHT = 12;
+      // Bewusst SEHR klein (3 Zeilen = 144 Byte je Schreibvorgang) -- siehe
+      // ausfuehrlicher Kommentar weiter unten bei PRINT_SETTLE_MS: die
+      // Pause zwischen den Baendern ist WIEDER da (war kurzzeitig entfernt),
+      // aber jetzt auf viele kleine Haeppchen verteilt statt wenige grosse,
+      // damit der Papiervorschub gleichmaessig statt in sichtbaren
+      // "Haekchen" wirkt.
+      const RASTER_BAND_HEIGHT = 3;
       const bands = [];
       for (let rowStart = 0; rowStart < height; rowStart += RASTER_BAND_HEIGHT) {
         const bandHeight = Math.min(RASTER_BAND_HEIGHT, height - rowStart);
@@ -1462,9 +1459,13 @@ const server = http.createServer(async (req, res) => {
         const byL = bandHeight & 0xff;
         const byH = (bandHeight >> 8) & 0xff;
         const bandHeader = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, byL, byH]);
-        // Schwaerzungsanteil dieses Bandes (0..1) -- nur noch fuers
-        // Fortschritts-Log unten (siehe dort), floss frueher zusaetzlich in
-        // eine inzwischen wieder entfernte Pause zwischen den Baendern ein.
+        // Schwaerzungsanteil dieses Bandes (0..1) -- fliesst unten wieder in
+        // die Pause nach dem Band ein (siehe PRINT_SETTLE_MS-Kommentar):
+        // ein Thermodruckkopf braucht fuer stark schwarze Zeilen (z. B. den
+        // runden ZORNTRAIN-Stempel) MERKLICH mehr Energie/Zeit pro Zeile als
+        // fuer duennen Text -- eine feste Zeilenpauschale unterschaetzt
+        // solche Stellen sonst systematisch (die genau in einer solchen
+        // dichten Passage gemeldete "Gibberish mittendrin" passt dazu).
         let blackBits = 0;
         for (let i = 0; i < bandBuf.length; i++) {
           let byte = bandBuf[i];
@@ -1504,27 +1505,30 @@ const server = http.createServer(async (req, res) => {
       // urspruengliche Puffer-Ueberlauf (siehe RASTER_BAND_HEIGHT-Kommentar
       // oben), den kleine Einzel-Schreibvorgaenge beheben.
       //
-      // KEINE zusaetzliche kuenstliche Pause (sleep) mehr zwischen den
-      // Baendern -- war zwischenzeitlich hier eingebaut (erst
-      // MS_PER_PRINTED_ROW=4, dann 7, dann 18) in der Annahme, der Drucker
-      // brauche zwischen den Baendern Zeit zum Puffer-Leeren. Zwei
-      // Erkenntnisse aus einer live beobachteten Testreihe widerlegen das
-      // aber: (1) Selbst mit 18ms/Zeile Pause UND sauber protokolliertem,
-      // fehlerfreiem Band-fuer-Band-Transfer (kein einziger I/O-Fehler) kam
-      // beim vollen ~577-Zeilen-Ticket weiterhin mittendrin Gibberish heraus
-      // -- die Pause loeste also gar nicht das eigentliche Problem. (2) Ein
-      // kurzer Testdruck (100 Zeilen, IDENTISCHE kleine Baender + Pausen)
-      // kam dagegen zuverlaessig sauber -- das Problem haengt also an der
-      // GESAMTLAENGE des zusammenhaengenden Rasterbilds (vermutlich ein
-      // Firmware-Limit/Zaehler dieses generischen Druckers), nicht an der
-      // Uebertragungsgeschwindigkeit. Die kuenstlichen Pausen brachten also
-      // nichts ausser sichtbar "ruckeligem" Papiervorschub (gemeldeter Bug --
-      // "ich will nicht, dass das so in Haekchen rauskommt"). Kleine
-      // Baender bleiben (schuetzen weiter vor dem EIN-Schreibvorgang-
-      // Puffer-Ueberlauf), aber fs.write() selbst blockiert bereits
-      // natuerlich, bis der Kernel/USB-Treiber die Bytes angenommen hat --
-      // das reicht als Tempo-Bremse, ganz ohne zusaetzliches sleep().
+      // Die Pause zwischen den Baendern (MS_PER_PRINTED_ROW) wurde
+      // zwischenzeitlich versuchsweise KOMPLETT entfernt, in der (falschen)
+      // Annahme, fs.write() blockiere bereits von selbst lange genug: eine
+      // live beobachtete Testreihe zeigte stattdessen, dass ALLE 49 Baender
+      // (das komplette ~577-Zeilen-Ticket) ohne Pause in nur ~1,3-1,8s
+      // geschrieben wurden -- der Kernel puffert die Schreibvorgaenge
+      // offenbar selbst vor und liefert sie im Hintergrund aus, WEIT
+      // schneller als der Drucker physisch mithalten kann (ein Thermodruck
+      // von 577 Zeilen braucht mechanisch mehrere Sekunden). Ergebnis war
+      // NICHT nur weiterhin Gibberish, sondern der Drucker reagierte danach
+      // ueberhaupt nicht mehr auf Statusabfragen (Timeout) -- schlimmer als
+      // vorher. Die Pause ist deshalb WIEDER da, jetzt aber auf viele sehr
+      // kleine Haeppchen verteilt (RASTER_BAND_HEIGHT=3 statt 12) statt auf
+      // wenige grosse -- gleiche Gesamt-Bremswirkung, aber der
+      // Papiervorschub sollte dadurch gleichmaessiger wirken statt in
+      // sichtbaren "Haekchen" zu stottern (gemeldeter Wunsch). Der
+      // Dichte-Zuschlag (siehe blackRatio oben) wurde dabei deutlich
+      // verstaerkt (bis zu +150% statt vorher +60%) -- die zuvor trotz
+      // Pause weiterhin gemeldete Gibberish-Stelle lag in einer auffaellig
+      // dunklen Bildregion (~50% Schwaerze), die feste Zeilenpauschale +
+      // milder Zuschlag hat dort vermutlich trotzdem nicht gereicht.
       const PRINT_SETTLE_MS = 4000;
+      const MS_PER_PRINTED_ROW = 20;
+      const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>
           new Promise((resolve) => {
@@ -1547,16 +1551,24 @@ const server = http.createServer(async (req, res) => {
                 const writeChunk = (buffer) => new Promise((res2, rej2) => fs.write(fd, buffer, (err) => (err ? rej2(err) : res2())));
                 (async () => {
                   await writeChunk(init);
-                  // Fortschritts-Log JE Band (nicht nur Start/Ende) -- rein zur
-                  // Fehlersuche beim wiederholt gemeldeten Gibberish-Vorfall:
-                  // zeigt im journalctl-Log live, bei welchem Band/welcher
-                  // Zeile ein Ausdruck tatsaechlich kippt, statt nur "irgendwo
-                  // dazwischen" vermuten zu muessen. KEIN sleep() mehr
-                  // zwischen den Baendern, siehe Kommentar oben.
+                  // Fortschritts-Log alle 10 Baender (nicht mehr JEDES Band --
+                  // bei RASTER_BAND_HEIGHT=3 waeren das ueber 190 Log-Zeilen
+                  // pro Druck, unnoetig viel Rauschen/I-O-Overhead) -- rein
+                  // zur Fehlersuche beim wiederholt gemeldeten Gibberish-
+                  // Vorfall: zeigt im journalctl-Log live, in welchem groben
+                  // Zeilenbereich ein Ausdruck tatsaechlich kippt.
+                  const sleep = (ms) => new Promise((res2) => setTimeout(res2, ms));
                   for (let i = 0; i < bands.length; i++) {
                     const band = bands[i];
                     await writeChunk(band.buffer);
-                    console.log(`[printer] #${jobId} Band ${i + 1}/${bands.length} geschrieben (${band.rows} Zeilen, Schwaerze ${Math.round(band.blackRatio * 100)}%, ${Date.now() - startedAt}ms seit Start)`);
+                    if (i % 10 === 0 || i === bands.length - 1) {
+                      console.log(`[printer] #${jobId} Band ${i + 1}/${bands.length} geschrieben (Zeile ~${i * RASTER_BAND_HEIGHT}, Schwaerze ${Math.round(band.blackRatio * 100)}%, ${Date.now() - startedAt}ms seit Start)`);
+                    }
+                    // Dichte-Zuschlag bis zu +150% Zeit bei nahezu vollflaechig
+                    // schwarzen Baendern (blackRatio nahe 1), siehe Kommentar
+                    // oben bei PRINT_SETTLE_MS.
+                    const densityFactor = 1 + band.blackRatio * 2.5;
+                    await sleep(Math.max(MS_MIN_PER_BAND, Math.round(band.rows * MS_PER_PRINTED_ROW * densityFactor)));
                   }
                   await writeChunk(feed);
                 })()

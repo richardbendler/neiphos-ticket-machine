@@ -659,7 +659,8 @@ export function createMiniMetroGame(): MinigameModule {
   }
 
   /**
-   * Gibt es auf dieser Linie irgendeine ANDERE Haltestelle als
+   * Gibt es auf dieser Linie, ab HIER in der aktuellen Fahrtrichtung
+   * weitergedacht (ohne Umkehren), irgendeine ANDERE Haltestelle als
    * excludeStationId, an der ein Umstieg zur gesuchten Form moeglich waere?
    * Grundlage fuer die Einstiegs-Entscheidung, wenn die Linie die Form
    * selbst gar nicht bedient (siehe arriveAtStation) -- excludeStationId
@@ -667,13 +668,33 @@ export function createMiniMetroGame(): MinigameModule {
    * schon die genau da einen Umstieg, macht das Zusteigen in DIESE (falsche)
    * Linie keinen Sinn, dann kann der Fahrgast gleich hier auf den
    * Anschluss warten statt unnoetig eine Runde mitzufahren.
+   *
+   * fromIdx/dir (analog zu aheadHasShapeSameLine) grenzen die Suche bewusst
+   * auf Haltestellen EIN, die der Zug in seiner AKTUELLEN Fahrtrichtung
+   * tatsaechlich noch erreicht -- vorher wurde die GESAMTE Linie durchsucht,
+   * auch Haltestellen HINTER dem Zug oder nur nach einer Umkehr am
+   * Linienende erreichbare. Ein (vor allem bei seltenen Symbolen mit nur
+   * genau EINER passenden Zielhaltestelle im ganzen Spiel relevanter)
+   * gemeldeter Bug: ein Fahrgast stieg dadurch in einen Zug, der gerade in
+   * die entgegengesetzte Richtung bzw. in eine Sackgasse einfuhr, obwohl
+   * "irgendwo sonst auf der Linie" (aber eben nicht mehr erreichbar) ein
+   * Umstieg existierte. Bei einer Ringlinie faehrt der Zug ohnehin immer
+   * rundherum weiter -- dort bleibt die gesamte Linie relevant (wie zuvor).
    */
-  function lineCanTransferTo(line: Line, shape: StationShape, excludeStationId: number): boolean {
+  function lineCanTransferTo(line: Line, shape: StationShape, excludeStationId: number, fromIdx: number, dir: 1 | -1): boolean {
     const seen = new Set<number>();
-    for (const id of line.stationIds) {
-      if (id === excludeStationId || seen.has(id)) continue;
+    const checkStation = (id: number): boolean => {
+      if (id === excludeStationId || seen.has(id)) return false;
       seen.add(id);
-      if (transferReachable(id, line, shape)) return true;
+      return transferReachable(id, line, shape);
+    };
+    if (isRingLine(line)) {
+      return line.stationIds.some(checkStation);
+    }
+    let idx = fromIdx;
+    while (idx >= 0 && idx < line.stationIds.length) {
+      if (checkStation(line.stationIds[idx])) return true;
+      idx += dir;
     }
     return false;
   }
@@ -694,6 +715,25 @@ export function createMiniMetroGame(): MinigameModule {
   function deleteLine(index: number): void {
     lines[index] = null;
     renderLineColumn();
+  }
+
+  /**
+   * Verwirft eine Linie KOMPLETT (Slot wird wieder frei, siehe
+   * firstFreeLineSlot/renderLineColumn), sobald sie durch Entfernen von
+   * Haltestellen unter zwei Haltestellen gefallen ist -- eine Linie mit nur
+   * noch 1 Haltestelle wird zwar nirgends mehr gezeichnet (sieht "geloescht"
+   * aus), blieb bisher aber als Objekt mit stationIds.length===1 in lines[]
+   * stehen und blockierte dadurch dauerhaft ihren Linien-Slot in der
+   * Palette (gemeldeter Bug: Slot wurde nie wieder frei). Gleiches Muster
+   * wie schon fuer frisch angelegte, nie auf 2 Haltestellen gekommene
+   * Linien in handleUp gehandhabt -- hier fuer den Fall einer VORHER
+   * laengeren Linie, die durch Entfernen zurueckgestutzt wurde.
+   */
+  function discardLineIfTooShort(lineIndex: number): void {
+    const line = lines[lineIndex];
+    if (line && line.stationIds.length < 2) {
+      lines[lineIndex] = null;
+    }
   }
 
   // ---------------------------------------- Einzelne Haltestelle aus Linie nehmen (Tap)
@@ -858,7 +898,7 @@ export function createMiniMetroGame(): MinigameModule {
       idx = line.stationIds.indexOf(stationId);
     }
     for (const t of line.trains) clampTrainIndex(line, t);
-    if (line.stationIds.length < 2) line.trains = [];
+    discardLineIfTooShort(lineIndex);
     renderLineColumn();
   }
 
@@ -876,7 +916,7 @@ export function createMiniMetroGame(): MinigameModule {
     if (occurrenceIdx < 0 || occurrenceIdx >= line.stationIds.length) return;
     removeStationIndexFromLine(line, occurrenceIdx);
     for (const t of line.trains) clampTrainIndex(line, t);
-    if (line.stationIds.length < 2) line.trains = [];
+    discardLineIfTooShort(lineIndex);
     renderLineColumn();
   }
 
@@ -1125,9 +1165,14 @@ export function createMiniMetroGame(): MinigameModule {
    * 2. WEN NEHMEN WIR MIT? Nur Fahrgaeste, deren Zielform entweder (a) ab
    *    hier noch auf DIESER Linie in Fahrtrichtung vorkommt, oder (b) --
    *    NUR falls die Zielform auf der GESAMTEN Linie ueberhaupt nicht
-   *    vorkommt -- es irgendwo sonst auf der Linie einen Umstiegspunkt zu
-   *    dieser Form gibt (dann lohnt sich das Mitfahren ein paar
-   *    Haltestellen weit, siehe lineCanTransferTo).
+   *    vorkommt -- ab hier IN FAHRTRICHTUNG (ohne Umkehren) noch ein
+   *    Umstiegspunkt zu dieser Form erreichbar ist (dann lohnt sich das
+   *    Mitfahren ein paar Haltestellen weit, siehe lineCanTransferTo).
+   *    Bewusst NICHT die gesamte Linie (auch hinter dem Zug bzw. erst nach
+   *    Umkehren an der Endstation) -- sonst stiegen Fahrgaeste in Zuege,
+   *    die gerade in eine Sackgasse oder von ihrem Umstiegspunkt weg
+   *    fahren (gemeldeter Bug, v. a. bei seltenen Symbolen mit nur einer
+   *    einzigen passenden Zielhaltestelle im ganzen Spiel).
    */
   function arriveAtStation(line: Line, train: Train, station: Station): void {
     train.dwell = TRAIN_DWELL_S;
@@ -1160,7 +1205,7 @@ export function createMiniMetroGame(): MinigameModule {
     for (const p of station.waiting) {
       if (train.carrying.length + boarding.length >= train.capacity) continue;
       const directlyAhead = aheadHasShapeSameLine(line, train.fromIdx, departDir, p.destShape);
-      const viaTransfer = !directlyAhead && !lineHasShape(line, p.destShape) && lineCanTransferTo(line, p.destShape, station.id);
+      const viaTransfer = !directlyAhead && !lineHasShape(line, p.destShape) && lineCanTransferTo(line, p.destShape, station.id, train.fromIdx, departDir);
       if (!directlyAhead && !viaTransfer) continue;
       boarding.push(p);
     }
@@ -2354,6 +2399,20 @@ export function createMiniMetroGame(): MinigameModule {
         lines[freshLineIndex] = null;
         renderLineColumn();
       }
+    }
+    // Gleiches Muster, aber fuer eine BEREITS BESTEHENDE Linie (nicht erst
+    // in diesem Zug angelegt, deshalb nicht ueber freshLineIndex erfasst):
+    // wurde sie waehrend dieses Zugs per Rueckwaerts-Ziehen (siehe
+    // tryExtendActiveLine) unter zwei Haltestellen gestutzt, muss der
+    // Linien-Slot beim Loslassen ebenso wieder frei werden -- sonst bleibt
+    // sie als "unsichtbare" Linie mit nur noch 1 Haltestelle liegen und
+    // blockiert den Slot dauerhaft (gemeldeter Bug). Bewusst erst HIER (bei
+    // Loslassen) statt schon mitten in tryExtendActiveLine verwerfen -- ein
+    // Weiterziehen ueber die entfernte Haltestelle hinaus soll die Linie
+    // waehrend desselben Zugs noch problemlos wieder verlaengern koennen.
+    if (activeDrag) {
+      discardLineIfTooShort(activeDrag.lineIndex);
+      renderLineColumn();
     }
     if (!dragMoved) {
       // Gilt sowohl fuer Endstationen (dort setzt handleDown activeDrag,

@@ -93,12 +93,21 @@ export function promptHighscoreName(opts: {
       // bewusst weniger auffaelliger (kein Puls-Effekt mehr noetig, da die
       // Tastatur selbst schon den Ticket-Weg abdeckt) Button DARUNTER.
       const ticketVariant = opts.ticketReason !== null ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
+      // Schuetzt vor einem doppelt ausgeloesten Druckauftrag durch einen
+      // Ghost-Touch/Doppel-Tipp auf den Bestaetigen-Key (bekanntes Problem
+      // auf diesem Touchscreen, siehe core/guardedClick.ts -- dieser Dialog
+      // nutzte das bisher NICHT, obwohl genau so ein doppelter Submit
+      // innerhalb kurzer Zeit zwei ueberlappende Druckauftraege ausloesen
+      // koennte, gemeldeter Verdacht bei wiederholtem Gibberish-Druckfehler).
+      let submitted = false;
       const kb = new OnScreenKeyboard({
         layout: "alphanumeric",
         maxLength: 16,
         placeholder: "Dein Name",
         submitLabel: ticketVariant !== null ? "Speichern & Ticket drucken" : "Speichern",
         onSubmit: (value) => {
+          if (submitted) return;
+          submitted = true;
           close();
           const trimmed = value.trim();
           opts.onDone(trimmed || null);

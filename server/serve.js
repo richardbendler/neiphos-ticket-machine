@@ -1323,7 +1323,14 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 200, { available: false, paper: "unknown" });
           return;
         }
+        // Siehe printRasterJob-Kommentar zum Logging weiter unten -- diese
+        // Statusabfrage lief per withPrinterDevice() durch dieselbe
+        // Warteschlange wie ein Druckauftrag, ist also fuer die
+        // Ueberlappungs-Diagnose ebenfalls relevant (periodisch alle 60s aus
+        // jedem offenen Tab, siehe core/Router.ts).
+        const t0 = Date.now();
         const status = await queryPrinterPaperStatus();
+        console.log(`[printer] status-query fertig nach ${Date.now() - t0}ms -> ${JSON.stringify(status)}`);
         const paper = !status ? "unknown" : status.empty ? "empty" : status.low ? "low" : "ok";
         sendJson(res, 200, { available: true, paper });
       });
@@ -1368,10 +1375,21 @@ const server = http.createServer(async (req, res) => {
     // einen Client-/Renderfehler, der ein absurd hohes Bild anfordert (war
     // vorher bei 4000 Zeilen, also ueber 6x so grosszuegig wie noetig).
     const MAX_EXPECTED_TICKET_ROWS = 620;
-    async function printRasterJob(req, res, url) {
+    // Nur fuer die Fehlersuche beim wiederholt gemeldeten Gibberish-Vorfall:
+    // protokolliert Start/Ende jedes Druckauftrags MIT Quelle (admin-
+    // geschuetzter Testdruck vs. oeffentlicher Highscore-Druck) -- damit sich
+    // im Systemd-Journal (journalctl -u ticketmachine-server) nachtraeglich
+    // pruefen laesst, ob zwei Auftraege zeitlich ueberlappen (z. B. durch
+    // einen Ghost-Touch-Doppel-Tipp), statt nur zu vermuten.
+    let printJobCounter = 0;
+    async function printRasterJob(req, res, url, source) {
+      const jobId = ++printJobCounter;
+      const startedAt = Date.now();
+      console.log(`[printer] #${jobId} START source=${source} ip=${clientIp(req)}`);
       const width = Number(url.searchParams.get("width"));
       const height = Number(url.searchParams.get("height"));
       if (!Number.isInteger(width) || width <= 0 || width % 8 !== 0 || !Number.isInteger(height) || height <= 0 || height > MAX_EXPECTED_TICKET_ROWS * 2) {
+        console.log(`[printer] #${jobId} ENDE: invalid_dimensions (width=${width}, height=${height})`);
         sendJson(res, 400, { error: "invalid_dimensions" });
         return;
       }
@@ -1379,11 +1397,13 @@ const server = http.createServer(async (req, res) => {
       try {
         bodyBuf = await readBodyBuffer(req, 400_000);
       } catch {
+        console.log(`[printer] #${jobId} ENDE: payload_too_large`);
         sendJson(res, 413, { error: "payload_too_large" });
         return;
       }
       const bytesPerRow = width / 8;
       if (bodyBuf.length !== bytesPerRow * height) {
+        console.log(`[printer] #${jobId} ENDE: size_mismatch`);
         sendJson(res, 400, { error: "size_mismatch", expected: bytesPerRow * height, got: bodyBuf.length });
         return;
       }
@@ -1461,8 +1481,10 @@ const server = http.createServer(async (req, res) => {
       await withPrinterDevice(
         () =>
           new Promise((resolve) => {
+            console.log(`[printer] #${jobId} Warteschlange frei, beginnt jetzt (${Date.now() - startedAt}ms gewartet), ${bands.length} Baender, ${height} Zeilen`);
             queryPrinterPaperStatusRaw().then((paperStatus) => {
               if (paperStatus && paperStatus.empty) {
+                console.log(`[printer] #${jobId} ENDE: paper_empty`);
                 sendJson(res, 200, { ok: false, error: "paper_empty" });
                 resolve();
                 return;
@@ -1470,6 +1492,7 @@ const server = http.createServer(async (req, res) => {
               fs.open(PRINTER_DEVICE, "r+", (openErr, fd) => {
                 if (openErr) {
                   const reason = openErr.code === "ENOENT" ? "printer_not_found" : openErr.code === "EACCES" ? "permission_denied" : "write_failed";
+                  console.log(`[printer] #${jobId} ENDE: open-Fehler ${reason}`);
                   sendJson(res, 500, { ok: false, error: reason });
                   resolve();
                   return;
@@ -1485,11 +1508,16 @@ const server = http.createServer(async (req, res) => {
                   await writeChunk(feed);
                 })()
                   .then(() => {
+                    console.log(`[printer] #${jobId} Baender fertig geschrieben (${Date.now() - startedAt}ms seit Start), Warteschlange bleibt noch ${PRINT_SETTLE_MS}ms offen`);
                     sendJson(res, 200, { ok: true });
-                    setTimeout(resolve, PRINT_SETTLE_MS);
+                    setTimeout(() => {
+                      console.log(`[printer] #${jobId} ENDE: ok, Warteschlange wieder frei (${Date.now() - startedAt}ms gesamt)`);
+                      resolve();
+                    }, PRINT_SETTLE_MS);
                   })
                   .catch((err) => {
                     const reason = err.code === "ENOENT" ? "printer_not_found" : err.code === "EACCES" ? "permission_denied" : "write_failed";
+                    console.log(`[printer] #${jobId} ENDE: Schreibfehler ${reason} (${err.message || err})`);
                     sendJson(res, 500, { ok: false, error: reason });
                     resolve();
                   })
@@ -1506,7 +1534,7 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/system/printer/raster" && req.method === "POST") {
       if (!requireAdmin(req, res)) return;
-      await printRasterJob(req, res, url);
+      await printRasterJob(req, res, url, "admin-testdruck");
       return;
     }
 
@@ -1521,7 +1549,7 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 429, { error: "rate_limited" });
         return;
       }
-      await printRasterJob(req, res, url);
+      await printRasterJob(req, res, url, "highscore-ticket");
       return;
     }
 

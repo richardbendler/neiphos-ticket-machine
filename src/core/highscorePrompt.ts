@@ -113,9 +113,11 @@ export function promptHighscoreName(opts: {
           opts.onDone(trimmed || null);
           if (ticketVariant !== null) {
             const ticketFields = { name: trimmed, game: opts.gameTitle, score: opts.scoreText };
-            void printTicket(ticketVariant, ticketFields).then((result) => {
-              showTicketPrintResult(result, ticketVariant, ticketFields);
-            });
+            // printTicket() wird HIER schon gestartet (nicht erst awaited),
+            // showTicketPrintResult zeigt seine Meldung dadurch sofort an,
+            // waehrend im Hintergrund gedruckt wird -- siehe dortigen
+            // Kommentar.
+            showTicketPrintResult(printTicket(ticketVariant, ticketFields), ticketVariant, ticketFields);
           }
         },
       });
@@ -166,8 +168,20 @@ export function promptHighscoreName(opts: {
  * Dialogs neu (kein neues Modal) -- klappt der Nachversuch, verschwindet
  * der "Erneut versuchen"-Button automatisch (die Erfolgs-Ansicht hat gar
  * keinen), man kann also nicht endlos weiterdrucken.
+ *
+ * resultPromise statt eines bereits vorliegenden Ergebnisses: der
+ * eigentliche Druckauftrag dauert inzwischen mehrere Sekunden (siehe
+ * server/serve.js#printRasterJob) -- wuerde hier auf das fertige Ergebnis
+ * gewartet, erschiene diese Meldung erst NACHDEM das Ticket laengst fertig
+ * gedruckt ist, obwohl der Titel "Dein Ticket wird gedruckt!" das Gegenteil
+ * suggeriert (gemeldeter Bug: "die Meldung kommt immer noch nachdem das
+ * Ticket gedruckt wurde"). Stattdessen wird SOFORT optimistisch die
+ * Erfolgs-Ansicht gezeigt (der Normalfall), waehrend im Hintergrund
+ * weitergedruckt wird -- nur falls sich resultPromise spaeter als Fehler
+ * herausstellt, wird die Ansicht nachtraeglich durch die Fehler-Ansicht
+ * ersetzt.
  */
-function showTicketPrintResult(result: PrintTicketResult, variant: TicketVariant, fields: TicketFields): void {
+function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, variant: TicketVariant, fields: TicketFields): void {
   openModal((panel, close) => {
     function render(current: PrintTicketResult): void {
       panel.innerHTML = "";
@@ -236,6 +250,9 @@ function showTicketPrintResult(result: PrintTicketResult, variant: TicketVariant
       panel.appendChild(okBtn);
     }
 
-    render(result);
+    render({ ok: true });
+    void resultPromise.then((result) => {
+      if (!result.ok) render(result);
+    });
   });
 }

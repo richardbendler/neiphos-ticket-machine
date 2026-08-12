@@ -78,9 +78,10 @@ const FIELD_FONT_SIZE = 61;
 const FIELD_FONT = `700 ${FIELD_FONT_SIZE}px 'Barlow Semi Condensed', sans-serif`;
 const FIELD_COLOR = "#7a1400";
 // Auf ausdruecklichen Wunsch sitzt der Wert etwas tiefer als die reine
-// vertikale Zentrierung (FIELD_ROW_HEIGHT/2) ergeben wuerde -- 10% der
-// eigenen Schrifthoehe zusaetzlich nach unten.
-const FIELD_VERTICAL_NUDGE = FIELD_FONT_SIZE * 0.1;
+// vertikale Zentrierung (FIELD_ROW_HEIGHT/2) ergeben wuerde -- zunaechst
+// 10%, dann nochmal um weitere 5% der eigenen Schrifthoehe ergaenzt (macht
+// zusammen 15%).
+const FIELD_VERTICAL_NUDGE = FIELD_FONT_SIZE * 0.15;
 // Zeilenhoehe je Feld -- der Reihenabstand zwischen den vier Feldern liegt
 // (per Bildanalyse) recht einheitlich bei ~84-87px, das jeweilige Label
 // sitzt IM Bereich oberhalb der eigenen Linie (field.y markiert die Linie

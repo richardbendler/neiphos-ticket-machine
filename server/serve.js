@@ -1526,8 +1526,18 @@ const server = http.createServer(async (req, res) => {
       // Pause weiterhin gemeldete Gibberish-Stelle lag in einer auffaellig
       // dunklen Bildregion (~50% Schwaerze), die feste Zeilenpauschale +
       // milder Zuschlag hat dort vermutlich trotzdem nicht gereicht.
+      //
+      // MS_PER_PRINTED_ROW=20 (zusammen mit dem staerkeren Dichte-Zuschlag)
+      // war die ERSTE Konfiguration, die live nachweislich sauber druckte
+      // (~577 Zeilen in ~23s Uebertragungszeit) -- auf Wunsch danach als
+      // Kompromiss auf 14 gesenkt (~30% schneller, ca. 16s), RASTER_BAND_
+      // HEIGHT und der Dichte-Zuschlag bleiben UNVERAENDERT (das war die
+      // einzige bisher bestaetigt funktionierende Kombination, hier
+      // testweise nur EIN Hebel gleichzeitig aendern statt mehrere auf
+      // einmal zu riskieren). Falls erneut Gibberish auftritt: zuerst
+      // wieder auf 20 zurueckstellen, bevor an anderen Werten gedreht wird.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 20;
+      const MS_PER_PRINTED_ROW = 14;
       const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>

@@ -153,6 +153,12 @@ export const icons = {
      <circle cx="8" cy="19" r="2"/>
      <circle cx="16" cy="19" r="2"/>`,
   ),
+  // Einfache Uhr mit Zeigern -- fuer den Ticket-Cooldown-Countdown in der
+  // Fussleiste (core/Router.ts, core/ticketCooldown.ts).
+  clock: svg(
+    `<circle cx="12" cy="12" r="9"/>
+     <path d="M12 7v5.5L15.5 15"/>`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

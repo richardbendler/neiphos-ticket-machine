@@ -323,6 +323,9 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
  */
 function fitBuildingContent(container: HTMLElement, content: HTMLElement): void {
   content.style.transform = "";
+  // Reset vor jeder Neumessung -- siehe unten, warum das ueberhaupt
+  // umgeschaltet wird (gleiches Prinzip wie core/modal.ts#openModal).
+  container.style.overflowY = "auto";
   // container.clientHeight schliesst dessen eigenes (wenn auch kleines)
   // Padding oben/unten mit ein (siehe .connection-puzzle-connections-zone)
   // -- das ist KEIN fuer den Inhalt nutzbarer Platz, muss also von der
@@ -346,9 +349,19 @@ function fitBuildingContent(container: HTMLElement, content: HTMLElement): void 
     // ragte der Inhalt bei einem 0.35er-Sockel weiterhin in die Fussleiste).
     // 0.12 ist nur eine technische Notbremse gegen einen (praktisch nie
     // erreichten) Skalierungsfaktor von 0.
-    const scale = Math.max(0.12, (available / natural) * 0.96);
+    const rawScale = (available / natural) * 0.96;
+    const scale = Math.max(0.12, rawScale);
     content.style.transform = `scale(${scale})`;
     content.style.transformOrigin = "top center";
+    // scrollHeight/clientHeight beziehen sich auf die UNSKALIERTE Layout-
+    // Groesse und bleiben dadurch auch nach einer erfolgreichen
+    // Verkleinerung weiterhin "technisch" > und damit scrollbar, OBWOHL der
+    // Inhalt durch die Skalierung bereits vollstaendig sichtbar ist
+    // (gemeldeter Bug: "ich kann schon wieder scrollen", betraf auch die
+    // Tastatur-Modals, siehe core/modal.ts#openModal fuer denselben Fix).
+    // Nur wenn der 0.12-Sockel NICHT gegriffen hat, ist der Inhalt
+    // GARANTIERT vollstaendig sichtbar -- overflow dann komplett abschalten.
+    if (rawScale >= 0.12) container.style.overflowY = "hidden";
   }
 }
 

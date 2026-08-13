@@ -767,13 +767,17 @@ export function createTrainQuartetGame(): MinigameModule {
       // uebertrafen headerBottom+bottomMargin zusammen frueher schon die
       // gesamte Bildschirmhoehe (gemeldeter Bug), jetzt skaliert bottomMargin
       // mit herunter (Obergrenze = bisheriger, auf normalen/grossen
-      // Bildschirmen unveraendert bleibender Wert). Faktor/Deckel nochmal
-      // leicht angehoben (war 0.32/210) -- messageEl hatte bis eben gar
-      // keine eigene, dem Rest der App entsprechende Schriftgroesse (siehe
-      // init()), wodurch diese Reserve auf manchen Bildschirmen knapp zu
-      // klein war und die Rundenergebnis-Box sichtbar mit der Karte
-      // ueberlappte (gemeldeter/per Screenshot belegter Bug).
-      const bottomMargin = Math.min(220, size.height * 0.36);
+      // Bildschirmen unveraendert bleibender Wert). Deckel nochmal angehoben
+      // (war 220) -- auf einem sehr hohen Bildschirm (z. B. 1920x1080) wuchs
+      // die Rundenergebnis-Box (messageEl, deren Schrift ja ebenfalls mit
+      // vh mitwaechst) inzwischen ueber diesen Deckel hinaus und ueberlappte
+      // dadurch sichtbar die unterste Statzeile der Karten (gemeldeter/per
+      // Screenshot belegter Bug: "der Banner ueberdeckt wieder leicht die
+      // Karten"). Die Karten selbst werden dadurch auf grossen Bildschirmen
+      // automatisch etwas kleiner (availableHeight sinkt), da sie sich ja
+      // exakt an availableHeight = size.height - headerBottom - bottomMargin
+      // orientieren.
+      const bottomMargin = Math.min(280, size.height * 0.36);
       const availableHeight = Math.max(120, size.height - headerBottom - bottomMargin);
       // Festes Seitenverhaeltnis (CARD_ASPECT) statt getrennter Breiten fuer
       // Einzel-/Paar-Ansicht -- dieselbe cardWidth gilt fuer beide, damit die

@@ -149,6 +149,12 @@ function codeBlock(text: string): HTMLDivElement {
  * Inhalt auf).
  */
 function addCloseCorner(panel: HTMLDivElement, close: () => void): void {
+  // Markiert das Panel als Admin-Dialog (siehe .admin-panel .btn in
+  // style.css) -- ALLE Admin-Dialoge rufen addCloseCorner bereits als
+  // Erstes auf (siehe Datei-Kommentar oben), damit lohnt sich hier ein
+  // einziger zentraler Ansatzpunkt statt vieler einzelner classList.add()-
+  // Aufrufe an jeder Aufrufstelle.
+  panel.classList.add("admin-panel");
   const stickyWrap = document.createElement("div");
   stickyWrap.className = "modal-panel__close-wrap";
   const btn = document.createElement("button");
@@ -1539,10 +1545,48 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   h2.textContent = "Admin-Bereich";
   panel.appendChild(h2);
 
+  // --- Feedback ----------------------------------------------------------
+  // Auf ausdruecklichen Wunsch GANZ OBEN, noch vor dem Ticket-Cooldown --
+  // haeufigste Admin-Aufgabe, soll als Erstes sichtbar/erreichbar sein.
+  const feedbackTitle = document.createElement("p");
+  feedbackTitle.style.color = "var(--text-muted)";
+  feedbackTitle.style.margin = "10px 0 8px";
+  feedbackTitle.textContent = "Feedback von Besucher:innen:";
+  panel.appendChild(feedbackTitle);
+
+  const feedbackBtn = document.createElement("button");
+  feedbackBtn.type = "button";
+  feedbackBtn.className = "btn";
+  feedbackBtn.style.display = "inline-flex";
+  feedbackBtn.style.alignItems = "center";
+  feedbackBtn.style.gap = "8px";
+  feedbackBtn.textContent = "Feedback anschauen";
+  panel.appendChild(feedbackBtn);
+
+  const unreadBadge = document.createElement("span");
+  unreadBadge.style.display = "none";
+  unreadBadge.style.background = "var(--accent)";
+  unreadBadge.style.color = "#2b2004";
+  unreadBadge.style.borderRadius = "999px";
+  unreadBadge.style.padding = "1px 8px";
+  unreadBadge.style.fontSize = "0.8rem";
+  unreadBadge.style.fontWeight = "700";
+  feedbackBtn.appendChild(unreadBadge);
+
+  const refreshUnreadBadge = () => {
+    fetchFeedback().then(({ entries }) => {
+      const unread = countUnread(entries);
+      unreadBadge.style.display = unread > 0 ? "inline-block" : "none";
+      unreadBadge.textContent = String(unread);
+    });
+  };
+  refreshUnreadBadge();
+
+  feedbackBtn.addEventListener("click", () => {
+    renderFeedbackView(panel, close);
+  });
+
   // --- Ticket-Cooldown -------------------------------------------------
-  // Auf ausdruecklichen Wunsch GANZ OBEN, direkt unter der Ueberschrift --
-  // noch vor dem Sync-Status (der stand bisher als einziges dort, siehe
-  // dessen Kommentar), siehe renderTicketCooldownControl.
   panel.appendChild(renderTicketCooldownControl());
 
   // --- Sync-Status ---------------------------------------------------
@@ -1581,48 +1625,34 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   });
 
   // Reihenfolge der folgenden Abschnitte auf ausdruecklichen Wunsch so
-  // festgelegt (haeufigste/wichtigste Admin-Aufgaben zuerst): Feedback,
-  // Statistik, Highscores, Spiele-Sichtbarkeit, System (Bildschirmschoner/
-  // Lautstaerke/Audioausgabe/WLAN), Kiosk-Modus, Rest (Touchscreen-Test).
+  // festgelegt (haeufigste/wichtigste Admin-Aufgaben zuerst): Feedback und
+  // Ticket-Cooldown ganz oben (siehe dort), dann System (Bildschirmschoner/
+  // Lautstaerke/Audioausgabe/Drucker/WLAN) + Touchscreen-Test direkt
+  // darunter, dann Statistik, Highscores, Spiele-Sichtbarkeit, Kiosk-Modus.
 
-  // --- Feedback ----------------------------------------------------------
-  const feedbackTitle = document.createElement("p");
-  feedbackTitle.style.color = "var(--text-muted)";
-  feedbackTitle.style.margin = "18px 0 8px";
-  feedbackTitle.textContent = "Feedback von Besucher:innen:";
-  panel.appendChild(feedbackTitle);
+  // --- System: Bildschirmschoner + Lautstaerke + Audioausgabe + Drucker +
+  // WLAN --------------------------------------------------------------
+  // Steuert die ECHTE Betriebssystem-Lautstaerke/WLAN-Verbindung/Audio-
+  // ausgabe/den Drucker des Pi (server/serve.js, wpctl/nmcli) -- auf
+  // ausdruecklichen Wunsch weit oben, direkt nach Feedback/Ticket-Cooldown.
+  // Ausserhalb des Pi (z. B. npm run dev auf einem normalen
+  // Entwicklungsrechner ohne wpctl/nmcli) blenden sich die betroffenen
+  // Abschnitte automatisch als "nicht verfuegbar" aus, statt kaputt
+  // auszusehen.
+  panel.appendChild(renderSystemSection());
 
-  const feedbackBtn = document.createElement("button");
-  feedbackBtn.type = "button";
-  feedbackBtn.className = "btn";
-  feedbackBtn.style.display = "inline-flex";
-  feedbackBtn.style.alignItems = "center";
-  feedbackBtn.style.gap = "8px";
-  feedbackBtn.textContent = "Feedback anschauen";
-  panel.appendChild(feedbackBtn);
-
-  const unreadBadge = document.createElement("span");
-  unreadBadge.style.display = "none";
-  unreadBadge.style.background = "var(--accent)";
-  unreadBadge.style.color = "#2b2004";
-  unreadBadge.style.borderRadius = "999px";
-  unreadBadge.style.padding = "1px 8px";
-  unreadBadge.style.fontSize = "0.8rem";
-  unreadBadge.style.fontWeight = "700";
-  feedbackBtn.appendChild(unreadBadge);
-
-  const refreshUnreadBadge = () => {
-    fetchFeedback().then(({ entries }) => {
-      const unread = countUnread(entries);
-      unreadBadge.style.display = unread > 0 ? "inline-block" : "none";
-      unreadBadge.textContent = String(unread);
-    });
-  };
-  refreshUnreadBadge();
-
-  feedbackBtn.addEventListener("click", () => {
-    renderFeedbackView(panel, close);
-  });
+  // --- Touchscreen-Test ------------------------------------------------
+  // Gedacht fuer den allerersten Anschluss eines neuen Touch-Displays
+  // (Anlass: Verdacht auf eine tote Zone) -- auf ausdruecklichen Wunsch
+  // direkt bei den uebrigen Geraete-/Hardware-Einstellungen oben, statt wie
+  // zuvor separat ganz unten.
+  const touchTestBtn = document.createElement("button");
+  touchTestBtn.type = "button";
+  touchTestBtn.className = "btn btn--ghost";
+  touchTestBtn.style.margin = "4px 0 18px";
+  touchTestBtn.textContent = "Touchscreen-Test";
+  guardedClick(touchTestBtn, () => openTouchTest());
+  panel.appendChild(touchTestBtn);
 
   // --- Statistik -------------------------------------------------------
   const statsTitle = document.createElement("p");
@@ -1704,77 +1734,23 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   // --- Ticket-Verdienstwege ---------------------------------------------
   panel.appendChild(renderTicketMethodsControl());
 
-  // --- Spiele ein-/ausblenden ------------------------------------------
-  const gamesTitle = document.createElement("p");
-  gamesTitle.style.color = "var(--text-muted)";
-  gamesTitle.style.margin = "18px 0 8px";
-  gamesTitle.textContent = "Spiele im Hauptmenü:";
-  panel.appendChild(gamesTitle);
+  // --- Spiele ein-/ausblenden (eigenes Untermenue) ----------------------
+  // War bisher die komplette Checkbox-Liste direkt hier inline -- auf
+  // ausdruecklichen Wunsch in ein eigenes Untermenue ausgelagert (siehe
+  // renderGamesVisibilityView), damit die Admin-Startseite selbst kuerzer
+  // bleibt. Zeigt hier nur noch einen einzelnen Konfigurieren-Button.
+  const gamesConfigTitle = document.createElement("p");
+  gamesConfigTitle.style.color = "var(--text-muted)";
+  gamesConfigTitle.style.margin = "18px 0 8px";
+  gamesConfigTitle.textContent = "Spiele im Hauptmenü:";
+  panel.appendChild(gamesConfigTitle);
 
-  const gamesList = document.createElement("div");
-  gamesList.style.display = "flex";
-  gamesList.style.flexDirection = "column";
-  gamesList.style.gap = "6px";
-  panel.appendChild(gamesList);
-
-  const checkboxByGameId = new Map<string, HTMLInputElement>();
-
-  for (const game of gameRegistry) {
-    const row = document.createElement("label");
-    row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.gap = "10px";
-    row.style.padding = "8px 10px";
-    row.style.border = "1px solid var(--panel-border)";
-    row.style.borderRadius = "var(--radius-sm)";
-    row.style.cursor = "pointer";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    // Groesser als der winzige Browser-Standard -- auf einem Touchscreen
-    // sonst kaum treffsicher antippbar.
-    checkbox.style.width = "20px";
-    checkbox.style.height = "20px";
-    checkbox.style.flexShrink = "0";
-    checkbox.checked = isGameEnabled(game.id);
-    checkbox.addEventListener("change", () => {
-      setGameEnabled(game.id, checkbox.checked);
-    });
-    row.appendChild(checkbox);
-    checkboxByGameId.set(game.id, checkbox);
-
-    const label = document.createElement("span");
-    label.textContent = game.title;
-    row.appendChild(label);
-
-    gamesList.appendChild(row);
-  }
-
-  // Falls ein anderes Geraet die Sichtbarkeit inzwischen (server-seitig)
-  // geaendert hat, hier beim Oeffnen des Admin-Bereichs einmal nachziehen --
-  // ohne das wuerde ein versehentliches erneutes Anklicken einer Checkbox
-  // den fremden Stand sonst wieder ueberschreiben.
-  void pullSettingsFromServer().then((changed) => {
-    if (!changed) return;
-    for (const [gameId, checkbox] of checkboxByGameId) checkbox.checked = isGameEnabled(gameId);
-  });
-
-  const gamesHint = document.createElement("p");
-  gamesHint.style.fontSize = "0.78rem";
-  gamesHint.style.color = "var(--text-faint)";
-  gamesHint.style.marginTop = "6px";
-  gamesHint.textContent = "Abgehakte Spiele erscheinen im Hauptmenü. Ausgehakte bleiben erhalten (inkl. Highscores), sind nur ausgeblendet.";
-  panel.appendChild(gamesHint);
-
-  // --- System: Bildschirmschoner + Lautstaerke + Audioausgabe + WLAN ---
-  // Steuert die ECHTE Betriebssystem-Lautstaerke/WLAN-Verbindung/Audio-
-  // ausgabe des Pi (server/serve.js, wpctl/nmcli) -- auf ausdruecklichen
-  // Wunsch, damit man dafuer nicht extra den Kiosk-Modus verlassen muss.
-  // Ausserhalb des Pi (z. B. npm run dev auf einem normalen
-  // Entwicklungsrechner ohne wpctl/nmcli) blenden sich die betroffenen
-  // Abschnitte automatisch als "nicht verfuegbar" aus, statt kaputt
-  // auszusehen.
-  panel.appendChild(renderSystemSection());
+  const gamesConfigBtn = document.createElement("button");
+  gamesConfigBtn.type = "button";
+  gamesConfigBtn.className = "btn";
+  gamesConfigBtn.textContent = "🎮 Spiele im Hauptmenü konfigurieren";
+  gamesConfigBtn.addEventListener("click", () => renderGamesVisibilityView(panel, close));
+  panel.appendChild(gamesConfigBtn);
 
   // --- Kiosk-Steuerung -----------------------------------------------
   const kioskSection = document.createElement("div");
@@ -1866,19 +1842,6 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
 
   panel.appendChild(kioskSection);
 
-  // --- Touchscreen-Test ------------------------------------------------
-  // Gedacht fuer den allerersten Anschluss eines neuen Touch-Displays
-  // (Anlass: Verdacht auf eine tote Zone) -- kein alltaeglicher Admin-
-  // Vorgang, daher auf ausdruecklichen Wunsch weiter unten (siehe
-  // Reihenfolge-Kommentar oben).
-  const touchTestBtn = document.createElement("button");
-  touchTestBtn.type = "button";
-  touchTestBtn.className = "btn btn--ghost";
-  touchTestBtn.style.margin = "18px 0 0";
-  touchTestBtn.textContent = "Touchscreen-Test";
-  guardedClick(touchTestBtn, () => openTouchTest());
-  panel.appendChild(touchTestBtn);
-
   // --- Schliessen --------------------------------------------------------
   const actions = document.createElement("div");
   actions.className = "modal-actions";
@@ -1889,6 +1852,81 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   closeBtn.addEventListener("click", close);
   actions.appendChild(closeBtn);
   panel.appendChild(actions);
+}
+
+/** Eigenes Untermenue fuer die Spiele-Sichtbarkeits-Checkboxen (siehe renderAdminHome#gamesConfigBtn) -- gleiches "Zurueck"-Muster wie renderFeedbackView. */
+function renderGamesVisibilityView(panel: HTMLDivElement, close: () => void): void {
+  panel.innerHTML = "";
+  addCloseCorner(panel, close);
+
+  const h2 = document.createElement("h2");
+  h2.textContent = "Spiele im Hauptmenü";
+  panel.appendChild(h2);
+
+  const gamesHint = document.createElement("p");
+  gamesHint.style.fontSize = "0.78rem";
+  gamesHint.style.color = "var(--text-faint)";
+  gamesHint.style.margin = "4px 0 12px";
+  gamesHint.textContent = "Abgehakte Spiele erscheinen im Hauptmenü. Ausgehakte bleiben erhalten (inkl. Highscores), sind nur ausgeblendet.";
+  panel.appendChild(gamesHint);
+
+  const gamesList = document.createElement("div");
+  gamesList.style.display = "flex";
+  gamesList.style.flexDirection = "column";
+  gamesList.style.gap = "6px";
+  panel.appendChild(gamesList);
+
+  const checkboxByGameId = new Map<string, HTMLInputElement>();
+
+  for (const game of gameRegistry) {
+    const row = document.createElement("label");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "10px";
+    row.style.padding = "8px 10px";
+    row.style.border = "1px solid var(--panel-border)";
+    row.style.borderRadius = "var(--radius-sm)";
+    row.style.cursor = "pointer";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    // Groesser als der winzige Browser-Standard -- auf einem Touchscreen
+    // sonst kaum treffsicher antippbar.
+    checkbox.style.width = "20px";
+    checkbox.style.height = "20px";
+    checkbox.style.flexShrink = "0";
+    checkbox.checked = isGameEnabled(game.id);
+    checkbox.addEventListener("change", () => {
+      setGameEnabled(game.id, checkbox.checked);
+    });
+    row.appendChild(checkbox);
+    checkboxByGameId.set(game.id, checkbox);
+
+    const label = document.createElement("span");
+    label.textContent = game.title;
+    row.appendChild(label);
+
+    gamesList.appendChild(row);
+  }
+
+  // Falls ein anderes Geraet die Sichtbarkeit inzwischen (server-seitig)
+  // geaendert hat, hier beim Oeffnen dieses Untermenues einmal nachziehen --
+  // ohne das wuerde ein versehentliches erneutes Anklicken einer Checkbox
+  // den fremden Stand sonst wieder ueberschreiben.
+  void pullSettingsFromServer().then((changed) => {
+    if (!changed) return;
+    for (const [gameId, checkbox] of checkboxByGameId) checkbox.checked = isGameEnabled(gameId);
+  });
+
+  const backActions = document.createElement("div");
+  backActions.className = "modal-actions";
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.className = "btn";
+  backBtn.textContent = "Zurück";
+  backBtn.addEventListener("click", () => renderAdminHome(panel, close));
+  backActions.appendChild(backBtn);
+  panel.appendChild(backActions);
 }
 
 function renderFeedbackView(panel: HTMLDivElement, close: () => void): void {

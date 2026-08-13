@@ -223,14 +223,21 @@ export function promptHighscoreName(opts: {
  */
 function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, variant: TicketVariant, fields: TicketFields): void {
   openModal((panel, close) => {
+    // War der generische Deckel (max-width:420px) -- auf ausdruecklichen
+    // Wunsch darf dieser Dialog deutlich mehr Bildschirmbreite nutzen, siehe
+    // .ticket-result-panel in style.css.
+    panel.classList.add("ticket-result-panel");
+
     function render(current: PrintTicketResult): void {
       panel.innerHTML = "";
 
       const iconWrap = document.createElement("div");
-      iconWrap.style.width = "40px";
-      iconWrap.style.height = "40px";
+      // War fix 40x40px/8px -- skaliert jetzt mit, gleicher Grund wie beim
+      // Trophaeen-Icon in promptHighscoreName oben.
+      iconWrap.style.width = "clamp(16px, 5vh, 40px)";
+      iconWrap.style.height = "clamp(16px, 5vh, 40px)";
       iconWrap.style.color = current.ok ? "var(--accent)" : "var(--danger)";
-      iconWrap.style.marginBottom = "8px";
+      iconWrap.style.marginBottom = "clamp(2px, 1vh, 8px)";
       iconWrap.innerHTML = current.ok ? icons.ticket : icons.close;
 
       const h2 = document.createElement("h2");
@@ -239,7 +246,9 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       panel.appendChild(h2);
 
       const p = document.createElement("p");
-      p.style.fontSize = "0.95rem";
+      // War fix 0.95rem -- auf ausdruecklichen Wunsch jetzt groesser UND
+      // vh-gekoppelt, passend zur jetzt breiteren .ticket-result-panel.
+      p.style.fontSize = "clamp(0.4rem, min(2.2vw, 3.4vh), 1.7rem)";
       p.textContent = current.ok
         ? "Mit diesem Ticket kannst du dir nun einen Shot an der Bar abholen. Lass es vorher noch beim Schaffner stempeln."
         : friendlyPrintErrorMessage(current.error);

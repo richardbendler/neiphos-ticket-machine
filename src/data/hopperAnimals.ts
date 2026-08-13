@@ -27,6 +27,11 @@
  * anderen Elefanten stehen (gemeldet, sah dadurch schlecht/unfertig aus).
  * "elephant-gray" ist ein eigenstaendiges, sauberes Foto und bleibt erhalten.
  *
+ * "cow-white" wurde ebenfalls wieder entfernt: die Kuh war (anders als die
+ * uebrigen, farbig glaenzenden Huepftiere) fast komplett weiss und vor dem
+ * ueberall in der App weissen/hellen Hintergrund praktisch unsichtbar
+ * (gemeldet).
+ *
  * Alle Bilder liegen als transparente PNGs vor (per Flood-Fill vom Bildrand
  * freigestellt, siehe scratch-Skript der Bearbeitungs-Session -- die
  * urspruenglichen Fotos hatten einen fast-weissen/-grauen Studio-Hintergrund
@@ -54,7 +59,6 @@ import unicornPinkUrl from "../assets/images/hoppers/hopper-unicorn-pink.png";
 import dinoGrayUrl from "../assets/images/hoppers/hopper-dino-gray.png";
 import giraffeYellowUrl from "../assets/images/hoppers/hopper-giraffe-yellow.png";
 import giraffeBrownUrl from "../assets/images/hoppers/hopper-giraffe-brown.png";
-import cowWhiteUrl from "../assets/images/hoppers/hopper-cow-white.png";
 import cowPinkUrl from "../assets/images/hoppers/hopper-cow-pink.png";
 import cowGreenUrl from "../assets/images/hoppers/hopper-cow-green.png";
 import rabbitCreamUrl from "../assets/images/hoppers/hopper-rabbit-cream.png";
@@ -94,7 +98,6 @@ export const hopperAnimalCards: HopperAnimalCard[] = [
   { id: "dino-gray", name: "Hüpftier-Dino (grau)", image: dinoGrayUrl },
   { id: "giraffe-yellow", name: "Hüpftier-Giraffe (gelb)", image: giraffeYellowUrl },
   { id: "giraffe-brown", name: "Hüpftier-Giraffe (braun)", image: giraffeBrownUrl },
-  { id: "cow-white", name: "Hüpftier-Kuh (weiß)", image: cowWhiteUrl },
   { id: "cow-pink", name: "Hüpftier-Kuh (pink)", image: cowPinkUrl },
   { id: "cow-green", name: "Hüpftier-Kuh (grün)", image: cowGreenUrl },
   { id: "rabbit-cream", name: "Hüpftier-Hase (creme)", image: rabbitCreamUrl },

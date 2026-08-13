@@ -189,6 +189,14 @@ export function createTrainSpotterGame(): MinigameModule {
   }
 
   function renderDone(): void {
+    // Setzt den waehrend des Spielens gemessenen, absichtlich hohen
+    // top-Versatz (siehe beginRound(), Reserve fuer Highscore-Banner/Timer-
+    // Text auf dem jetzt ausgeblendeten Canvas) wieder zurueck -- doneOverlay
+    // teilt sich denselben gridWrap-Container, braucht diese Reserve aber
+    // nicht und wirkte dadurch spuerbar zu tief statt echt vertikal
+    // zentriert (gleicher Bug/gleicher Fix wie bei showThemeSelect() unten).
+    gridWrap.style.top = "";
+    gridWrap.style.bottom = "";
     doneOverlay.style.display = "flex";
     doneOverlay.innerHTML = "";
     const title = document.createElement("div");
@@ -228,6 +236,14 @@ export function createTrainSpotterGame(): MinigameModule {
 
   function showThemeSelect(): void {
     phase = "theme-select";
+    // Setzt einen etwaigen, waehrend des Spielens gemessenen top-Versatz
+    // zurueck (siehe beginRound()/renderDone()-Kommentar) -- themeOverlay
+    // teilt sich denselben gridWrap-Container, braucht die dortige Reserve
+    // fuer Highscore-Banner/Timer-Text aber nicht und wirkte dadurch
+    // spuerbar zu tief statt echt vertikal zentriert (gemeldeter/per
+    // Screenshot belegter Bug).
+    gridWrap.style.top = "";
+    gridWrap.style.bottom = "";
     doneOverlay.style.display = "none";
     // display:none statt nur visibility:hidden -- gridHost hat durch
     // fitSquareToContainer eine feste, oft grosse Breite/Hoehe gesetzt und

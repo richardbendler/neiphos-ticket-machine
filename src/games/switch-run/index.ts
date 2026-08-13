@@ -71,6 +71,7 @@ export function createSwitchRunGame(): MinigameModule {
   const laneButtons: Partial<Record<Lane, HTMLButtonElement>> = {};
   let choiceIndicator: HTMLDivElement;
   let gameOverPanel: HTMLDivElement;
+  let gameOverSheet: HTMLDivElement;
   // Echt gemessen statt eines fest verdrahteten Mindestabstands (war 210px)
   // -- die Banner-Pille ist inzwischen selbst prozentual, ein fixer px-Wert
   // passte auf kleinen Bildschirmen nicht mehr (gemeldeter/per Screenshot
@@ -83,6 +84,12 @@ export function createSwitchRunGame(): MinigameModule {
     buttonBar.style.display = phase === "approaching" ? "flex" : "none";
     choiceIndicator.style.display = phase === "approaching" ? "flex" : "none";
     gameOverPanel.style.display = phase === "game-over" ? "flex" : "none";
+    // Die umgebende .stage-sheet (jetzt NUR noch Traeger fuer gameOverPanel,
+    // seit die Richtungs-Buttons oben ueber die Fahranimation gewandert
+    // sind, siehe buttonBar-Kommentar bei init()) bleibt konsequent
+    // ausgeblendet, statt ausserhalb der game-over-Phase als leere, graue
+    // Leiste am unteren Rand sichtbar zu bleiben.
+    gameOverSheet.style.display = phase === "game-over" ? "flex" : "none";
 
     if (phase === "approaching") {
       for (const lane of LANE_ORDER) {
@@ -450,10 +457,14 @@ export function createSwitchRunGame(): MinigameModule {
     init(env: GameEnv) {
       preloadTrainChug();
       exitGame = env.exit;
+      // Auf ausdruecklichen Wunsch NICHT mehr unten in der Bedienleiste
+      // (.stage-sheet), sondern als eigenes, absolut positioniertes Element
+      // OBERHALB der Fahranimation (siehe .switch-lane-buttons in
+      // style.css) -- naeher an der "Bitte Richtung waehlen!"-Banner/
+      // Countdown-Zahl, mit denen die Wahl inhaltlich zusammengehoert.
       buttonBar = document.createElement("div");
+      buttonBar.className = "switch-lane-buttons";
       buttonBar.style.display = "none";
-      buttonBar.style.gap = "12px";
-      buttonBar.style.width = "100%";
 
       LANE_ORDER.forEach((lane) => {
         const btn = document.createElement("button");
@@ -475,6 +486,7 @@ export function createSwitchRunGame(): MinigameModule {
       choiceIndicator.className = "switch-choice-banner";
       choiceIndicator.style.display = "none";
       env.overlay.appendChild(choiceIndicator);
+      env.overlay.appendChild(buttonBar);
 
       gameOverPanel = document.createElement("div");
       gameOverPanel.style.display = "none";
@@ -482,13 +494,13 @@ export function createSwitchRunGame(): MinigameModule {
       gameOverPanel.style.alignItems = "center";
       gameOverPanel.style.textAlign = "center";
 
-      const wrap = document.createElement("div");
-      wrap.className = "stage-sheet";
-      wrap.style.alignItems = "center";
-      wrap.style.gap = "12px";
-      wrap.appendChild(buttonBar);
-      wrap.appendChild(gameOverPanel);
-      env.overlay.appendChild(wrap);
+      gameOverSheet = document.createElement("div");
+      gameOverSheet.className = "stage-sheet";
+      gameOverSheet.style.alignItems = "center";
+      gameOverSheet.style.gap = "12px";
+      gameOverSheet.style.display = "none";
+      gameOverSheet.appendChild(gameOverPanel);
+      env.overlay.appendChild(gameOverSheet);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatSwitches);
 

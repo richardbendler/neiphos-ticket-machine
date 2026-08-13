@@ -545,7 +545,7 @@ export class OnScreenKeyboard {
     // (minimal) gescrollt werden (per Playwright-Messung belegt).
     const scrollAncestorPaddingBottom =
       scrollAncestor && scrollAncestor !== document.body ? parseFloat(getComputedStyle(scrollAncestor).paddingBottom) || 0 : 0;
-    const limitBottom =
+    let limitBottom =
       scrollAncestor && scrollAncestor !== document.body ? scrollAncestor.getBoundingClientRect().bottom : window.innerHeight;
     // Geschwister-Elemente, die ERST NACH mount() (und damit nach DIESER
     // Messung) im selben Eltern-Container angehaengt werden -- z. B. ein
@@ -555,7 +555,21 @@ export class OnScreenKeyboard {
     // MutationObserver und skaliert es bei Bedarf als Ganzes, das faengt
     // auch nachtraeglich angehaengte Geschwister zuverlaessig ab (siehe
     // Kommentar bei mount() oben, warum das NICHT hier zusaetzlich versucht
-    // wird).
+    // wird). AUSNAHME: Auf Handybildschirmgroesse (siehe .modal-panel--
+    // keyboard .modal-fit-wrap > .osk in style.css) ist this.el SELBST ein
+    // flex:1-Element -- der Browser weist ihm dabei bereits korrekt nur so
+    // viel Hoehe zu, wie NACH Abzug aller Geschwister (inkl. eines erst
+    // spaeter angehaengten "Abbrechen"-Buttons) uebrig bleibt. In diesem
+    // Fall ist this.el's eigene (durch Flex bereits geschwister-bewusste)
+    // Unterkante die praezisere Grenze als die des Scroll-Vorfahren (der ja
+    // nichts von den Geschwistern weiss) -- ohne diese Ausnahme wuchsen die
+    // Tasten hier ueber die eigene Flex-Box hinaus und ueberlappten sichtbar
+    // einen nachtraeglich angehaengten Button (per Screenshot belegter Bug).
+    // Der ResizeObserver auf this.el (siehe mount()) bemerkt zuverlaessig,
+    // wenn sich diese Flex-zugewiesene Groesse durch ein neues Geschwister
+    // aendert -- KEIN zusaetzlicher MutationObserver noetig.
+    const ownFlexGrow = parseFloat(getComputedStyle(this.el).flexGrow || "0");
+    if (ownFlexGrow > 0) limitBottom = Math.min(limitBottom, this.el.getBoundingClientRect().bottom);
     const availableHeight = Math.max(0, limitBottom - contentTop - 18 - scrollAncestorPaddingBottom);
     // Der Zeilenabstand skaliert bewusst PROPORTIONAL mit der Tastenhoehe
     // (statt eines fixen 8px-Werts) -- auf einem sehr kurzen Bildschirm

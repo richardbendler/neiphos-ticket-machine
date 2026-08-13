@@ -45,7 +45,21 @@ const MIN_TILE_WIDTH = 40;
 // Saeule, in der ganze Cluster (ihre Kacheln UNTEREINANDER) uebereinander
 // gestapelt werden -- siehe assignClustersToColumns.
 const LANDSCAPE_COLS = 3;
+// Auf Handybildschirmgroesse (siehe PHONE_BREAKPOINT) auf ausdruecklichen
+// Wunsch nur noch 2 statt 3 Saeulen -- dieselben Cluster bleiben zwar
+// erhalten (siehe TILE_CLUSTERS), verteilen sich aber auf weniger, dafuer
+// breitere Saeulen, wodurch die einzelnen Kacheln (Breite UND -- ueber
+// solveTileHeight -- oft auch Hoehe) spuerbar groesser/besser lesbar und
+// treffbar werden als bei 3 arg schmalen Saeulen (gemeldet: "Menue einfach
+// zu klein geworden" auf einem Handybildschirm).
+const LANDSCAPE_COLS_PHONE = 2;
 const PORTRAIT_MAX_COLS = 3;
+// Unterhalb dieser Breite gilt ein Bildschirm als "Handygroesse" statt
+// "Tablet oder groesser" -- selber Schwellwert wie bei der Highscore-
+// Uebersicht/den Tastatur-Dialogen (siehe .highscore-board/.modal-panel--
+// keyboard in style.css), fuer ein konsistentes Verhalten quer durch die
+// App.
+const PHONE_BREAKPOINT = 820;
 // Kachelbreite, bei der Schrift/Icon in style.css ihre "normale" Groesse
 // (1.08rem/0.76rem/46px) haben -- der Skalierungsfaktor ist relativ dazu.
 const REFERENCE_TILE_WIDTH = 280;
@@ -171,7 +185,7 @@ interface ColumnsLayout {
  * (aus Breite bzw. Hoehe berechnet) sind monoton fallend in der Kachelhoehe,
  * ein paar Iterationen genuegen zur Konvergenz.
  */
-function solveTileHeight(containerWidth: number, containerHeight: number, columns: GameMeta[][][], cols: number): number {
+function solveTileHeight(containerWidth: number, containerHeight: number, columns: GameMeta[][][], cols: number, allowScroll: boolean): number {
   let tileHeight = MAX_TILE_WIDTH / TILE_ASPECT;
   for (let i = 0; i < 8; i++) {
     const gap = gapForTileHeight(tileHeight);
@@ -180,6 +194,18 @@ function solveTileHeight(containerWidth: number, containerHeight: number, column
     const rawWidthTileWidth = (containerWidth - clusterGap * (cols - 1)) / cols;
     const widthTileWidth = Math.max(MIN_TILE_WIDTH, Math.min(rawWidthTileWidth, MAX_TILE_WIDTH));
     const widthTileHeight = widthTileWidth / TILE_ASPECT;
+
+    // Auf Handybildschirmgroesse (siehe .menu-grid-Kommentar in style.css)
+    // ist das Menue auf ausdruecklichen Wunsch DOCH scrollbar -- die
+    // Kachelhoehe richtet sich dort rein nach der Breite (angenehme,
+    // gut antippbare Groesse), OHNE Ruecksicht auf containerHeight. Bei
+    // vielen Spielen/Clustern darf die Spalte dadurch bewusst laenger
+    // werden als der Bildschirm, statt wie sonst alles auf eine (dann
+    // ggf. sehr kleine) Kachelgroesse zusammenzustauchen.
+    if (allowScroll) {
+      tileHeight = Math.max(1, widthTileHeight);
+      continue;
+    }
 
     let heightTileHeight = Infinity;
     for (const column of columns) {
@@ -197,11 +223,11 @@ function solveTileHeight(containerWidth: number, containerHeight: number, column
   return tileHeight;
 }
 
-function fitColumnsLayout(containerWidth: number, containerHeight: number, clusters: GameMeta[][], cols: number): ColumnsLayout {
+function fitColumnsLayout(containerWidth: number, containerHeight: number, clusters: GameMeta[][], cols: number, allowScroll = false): ColumnsLayout {
   const c = Math.max(1, Math.min(cols, clusters.length));
   const columns = assignClustersToColumns(clusters, c);
 
-  const solvedTileHeight = solveTileHeight(containerWidth, containerHeight, columns, c);
+  const solvedTileHeight = solveTileHeight(containerWidth, containerHeight, columns, c, allowScroll);
   const gap = gapForTileHeight(solvedTileHeight);
   const clusterGap = clusterGapForTileHeight(solvedTileHeight);
 
@@ -224,8 +250,10 @@ function computeGridLayout(containerWidth: number, containerHeight: number, clus
   const isPortrait = containerHeight > containerWidth;
 
   if (!isPortrait) {
-    const cols = Math.min(LANDSCAPE_COLS, Math.max(1, clusters.length));
-    return fitColumnsLayout(containerWidth, containerHeight, clusters, cols);
+    const isPhone = containerWidth < PHONE_BREAKPOINT;
+    const landscapeCols = isPhone ? LANDSCAPE_COLS_PHONE : LANDSCAPE_COLS;
+    const cols = Math.min(landscapeCols, Math.max(1, clusters.length));
+    return fitColumnsLayout(containerWidth, containerHeight, clusters, cols, isPhone);
   }
 
   // Hochformat: probiert 1..PORTRAIT_MAX_COLS Saeulen durch und waehlt die

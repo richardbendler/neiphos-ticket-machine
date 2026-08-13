@@ -1,5 +1,25 @@
 @import "./assets/fonts/fonts.css";
 
+/* -------------------------------------------------------------------------
+   Skalierung: praktisch jede Schrift-/Element-Groesse in dieser Datei ist
+   als clamp(Untergrenze, Koeffizient·vw|vh, Obergrenze) definiert, damit
+   nichts in fixen px/rem-Werten "einfriert", egal wie klein oder gross der
+   Bildschirm ist. Auf ausdruecklichen Wunsch wurden die clamp()-Bereiche
+   ueberarbeitet: eine erste Fassung hatte oft einen recht hohen Sockel
+   (Untergrenze) UND einen Koeffizienten, der die Obergrenze schon bei einer
+   ganz normalen Bildschirmbreite erreichte -- der Wert war dadurch auf dem
+   allergroessten Teil realistischer Bildschirmgroessen praktisch KONSTANT
+   (nur die Obergrenze), waehrend er auf einem sehr kleinen/kurzen Fenster
+   trotzdem nicht unter den Sockel schrumpfte -- wirkte dadurch bei kleinen
+   Fenstern deutlich zu gross (per Screenshot belegter Bug).
+   Die aktuellen Werte sind so berechnet, dass der Wert bei einer "normalen"
+   Laptop-Bildschirmgroesse (Referenz: 1280x720) weiterhin ungefaehr der
+   bisherigen Obergrenze entspricht (sieht dort also unveraendert aus),
+   darunter aber echt linear mitschrumpft (Untergrenze nur noch eine
+   technische Notbremse, kein Komfort-Sockel mehr) und darueber noch spuerbar
+   weiterwaechst statt sofort zu deckeln. Siehe Skript-Historie/Commit-Message
+   fuer die genaue Formel. */
+
 :root {
   --bg: #eef0f1;
   --panel: #ffffff;
@@ -692,7 +712,7 @@ button {
   font-weight: 800;
   /* Auf ausdruecklichen Wunsch angehoben (war clamp(1.15rem, 4.4vw, 1.5rem)),
      angelehnt an die groessere Ueberschrift der VBB-Vorlage. */
-  font-size: clamp(1.35rem, 5vw, 1.95rem);
+  font-size: clamp(0.546rem, 2.438vw, 3.12rem);
   letter-spacing: 0.005em;
   margin: 0;
   color: var(--text);
@@ -1152,7 +1172,7 @@ button {
      gewaehlt, dass bei einer "normalen" Kiosk-Bildschirmbreite weiterhin
      ungefaehr die alten Werte herauskommen. */
   padding: clamp(9px, 1.8vw, 16px) clamp(16px, 3.4vw, 28px);
-  font-size: clamp(0.85rem, 2.6vw, 1.15rem);
+  font-size: clamp(0.322rem, 1.438vw, 1.84rem);
   color: var(--text);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
@@ -1201,7 +1221,7 @@ button {
    verloren/winzig. clamp() sorgt dafuer, dass sie auf kleinen Screens nicht
    groesser werden als vorher, auf grossen aber deutlich mitwachsen. */
 .btn--choice {
-  font-size: clamp(1.05rem, 2.8vw, 1.4rem);
+  font-size: clamp(0.392rem, 1.75vw, 2.24rem);
   padding: clamp(16px, 2.6vw, 24px) clamp(20px, 3.2vw, 32px);
   border: 2px solid var(--accent-dark);
 }
@@ -1232,7 +1252,7 @@ button {
   color: #ffffff;
   border: 2px solid var(--primary-dark);
   /* War fix 1.08rem/15px 22px -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.95rem, 2.8vw, 1.25rem);
+  font-size: clamp(0.35rem, 1.563vw, 2rem);
   padding: clamp(11px, 2.2vw, 19px) clamp(16px, 3.4vw, 28px);
   box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 4px rgba(31, 179, 196, 0.28);
   animation: hs-print-btn-pulse 1.8s ease-in-out infinite;
@@ -1266,7 +1286,7 @@ button {
   color: #ffffff;
   border: 2px solid var(--primary-dark);
   /* War fix 0.95rem/12px 18px -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+  font-size: clamp(0.308rem, 1.375vw, 1.76rem);
   padding: clamp(9px, 1.9vw, 15px) clamp(13px, 2.8vw, 22px);
 }
 
@@ -1377,8 +1397,8 @@ button {
   right: 8px;
   /* War fix 32x32px -- skaliert jetzt mit der Bildschirmgroesse (clamp mit
      vw), Untergrenze bleibt aber ein bediengrosses Mindest-Antippziel. */
-  width: clamp(30px, 4.4vw, 42px);
-  height: clamp(30px, 4.4vw, 42px);
+  width: clamp(14.7px, 3.28vw, 58.8px);
+  height: clamp(14.7px, 3.28vw, 58.8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1386,7 +1406,7 @@ button {
   border: 1px solid var(--panel-border);
   background: var(--panel-alt);
   color: var(--text-muted);
-  font-size: clamp(1rem, 2.4vw, 1.3rem);
+  font-size: clamp(0.364rem, 1.625vw, 2.08rem);
   line-height: 1;
   cursor: pointer;
   z-index: 5;
@@ -1400,14 +1420,14 @@ button {
   font-family: var(--font-display);
   margin: 0 0 4px;
   /* War fix 1.3rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(1.1rem, 3vw, 1.55rem);
+  font-size: clamp(0.434rem, 1.938vw, 2.48rem);
   color: var(--text);
 }
 
 .modal-panel p {
   color: var(--text-muted);
   /* War fix 0.9rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.8rem, 2.1vw, 1.05rem);
+  font-size: clamp(0.294rem, 1.313vw, 1.68rem);
   line-height: 1.4;
 }
 
@@ -1419,7 +1439,7 @@ button {
   padding-left: 24px;
   color: var(--text-muted);
   /* War fix 1.35rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(1.05rem, 3.4vw, 1.7rem);
+  font-size: clamp(0.476rem, 2.125vw, 2.72rem);
   line-height: 1.45;
 }
 
@@ -1440,7 +1460,7 @@ button {
   background: var(--panel-alt);
   color: var(--text);
   font-family: var(--font-display);
-  font-size: clamp(0.95rem, 2.8vw, 1.3rem);
+  font-size: clamp(0.364rem, 1.625vw, 2.08rem);
   letter-spacing: 0.03em;
   outline: none;
 }
@@ -1452,7 +1472,7 @@ button {
 .field-error {
   color: var(--danger);
   /* War fix 0.85rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.75rem, 2vw, 1rem);
+  font-size: clamp(0.28rem, 1.25vw, 1.6rem);
   min-height: 1.2em;
 }
 
@@ -1559,7 +1579,7 @@ button {
   color: #ffffff;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.1rem, 5.5vw, 1.9rem);
+  font-size: clamp(0.532rem, 2.375vw, 3.04rem);
   line-height: 1.35;
 }
 
@@ -1568,7 +1588,7 @@ button {
   margin-top: 1.2vh;
   font-family: var(--font);
   font-weight: 500;
-  font-size: clamp(0.85rem, 3.6vw, 1.15rem);
+  font-size: clamp(0.322rem, 1.438vw, 1.84rem);
   color: rgba(255, 255, 255, 0.75);
 }
 
@@ -1645,7 +1665,7 @@ button {
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.85rem, min(3.4vh, 2.3vw), 1.65rem);
+  font-size: clamp(0.462rem, min(3.667vh, 2.062vw), 2.64rem);
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
 }
 
@@ -1710,7 +1730,7 @@ button {
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
-  width: clamp(84px, 22vw, 240px);
+  width: clamp(84px, 18.75vw, 336px);
 }
 
 /* Gleiche min(vh,vw)-Logik wie beim Hauptteil (siehe .osk__key oben) --
@@ -1718,7 +1738,7 @@ button {
    Spalte auf einem Hochformat-Bildschirm tatsaechlich ist. */
 .osk__numpad .osk__key {
   height: clamp(40px, min(9.5vh, 6.5vw), 88px);
-  font-size: clamp(0.8rem, min(3.2vh, 2.1vw), 1.5rem);
+  font-size: clamp(0.42rem, min(3.333vh, 1.875vw), 2.4rem);
 }
 
 .osk__row--center {
@@ -1775,7 +1795,7 @@ button {
      die Chips sollen diesen Platz auf groesseren Bildschirmen auch wirklich
      ausfuellen statt winzig zu bleiben. */
   padding: clamp(8px, 3.4vh, 30px) clamp(6px, 2vw, 16px);
-  font-size: clamp(0.84rem, 3.2vh, 1.8rem);
+  font-size: clamp(0.504rem, 4vh, 2.88rem);
   flex: 1 1 72px;
   max-width: 220px;
 }
@@ -1788,7 +1808,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   /* War fix 0.82rem -- skaliert jetzt mit, siehe .chip--picker-Kommentar. */
-  font-size: clamp(0.82rem, 2.6vh, 1.5rem);
+  font-size: clamp(0.42rem, 3.333vh, 2.4rem);
   color: #ffffff;
   background: var(--chip-color, var(--primary));
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
@@ -1853,7 +1873,7 @@ button {
   justify-content: center;
   gap: clamp(4px, 1vh, 10px);
   /* War fix 0.78rem -- skaliert jetzt mit, siehe .chip-Kommentar. */
-  font-size: clamp(0.78rem, 2vh, 1.15rem);
+  font-size: clamp(0.322rem, 2.556vh, 1.84rem);
   color: var(--text-muted);
 }
 
@@ -2007,8 +2027,15 @@ button {
   z-index: 15;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: safe center;
+  /* "safe center": ohne das schneidet die Zentrierung bei zu grossem Inhalt
+     (mehr Text/Buttons als Platz zwischen Kopf- und Fussleiste, z. B. bei
+     kleinen Bildschirmen mit vielen Setup-Optionen) den ANFANG des Inhalts
+     ab, OHNE dass sich dahin scrollen laesst (bekannte CSS-Falle bei
+     justify-content/align-items:center + Overflow, siehe auch .menu-grid/
+     .modal-scrim) -- gemeldeter/per Screenshot belegter Bug: der Titel eines
+     Spiel-Auswahlbildschirms war oben abgeschnitten. */
+  justify-content: safe center;
   gap: 12px;
   padding: 0 calc(16px + var(--safe-right)) 0 calc(16px + var(--safe-left));
   overflow-y: auto;
@@ -2173,7 +2200,7 @@ button {
 .memory-player-panel__name {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.8rem, 1.5vw, 1.05rem);
+  font-size: clamp(0.294rem, 1.313vw, 1.68rem);
   color: var(--text);
   text-align: center;
 }
@@ -2181,7 +2208,7 @@ button {
 .memory-player-panel__score {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.6rem, 3.4vw, 2.5rem);
+  font-size: clamp(0.7rem, 3.125vw, 4rem);
   color: var(--primary);
   line-height: 1;
 }
@@ -2201,7 +2228,7 @@ button {
   color: #2b2004;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.85rem, 1.8vw, 1.1rem);
+  font-size: clamp(0.308rem, 1.375vw, 1.76rem);
   padding: 8px 18px;
   border-radius: 999px;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
@@ -2328,8 +2355,8 @@ button {
 .seq-controls__bpm {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.72rem, 2.8vw, 1rem);
-  min-width: clamp(46px, 13vw, 64px);
+  font-size: clamp(0.28rem, 1.25vw, 1.6rem);
+  min-width: clamp(22.4px, 5vw, 89.6px);
   text-align: center;
 }
 
@@ -2348,12 +2375,12 @@ button {
    skalierten) Sound-Buttons/Taktfeldern. */
 .seq-controls-bar .btn {
   padding: clamp(6px, 1.8vw, 12px) clamp(10px, 3vw, 22px);
-  font-size: clamp(0.74rem, 2.8vw, 1rem);
+  font-size: clamp(0.28rem, 1.25vw, 1.6rem);
   min-width: 0;
 }
 
 .seq-controls-bar .btn--accent {
-  min-width: clamp(96px, 26vw, 140px);
+  min-width: clamp(49px, 10.94vw, 196px);
 }
 
 /* ---------- Zugfoto: Kamera-Ausloeser ---------- */
@@ -2378,8 +2405,8 @@ button {
 
 .shutter-btn {
   appearance: none;
-  width: clamp(96px, 14vw, 160px);
-  height: clamp(96px, 14vw, 160px);
+  width: clamp(56px, 12.5vw, 224px);
+  height: clamp(56px, 12.5vw, 224px);
   border-radius: 50%;
   border: 6px solid #ffffff;
   background: linear-gradient(180deg, #ff6b57, var(--danger));
@@ -2413,7 +2440,7 @@ button {
 
 .berlin-map--collapsed {
   width: 100%;
-  height: clamp(56px, 11vh, 84px);
+  height: clamp(29.4px, 11.67vh, 117.6px);
   cursor: pointer;
 }
 
@@ -2571,7 +2598,9 @@ button {
   bottom: calc(var(--footer-h) + var(--safe-bottom));
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* "safe center" statt "center" -- siehe .stage-center-panel-Kommentar
+     (gleiche CSS-Falle bei Overflow). */
+  justify-content: safe center;
   gap: clamp(6px, 1.2vh, 14px);
   padding: 4px calc(16px + var(--safe-right)) 4px calc(16px + var(--safe-left));
   overflow-y: auto;
@@ -2690,7 +2719,7 @@ button {
   position: absolute;
   top: 50%;
   left: 0;
-  width: clamp(340px, 46vw, 1000px);
+  width: clamp(350px, 78.13vw, 1400px);
   filter: drop-shadow(0 clamp(10px, 2vh, 26px) clamp(16px, 3vh, 34px) rgba(0, 0, 0, 0.5));
   /* Start komplett rechts ausserhalb, Ende komplett links ausserhalb -- "-100%"
      bezieht sich bei transform auf die EIGENE Breite des Elements, dadurch
@@ -2723,7 +2752,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   /* Auf ausdruecklichen Wunsch groesser als die urspruengliche Fassung. */
-  font-size: clamp(1.4rem, 3.6vw, 2.1rem);
+  font-size: clamp(0.588rem, 2.625vw, 3.36rem);
   color: #ffffff;
   padding: 0 20px;
 }
@@ -2734,7 +2763,7 @@ button {
   left: 50%;
   transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.6);
-  font-size: clamp(0.85rem, 1.6vw, 1.1rem);
+  font-size: clamp(0.308rem, 1.375vw, 1.76rem);
   font-weight: 600;
 }
 
@@ -2889,8 +2918,8 @@ button {
    ausdruecklichen Wunsch ca. verdoppelt (war 30px). */
 .mm-clock {
   position: relative;
-  width: clamp(40px, 6vw, 66px);
-  height: clamp(40px, 6vw, 66px);
+  width: clamp(23.1px, 5.16vw, 92.4px);
+  height: clamp(23.1px, 5.16vw, 92.4px);
   flex-shrink: 0;
 }
 
@@ -2958,8 +2987,8 @@ button {
 }
 
 .mm-speed-btn {
-  width: clamp(30px, 4.4vw, 42px);
-  height: clamp(30px, 4.4vw, 42px);
+  width: clamp(14.7px, 3.28vw, 58.8px);
+  height: clamp(14.7px, 3.28vw, 58.8px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border);
   background: var(--panel);
@@ -3096,8 +3125,8 @@ button {
 }
 
 .mm-line-circle {
-  width: clamp(30px, 4.4vw, 42px);
-  height: clamp(30px, 4.4vw, 42px);
+  width: clamp(14.7px, 3.28vw, 58.8px);
+  height: clamp(14.7px, 3.28vw, 58.8px);
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.25);
   background: var(--mm-line-color, var(--primary));
@@ -3135,8 +3164,8 @@ button {
 }
 
 .mm-week-modal__badge {
-  width: clamp(42px, 8vw, 60px);
-  height: clamp(42px, 8vw, 60px);
+  width: clamp(21px, 4.69vw, 84px);
+  height: clamp(21px, 4.69vw, 84px);
   margin: 0 auto 6px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
@@ -3219,8 +3248,8 @@ button {
 }
 
 .mm-week-modal__btn svg {
-  width: clamp(24px, 4.5vw, 34px);
-  height: clamp(24px, 4.5vw, 34px);
+  width: clamp(11.9px, 2.66vw, 47.6px);
+  height: clamp(11.9px, 2.66vw, 47.6px);
   color: #6fc6ff;
 }
 
@@ -3296,8 +3325,8 @@ button {
 }
 
 .hs-marquee__lights span {
-  width: clamp(4px, 1vw, 7px);
-  height: clamp(4px, 1vw, 7px);
+  width: clamp(2.4px, 0.55vw, 9.8px);
+  height: clamp(2.4px, 0.55vw, 9.8px);
   border-radius: 50%;
   background: #ffcc33;
   box-shadow: 0 0 4px 1px rgba(255, 204, 51, 0.9);
@@ -3325,7 +3354,7 @@ button {
 .hs-marquee__title {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.2rem, 4.2vw, 2rem);
+  font-size: clamp(0.56rem, 2.5vw, 3.2rem);
   letter-spacing: 0.04em;
   color: #ffcc33;
   text-shadow: 0 0 8px rgba(255, 204, 51, 0.6), 0 2px 0 rgba(0, 0, 0, 0.4);
@@ -3442,15 +3471,15 @@ button {
 }
 
 .hs-paytable__item img {
-  width: clamp(22px, 4.4vw, 40px);
-  height: clamp(22px, 4.4vw, 40px);
+  width: clamp(14px, 3.13vw, 56px);
+  height: clamp(14px, 3.13vw, 56px);
   object-fit: contain;
 }
 
 .hs-paytable__item span {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.75rem, 2vw, 1.05rem);
+  font-size: clamp(0.294rem, 1.313vw, 1.68rem);
   color: #f4d9a0;
 }
 
@@ -3468,7 +3497,7 @@ button {
   text-align: center;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.1rem, 4.2vh, 2rem);
+  font-size: clamp(0.56rem, 4.444vh, 3.2rem);
   color: #ffcc33;
   background: #1a1c1f;
   border: 2px solid #050505;
@@ -3482,7 +3511,7 @@ button {
   min-height: 1.6em;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.3rem, 4.6vh, 2.2rem);
+  font-size: clamp(0.616rem, 4.889vh, 3.52rem);
   color: #e8e6e0;
   text-align: center;
 }
@@ -3494,7 +3523,7 @@ button {
 .hs-spin-btn {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.3rem, 4.4vh, 2.1rem);
+  font-size: clamp(0.588rem, 4.667vh, 3.36rem);
   padding: clamp(14px, 3vh, 26px) clamp(36px, 7vw, 76px);
   border-radius: 999px;
   border: 2px solid var(--danger);
@@ -3531,12 +3560,12 @@ button {
    Leuchtreklame-Ueberschrift (.hs-marquee__title bleibt fuer den
    eigentlichen Automaten unveraendert) -- auf ausdruecklichen Wunsch. */
 .hs-invest__header .hs-marquee__title {
-  font-size: clamp(1.4rem, 4.8vw, 2.3rem);
+  font-size: clamp(0.644rem, 2.875vw, 3.68rem);
 }
 
 .hs-invest__remaining {
   max-width: 320px;
-  font-size: clamp(1.3rem, 4.8vh, 2.3rem);
+  font-size: clamp(0.644rem, 5.111vh, 3.68rem);
 }
 
 /* Auf ausdruecklichen Wunsch bewusst NICHT die volle Breite -- die fuenf
@@ -3550,8 +3579,9 @@ button {
      Standard), dadurch blieb die Luecke nur UNTER der letzten Zeile (vor dem
      "Los geht's!"-Button), waehrend es OBEN (direkt nach "Credits uebrig")
      gar keine gab (gemeldet). Zentriert stattdessen vertikal, damit oben
-     und unten gleich viel Platz bleibt. */
-  justify-content: center;
+     und unten gleich viel Platz bleibt. "safe center" statt "center" --
+     gleiche CSS-Falle bei Overflow wie bei .stage-center-panel (siehe dort). */
+  justify-content: safe center;
   gap: clamp(6px, 1.2vh, 12px);
   width: 60%;
   flex: 1;
@@ -3586,7 +3616,7 @@ button {
 .hs-invest__label {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.3rem, 4.6vh, 2.3rem);
+  font-size: clamp(0.644rem, 5.111vh, 3.68rem);
   color: #ffcc33;
   white-space: nowrap;
 }
@@ -3594,7 +3624,7 @@ button {
 /* Groesser als zuvor, aber bewusst kleiner als der Titel -- steht jetzt
    NEBEN statt UNTER dem Titel. */
 .hs-invest__effect {
-  font-size: clamp(0.95rem, 2.8vh, 1.35rem);
+  font-size: clamp(0.378rem, 3vh, 2.16rem);
   color: #d8d5cd;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3608,7 +3638,7 @@ button {
 .hs-invest__spent {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.9rem, 2.4vh, 1.2rem);
+  font-size: clamp(0.336rem, 2.667vh, 1.92rem);
   color: #ffcc33;
   text-align: right;
   white-space: nowrap;
@@ -3624,9 +3654,9 @@ button {
 .hs-invest__btn {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.85rem, 2vh, 1.15rem);
-  width: clamp(36px, 5.5vw, 56px);
-  height: clamp(36px, 5.5vh, 56px);
+  font-size: clamp(0.322rem, 2.556vh, 1.84rem);
+  width: clamp(19.6px, 4.38vw, 78.4px);
+  height: clamp(19.6px, 7.78vh, 78.4px);
   border-radius: var(--radius-sm);
   border: 2px solid #050505;
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));

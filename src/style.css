@@ -817,7 +817,16 @@ button {
 .menu-tile__text {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  /* War fix 3px -- bei Kacheln mit 3 Zeilen (Titel+Untertitel+Notiz, siehe
+     .menu-tile__note) auf einer sehr kurzen Kachel (kleiner --menu-tile-
+     scale) blieb dieser feste Abstand relativ zur nun winzigen Schrift
+     verhaeltnismaessig gross -- der Gesamttext sprengte dadurch trotz
+     korrekt geschrumpfter Schriftgroesse die Kachelhoehe, und weil
+     .menu-tile die Kachel vertikal zentriert (align-items:center) UND
+     overflow:hidden hat, verschwand dabei die OBERSTE Zeile (gemeldeter/
+     per Screenshot belegter Bug). Skaliert jetzt mit derselben Variable
+     wie die Schrift selbst. */
+  gap: calc(3px * var(--menu-tile-scale, 1));
   min-width: 0;
 }
 
@@ -856,7 +865,8 @@ button {
   font-weight: 600;
   font-size: calc(0.68rem * var(--menu-tile-scale, 1));
   color: var(--tile-accent, var(--accent-dark));
-  margin-top: 2px;
+  /* War fix 2px -- gleicher Grund wie bei .menu-tile__text gap oben. */
+  margin-top: calc(2px * var(--menu-tile-scale, 1));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

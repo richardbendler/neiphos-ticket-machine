@@ -20,7 +20,14 @@ const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wun
 // fixem px-Wert, damit die Panels mit der Bildschirmbreite mitskalieren
 // (war fix 148px -- auf sehr schmalen Bildschirmen frass das unverhaeltnis-
 // maessig viel vom Spielfeld weg, auf sehr breiten wirkte es winzig).
-const DUO_PANEL_WIDTH = "clamp(110px, 13vw, 200px)";
+// Untergrenze war 110px -- auf einem nicht sonderlich breiten Bildschirm
+// (z.B. 528px) griff dieser Sockel bereits (13vw waeren dort nur ~69px)
+// und liess die Panels zusammen mit den Abstaenden ploetzlich wieder
+// unverhaeltnismaessig viel Breite beanspruchen, obwohl der Rest der App
+// laengst konsequent prozentual schrumpft -- Kartenraster hatte dadurch
+// zu wenig Platz (gemeldeter/per Screenshot belegter Bug: "viel zu viel
+// Platz fuer Spieler eins und Spieler zwei").
+const DUO_PANEL_WIDTH = "clamp(58px, 13vw, 200px)";
 const DUO_PANEL_GAP = 14;
 const TURN_TOAST_MS = 1900;
 
@@ -599,15 +606,20 @@ function createMemoryGame(): MinigameModule {
       gridWrap.appendChild(gridHost);
 
       // Spieler-Panels links/rechts vom Kartenraster (nur Duo-Modus, siehe
-      // updateDuoLayout/updatePlayerPanels) -- dieselbe vertikale Spanne wie
-      // gridWrap (Kopf-/Fusszeile-bewusst), aber feste Breite statt "flex: 1".
+      // updateDuoLayout/updatePlayerPanels) -- vertikal MITTIG in derselben
+      // Spanne wie gridWrap, aber (anders als vorher) NICHT mehr darauf
+      // gestreckt: die Panels zeigen nur Name+Punktzahl, eine ueber die
+      // gesamte Kopf-/Fusszeile-Spanne gestreckte Box wirkte dadurch wie
+      // "viel zu viel Platz" fuer wenig Inhalt (gemeldeter/per Screenshot
+      // belegter Bug). Hoehe ergibt sich jetzt aus dem Inhalt (padding in
+      // .memory-player-panel), feste Breite statt "flex: 1".
       function buildPlayerPanel(playerLabel: string, side: "left" | "right"): HTMLDivElement {
         const el = document.createElement("div");
         el.className = "memory-player-panel";
         el.style.position = "absolute";
         el.style[side] = "12px";
-        el.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
-        el.style.bottom = "calc(var(--footer-h) + 16px + var(--safe-bottom))";
+        el.style.top = "50%";
+        el.style.transform = "translateY(-50%)";
         el.style.width = DUO_PANEL_WIDTH;
         el.style.display = "none";
         el.innerHTML = `<span class="memory-player-panel__name">${playerLabel}</span><span class="memory-player-panel__score">0</span>`;

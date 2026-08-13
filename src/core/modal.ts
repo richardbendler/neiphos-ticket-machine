@@ -83,19 +83,39 @@ export function openModal(
     // wurde von build() bereits VORHER auf panel selbst gesetzt) werden
     // dafuer einmalig in diesen Wrapper umgehaengt.
     const fitWrap = document.createElement("div");
+    // Klasse wird u.a. fuer die Handybildschirm-Vollbild-Tastatur gebraucht
+    // (siehe .modal-panel--keyboard .modal-fit-wrap in style.css).
+    fitWrap.className = "modal-fit-wrap";
     while (panel.firstChild) fitWrap.appendChild(panel.firstChild);
     panel.appendChild(fitWrap);
 
     const fitPanel = () => {
       fitWrap.style.transform = "";
+      // Reset vor jeder Neumessung -- siehe unten, warum das ueberhaupt
+      // umgeschaltet wird.
+      panel.style.overflowY = "auto";
       const cs = getComputedStyle(panel);
       const verticalPadding = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
       const available = panel.clientHeight - verticalPadding;
       const natural = fitWrap.scrollHeight;
       if (available > 0 && natural > available) {
-        const scale = Math.max(0.5, (available / natural) * 0.97);
+        const rawScale = (available / natural) * 0.97;
+        const scale = Math.max(0.5, rawScale);
         fitWrap.style.transform = `scale(${scale})`;
         fitWrap.style.transformOrigin = "top center";
+        // scrollHeight/clientHeight (siehe panel.style.overflowY oben beim
+        // Reset) beziehen sich auf die UNSKALIERTE Layout-Groesse -- bleiben
+        // dadurch auch nach einer erfolgreichen Verkleinerung weiterhin
+        // "technisch" > und damit scrollbar, OBWOHL der Inhalt durch die
+        // Skalierung bereits vollstaendig sichtbar ist (per Playwright-
+        // Messung belegt: man konnte noch ein paar Pixel scrollen, ohne
+        // dass dabei irgendetwas Neues sichtbar wurde -- gemeldeter Bug,
+        // "ich kann schon wieder bei irgendeiner Tastatur scrollen"). Nur
+        // wenn der 0.5-Sockel NICHT gegriffen hat, ist der Inhalt
+        // GARANTIERT vollstaendig sichtbar -- overflow dann komplett
+        // abschalten. Hat der Sockel gegriffen (extremer Randfall), bleibt
+        // overflow-y:auto als einzige verbleibende Sicherung.
+        if (rawScale >= 0.5) panel.style.overflowY = "hidden";
       }
     };
     fitPanel();

@@ -1220,9 +1220,17 @@ button {
    auf grossen Kiosk-Bildschirmen wirken zentrale Auswahl-Buttons dadurch
    verloren/winzig. clamp() sorgt dafuer, dass sie auf kleinen Screens nicht
    groesser werden als vorher, auf grossen aber deutlich mitwachsen. */
+/* War rein vw-basiert (Schrift UND vertikales Padding) -- bei mehreren
+   gestapelten .btn--choice-Buttons (z. B. 3 Spielfeldgroessen bei Zug-
+   Memory) summierte sich das vertikale Padding auf einem kurzen, aber
+   breiten Bildschirm ueber alle Buttons hinweg, ohne selbst zu schrumpfen
+   (vw ignoriert die verfuegbare HOEHE komplett) -- gemeldeter Bug: "bei 1-2
+   Buttons kein Problem, aber bei 3 wird's eng". Jetzt zusaetzlich per min()
+   an vh gekoppelt (horizontales Padding bleibt bewusst rein vw-basiert,
+   verursacht kein vertikales Stapel-Problem). */
 .btn--choice {
-  font-size: clamp(0.392rem, 1.75vw, 2.24rem);
-  padding: clamp(16px, 2.6vw, 24px) clamp(20px, 3.2vw, 32px);
+  font-size: clamp(0.35rem, min(1.75vw, 2.6vh), 2.24rem);
+  padding: clamp(4px, min(2.6vw, 2.2vh), 24px) clamp(20px, 3.2vw, 32px);
   border: 2px solid var(--accent-dark);
 }
 
@@ -1456,14 +1464,19 @@ button {
 
 .field-input {
   width: 100%;
-  /* War fix 12px 14px/1.1rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  padding: clamp(9px, 1.8vw, 15px) clamp(10px, 2.2vw, 17px);
+  /* War fix 12px 14px/1.1rem -- skaliert jetzt mit, siehe .btn-Kommentar.
+     Vertikales Padding zusaetzlich per min() an vh gekoppelt -- rein
+     vw-basiert schrumpfte es auf einem kurzen (aber nicht unbedingt
+     schmalen) Bildschirm nicht mit, z. B. beim "Anzahl"-Eingabefeld direkt
+     ueber dem Ziffernblock (gemeldeter/per Screenshot belegter Bug: der
+     Ziffernblock ragte dadurch trotzdem unten heraus). */
+  padding: clamp(2px, min(1.8vw, 1.6vh), 15px) clamp(10px, 2.2vw, 17px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--btn-border);
   background: var(--panel-alt);
   color: var(--text);
   font-family: var(--font-display);
-  font-size: clamp(0.364rem, 1.625vw, 2.08rem);
+  font-size: clamp(0.3rem, min(1.625vw, 3.4vh), 2.08rem);
   letter-spacing: 0.03em;
   outline: none;
 }
@@ -1891,14 +1904,16 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--header-h) + 46px + var(--safe-top));
+  /* War fix "+46px" -- skaliert jetzt mit (vh-Anteil), siehe .btn-Kommentar
+     in style.css. */
+  top: calc(var(--header-h) + 3.5vh + var(--safe-top));
   z-index: 15;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: clamp(3px, 1.4vh, 10px);
   width: fit-content;
   margin: 0 auto;
-  padding: 10px 22px;
+  padding: clamp(3px, 1.4vh, 10px) clamp(10px, 3vw, 22px);
   border-radius: 999px;
   border: 1px solid var(--accent-dark);
   background: linear-gradient(180deg, #ffe08a, var(--accent));
@@ -1913,15 +1928,18 @@ button {
   align-items: center;
 }
 
+/* War fix 2.1rem -- bedeckte auf kleinen Bildschirmen einen unverhaeltnis-
+   maessig grossen Teil des Spielfelds (gemeldeter/per Screenshot belegter
+   Bug), jetzt prozentual. */
 .switch-choice-banner__arrow {
-  font-size: 2.1rem;
+  font-size: clamp(0.6rem, 5vh, 2.1rem);
   line-height: 1;
 }
 
 .switch-choice-banner__text {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.55rem;
+  font-size: clamp(0.45rem, 3.7vh, 1.55rem);
   white-space: nowrap;
 }
 
@@ -2777,14 +2795,17 @@ button {
 
 /* ------------------------------- Mini Metro (games/mini-metro) --------- */
 
+/* War fix 8px/6px 10px -- skaliert jetzt mit, siehe .btn-Kommentar in
+   style.css (gemeldeter Bug: nur die Schrift in diesen Panels wurde
+   prozentual, nicht die Panels/Buttons selbst). */
 .mm-panel {
   position: absolute;
   display: flex;
-  gap: 8px;
+  gap: clamp(3px, 1vh, 8px);
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: clamp(3px, 1vh, 6px) clamp(5px, 1.6vw, 10px);
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
   font-family: var(--font-display);
 }
@@ -2818,7 +2839,7 @@ button {
    Highscore-Banner (.stage-highscore-banner) sitzt in genau dieser Zeile
    -- ohne den Zusatzabstand ueberlappten sich beide (gemeldeter Bug). */
 .mm-panel--top-left {
-  top: calc(var(--header-h) + 55px);
+  top: calc(var(--header-h) + 7vh);
   left: 10px;
   /* Auf schmalen Bildschirmen reicht der Platz bis zum naechsten Panel
      (Uhr/Tageszaehler oben rechts) nicht fuer den vollen Beschriftungstext
@@ -2830,14 +2851,15 @@ button {
 .mm-sound-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: clamp(3px, 1vh, 6px);
   border: none;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.78rem;
-  padding: 2px 4px;
+  /* War fix 0.78rem/2px 4px -- skaliert jetzt mit, siehe .mm-panel-Kommentar. */
+  font-size: clamp(0.42rem, 2.4vh, 0.9rem);
+  padding: clamp(1px, 0.6vh, 2px) clamp(2px, 0.8vw, 4px);
   /* Beschriftung ("Bahngeräuschkulisse an-/ausschalten") ist auf schmalen
      Bildschirmen laenger als der verfuegbare Platz -- lieber in der eigenen
      Zeile umbrechen, als vom naechsten Panel abgeschnitten zu werden
@@ -2853,8 +2875,8 @@ button {
 }
 
 .mm-sound-toggle__icon {
-  width: 20px;
-  height: 20px;
+  width: clamp(11px, 2.6vh, 20px);
+  height: clamp(11px, 2.6vh, 20px);
   color: var(--text-faint);
   flex-shrink: 0;
 }
@@ -2882,19 +2904,20 @@ button {
    Bildschirmen). Ein fester Pixel-Versatz fuer die zweite Zeile ueberlappte
    sich vorher teils mit der ersten (gemeldeter Bug). */
 .mm-panel--top-right {
-  top: calc(var(--header-h) + 10px);
+  top: calc(var(--header-h) + 1.4vh);
   right: 10px;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
-  padding: 10px 16px;
+  /* War fix 8px/10px 16px -- skaliert jetzt mit, siehe .mm-panel-Kommentar. */
+  gap: clamp(3px, 1.2vh, 8px);
+  padding: clamp(4px, 1.6vh, 10px) clamp(7px, 2.4vw, 16px);
 }
 
 .mm-panel__header-row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 14px;
+  gap: clamp(5px, 2vw, 14px);
 }
 
 .mm-panel__text-col {
@@ -3299,14 +3322,25 @@ button {
      ueber die jetzt volle Gehaeusehoehe, statt oben zusammengeklumpt mit
      leerem Platz darunter zu stehen. */
   justify-content: space-evenly;
-  padding: clamp(12px, 2.4vh, 26px) clamp(12px, 3vw, 32px);
+  padding: clamp(4px, 1.6vh, 26px) clamp(12px, 3vw, 32px);
   background: linear-gradient(165deg, #4a4d55, #24262b);
   border: 3px solid #17181b;
   border-radius: var(--radius-lg);
   box-shadow:
     0 8px 0 rgba(0, 0, 0, 0.35),
     inset 0 2px 0 rgba(255, 255, 255, 0.08);
-  overflow: hidden;
+  /* War overflow:hidden -- auf einem sehr kurzen Bildschirm blieb der
+     Dreh-Knopf trotz stark gesenkter Untergrenzen bei allen Kindern
+     (Leuchtreklame/Walzen/Gewinntabelle/Anzeigen) minimal zu gross fuer
+     die verfuegbare Hoehe und war dadurch UNANTIPPBAR abgeschnitten
+     (gemeldeter/per Screenshot belegter Bug) statt nur knapp gequetscht.
+     overflow-y:auto als Sicherheitsnetz fuer genau diesen Extremfall --
+     bei jeder halbwegs normalen Bildschirmgroesse (siehe die stark
+     gesenkten Untergrenzen oben) bleibt der Automat unveraendert komplett
+     ohne Scrollen sichtbar. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
   transition: box-shadow 0.3s ease;
 }
 
@@ -3324,7 +3358,7 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: clamp(6px, 1.2vh, 10px) 6px clamp(2px, 0.6vh, 4px);
+  padding: clamp(2px, 0.8vh, 10px) 6px clamp(1px, 0.4vh, 4px);
   background: linear-gradient(180deg, #7a1010, #4a0a0a);
   border-radius: calc(var(--radius-lg) - 4px) calc(var(--radius-lg) - 4px) 0 0;
   border-bottom: 2px solid #2a0606;
@@ -3367,7 +3401,7 @@ button {
 .hs-marquee__title {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.56rem, 2.5vw, 3.2rem);
+  font-size: clamp(0.3rem, 2.5vw, 3.2rem);
   letter-spacing: 0.04em;
   color: #ffcc33;
   text-shadow: 0 0 8px rgba(255, 204, 51, 0.6), 0 2px 0 rgba(0, 0, 0, 0.4);
@@ -3386,7 +3420,7 @@ button {
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   border: clamp(3px, 0.6vw, 6px) solid var(--text);
   border-radius: var(--radius-lg);
-  padding: clamp(10px, 2vh, 18px);
+  padding: clamp(3px, 2vh, 18px);
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
@@ -3396,8 +3430,8 @@ button {
      aus vw/vh) -- so werden die Walzen auf dem jetzt fast bildschirm-
      fuellenden Gehaeuse (siehe .hs-cabinet) weder auf sehr breiten NOCH
      auf sehr hohen (Hochformat-Kiosk) Bildschirmen unverhaeltnismaessig. */
-  width: clamp(90px, min(15vw, 30vh), 320px);
-  height: clamp(90px, min(15vw, 30vh), 320px);
+  width: clamp(34px, min(15vw, 30vh), 320px);
+  height: clamp(34px, min(15vw, 30vh), 320px);
   overflow: hidden;
   background: var(--panel);
   border: 2px solid var(--panel-border-light);
@@ -3434,8 +3468,8 @@ button {
 .hs-symbol {
   /* Muss exakt mit .hs-reel-window uebereinstimmen -- sonst passt die
      Symbolgroesse nicht mehr zum Fenster, das sie ausschneidet. */
-  width: clamp(90px, min(15vw, 30vh), 320px);
-  height: clamp(90px, min(15vw, 30vh), 320px);
+  width: clamp(34px, min(15vw, 30vh), 320px);
+  height: clamp(34px, min(15vw, 30vh), 320px);
   object-fit: contain;
   flex-shrink: 0;
   display: block;
@@ -3468,7 +3502,7 @@ button {
   justify-content: center;
   gap: clamp(4px, 1vh, 8px) clamp(6px, 1.4vw, 14px);
   width: 100%;
-  padding: clamp(8px, 1.6vh, 14px) clamp(8px, 1.6vw, 16px);
+  padding: clamp(2px, 1.6vh, 14px) clamp(8px, 1.6vw, 16px);
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 204, 51, 0.25);
   border-radius: var(--radius-md);
@@ -3510,12 +3544,12 @@ button {
   text-align: center;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.56rem, 4.444vh, 3.2rem);
+  font-size: clamp(0.28rem, 3.6vh, 3.2rem);
   color: #ffcc33;
   background: #1a1c1f;
   border: 2px solid #050505;
   border-radius: var(--radius-sm);
-  padding: clamp(6px, 1.6vh, 14px) 10px;
+  padding: clamp(2px, 1.2vh, 14px) 10px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
   text-shadow: 0 0 6px rgba(255, 204, 51, 0.55);
 }
@@ -3524,7 +3558,7 @@ button {
   min-height: 1.6em;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.616rem, 4.889vh, 3.52rem);
+  font-size: clamp(0.3rem, 4vh, 3.52rem);
   color: #e8e6e0;
   text-align: center;
 }
@@ -3536,8 +3570,8 @@ button {
 .hs-spin-btn {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.588rem, 4.667vh, 3.36rem);
-  padding: clamp(14px, 3vh, 26px) clamp(36px, 7vw, 76px);
+  font-size: clamp(0.3rem, 4vh, 3.36rem);
+  padding: clamp(2px, 2vh, 26px) clamp(20px, 7vw, 76px);
   border-radius: 999px;
   border: 2px solid var(--danger);
   background: linear-gradient(180deg, #e04b4b, var(--danger));
@@ -3573,12 +3607,12 @@ button {
    Leuchtreklame-Ueberschrift (.hs-marquee__title bleibt fuer den
    eigentlichen Automaten unveraendert) -- auf ausdruecklichen Wunsch. */
 .hs-invest__header .hs-marquee__title {
-  font-size: clamp(0.644rem, 2.875vw, 3.68rem);
+  font-size: clamp(0.3rem, 2.875vw, 3.68rem);
 }
 
 .hs-invest__remaining {
   max-width: 320px;
-  font-size: clamp(0.644rem, 5.111vh, 3.68rem);
+  font-size: clamp(0.3rem, 4vh, 3.68rem);
 }
 
 /* Auf ausdruecklichen Wunsch bewusst NICHT die volle Breite -- die fuenf
@@ -3595,7 +3629,7 @@ button {
      und unten gleich viel Platz bleibt. "safe center" statt "center" --
      gleiche CSS-Falle bei Overflow wie bei .stage-center-panel (siehe dort). */
   justify-content: safe center;
-  gap: clamp(6px, 1.2vh, 12px);
+  gap: clamp(2px, 0.8vh, 12px);
   width: 60%;
   flex: 1;
   min-height: 0;
@@ -3612,7 +3646,7 @@ button {
   border-radius: var(--radius-md);
   /* Etwas niedriger als zuvor -- passt so besser zur schmaleren Breite der
      Liste (siehe .hs-invest__list), ohne dass es gedrungen wirkt. */
-  padding: clamp(8px, 2vh, 16px) clamp(14px, 2.4vw, 24px);
+  padding: clamp(3px, 1.4vh, 16px) clamp(14px, 2.4vw, 24px);
 }
 
 .hs-invest__info {
@@ -3629,7 +3663,7 @@ button {
 .hs-invest__label {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.644rem, 5.111vh, 3.68rem);
+  font-size: clamp(0.3rem, 4vh, 3.68rem);
   color: #ffcc33;
   white-space: nowrap;
 }
@@ -3637,7 +3671,7 @@ button {
 /* Groesser als zuvor, aber bewusst kleiner als der Titel -- steht jetzt
    NEBEN statt UNTER dem Titel. */
 .hs-invest__effect {
-  font-size: clamp(0.378rem, 3vh, 2.16rem);
+  font-size: clamp(0.2rem, 2.4vh, 2.16rem);
   color: #d8d5cd;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3651,7 +3685,7 @@ button {
 .hs-invest__spent {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.336rem, 2.667vh, 1.92rem);
+  font-size: clamp(0.18rem, 2.1vh, 1.92rem);
   color: #ffcc33;
   text-align: right;
   white-space: nowrap;
@@ -3667,9 +3701,9 @@ button {
 .hs-invest__btn {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.322rem, 2.556vh, 1.84rem);
-  width: clamp(19.6px, 4.38vw, 78.4px);
-  height: clamp(19.6px, 7.78vh, 78.4px);
+  font-size: clamp(0.17rem, 2vh, 1.84rem);
+  width: clamp(12px, 4.38vw, 78.4px);
+  height: clamp(12px, 6vh, 78.4px);
   border-radius: var(--radius-sm);
   border: 2px solid #050505;
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));

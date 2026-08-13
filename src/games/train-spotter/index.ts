@@ -8,7 +8,7 @@ import { realAnimalImages } from "../../data/realAnimals";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
-import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { showGameIntro } from "../../core/gameIntro";
 import { fitSquareToContainer } from "../../core/squareFit";
 import { icons } from "../../core/icons";
@@ -87,8 +87,12 @@ export function createTrainSpotterGame(): MinigameModule {
   let closeIntro: (() => void) | null = null;
   let highscoreBanner: HighscoreBannerHandle;
   let exitGame: () => void = () => {};
+  // Echt gemessen (siehe core/highscoreBanner.ts#measurePlayAreaTop) --
+  // gleiches Muster wie games/count-passengers.
+  let cachedPlayAreaTop = 60;
 
   let gridHost: HTMLDivElement;
+  let gridWrap: HTMLDivElement;
   let doneOverlay: HTMLDivElement;
   let themeOverlay: HTMLDivElement;
   let cellButtons: HTMLButtonElement[] = [];
@@ -279,6 +283,11 @@ export function createTrainSpotterGame(): MinigameModule {
     themeOverlay.style.display = "none";
     gridHost.style.display = "";
     highscoreBanner.update(getHighscoreBoard(GAME_ID, highscoreBoardKey()));
+    cachedPlayAreaTop = measurePlayAreaTop();
+    // Ersetzt den anfaenglichen vh-Schaetzwert (siehe init()) durch die jetzt
+    // bekannte echte Banner-Position + Reserve fuer Timer/Hinweistext (siehe
+    // render(), timerY dort) -- praeziser als eine reine vh-Vermutung.
+    gridWrap.style.top = `${cachedPlayAreaTop + 26 + 55}px`;
     cells = buildGrid(contentTheme);
     remainingTargets = cells.filter((c) => c.isTarget).length;
     elapsed = 0;
@@ -330,6 +339,7 @@ export function createTrainSpotterGame(): MinigameModule {
       themeOverlay.style.marginTop = "10px";
 
       const wrap = document.createElement("div");
+      gridWrap = wrap;
       wrap.className = "stage-center-panel";
       // Extra Abstand oben, damit das Raster nicht unter die Highscore-
       // Banner-Pille + den auf dem Canvas gezeichneten Timer/Hinweistext
@@ -354,7 +364,11 @@ export function createTrainSpotterGame(): MinigameModule {
       // die verfuegbare Flaeche passt -- auf niedrigen Bildschirmen wuerde
       // reines CSS (Breite bestimmt ueber aspect-ratio die Hoehe) sonst zum
       // Scrollen zwingen, obwohl das Spiel eigentlich ohne Scrollen passen soll.
-      stopSquareFit = fitSquareToContainer(gridHost, wrap);
+      // maxSize explizit angehoben (Standard waere 480px) -- auf grossen
+      // Kiosk-Bildschirmen blieb das Raster sonst deutlich kleiner, als der
+      // tatsaechlich verfuegbare Platz hergab (gemeldeter Bug), gleicher
+      // Wert wie games/memory verwendet.
+      stopSquareFit = fitSquareToContainer(gridHost, wrap, 2000);
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatTime);
 
@@ -391,7 +405,9 @@ export function createTrainSpotterGame(): MinigameModule {
       // TILE_GRID_TOP_RESERVE in initTileGrid (Startposition des Rasters
       // darunter) passen.
       const timerFont = Math.max(22, Math.min(48, size.height * 0.058));
-      const timerY = size.height * 0.22;
+      // Math.max mit cachedPlayAreaTop (echt gemessen, siehe beginRound())
+      // -- siehe games/count-passengers-Kommentar.
+      const timerY = Math.max(size.height * 0.22, cachedPlayAreaTop + 26);
       if (phase === "playing" || phase === "done") {
         ctx.textAlign = "center";
         ctx.fillStyle = phase === "playing" ? theme.accent : theme.textFaint;

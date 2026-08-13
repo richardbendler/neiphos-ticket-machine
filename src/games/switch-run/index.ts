@@ -71,6 +71,13 @@ export function createSwitchRunGame(): MinigameModule {
   const laneButtons: Partial<Record<Lane, HTMLButtonElement>> = {};
   let choiceIndicator: HTMLDivElement;
   let gameOverPanel: HTMLDivElement;
+  // Echt gemessen statt eines fest verdrahteten Mindestabstands (war 210px)
+  // -- die Banner-Pille ist inzwischen selbst prozentual, ein fixer px-Wert
+  // passte auf kleinen Bildschirmen nicht mehr (gemeldeter/per Screenshot
+  // belegter Bug: die Pille verdeckte einen unverhaeltnismaessig grossen
+  // Teil des Bildschirms). Startwert nur ein Platzhalter bis zum ersten
+  // updateHud()-Aufruf.
+  let cachedBannerBottom = 90;
 
   function updateHud(): void {
     buttonBar.style.display = phase === "approaching" ? "flex" : "none";
@@ -88,6 +95,7 @@ export function createSwitchRunGame(): MinigameModule {
         <span class="switch-choice-banner__arrow">${LANE_ARROW[chosenLane]}</span>
         <span class="switch-choice-banner__text">Gewählt: ${LANE_LABEL[chosenLane]}</span>
       `;
+      cachedBannerBottom = choiceIndicator.getBoundingClientRect().bottom;
     }
 
     if (phase === "game-over") {
@@ -95,7 +103,7 @@ export function createSwitchRunGame(): MinigameModule {
       const title = document.createElement("div");
       title.style.fontFamily = "var(--font-display)";
       title.style.fontWeight = "800";
-      title.style.fontSize = "1.3rem";
+      title.style.fontSize = "clamp(0.7rem, 4vh, 1.6rem)";
       title.style.color = theme.danger;
       title.textContent = chosenLane === null ? "Keine Wahl getroffen!" : "Sackgasse!";
       const scoreLine = document.createElement("div");
@@ -452,8 +460,11 @@ export function createSwitchRunGame(): MinigameModule {
         btn.type = "button";
         btn.className = "btn";
         btn.style.flex = "1";
-        btn.style.fontSize = "2rem";
-        btn.style.padding = "18px 0";
+        // War fix 2rem/18px 0 -- skaliert jetzt mit, siehe .btn-Kommentar in
+        // style.css (gemeldeter Bug: Buttons/Banner nahmen auf kleinen
+        // Bildschirmen einen unverhaeltnismaessig grossen Teil ein).
+        btn.style.fontSize = "clamp(0.7rem, 4.5vh, 2rem)";
+        btn.style.padding = "clamp(4px, 2vh, 18px) 0";
         btn.textContent = LANE_ARROW[lane];
         btn.addEventListener("click", () => chooseLane(lane));
         buttonBar.appendChild(btn);
@@ -529,18 +540,19 @@ export function createSwitchRunGame(): MinigameModule {
         // auf Antippen, auch vor Ablauf des Countdowns.
         drawForkTrack(ctx, size);
         ctx.textAlign = "center";
-        ctx.font = `800 40px ${theme.fontDisplay}`;
+        const countdownFont = Math.max(20, Math.min(56, size.height * 0.075));
+        ctx.font = `800 ${countdownFont}px ${theme.fontDisplay}`;
         const countdownText = `${Math.max(0, Math.ceil(countdown))}`;
         // Mindestabstand von oben, damit die Zahl auf niedrigen Canvas-Hoehen
         // (kleine/breite Bildschirme) nicht unter die absolut positionierte
         // ".switch-choice-banner" ("Gewählt: ...") rutscht -- die sitzt in
         // Fensterkoordinaten fest oberhalb des Canvas und wandert bei einer
-        // reinen Prozent-Y-Position nicht mit.
-        // Mindestabstand von 210px (statt vorher 120px): bei der Berechnung
-        // ueber die Fenstergroesse wurde nicht beruecksichtigt, dass die
-        // ".switch-choice-banner" ("Gewählt: ...") bis zu ca. y=186
-        // reicht -- 120 lag also noch mitten in der Banner-Pille.
-        const countdownY = Math.max(size.height * 0.27, 210);
+        // reinen Prozent-Y-Position nicht mit. Jetzt echt gemessen
+        // (cachedBannerBottom, siehe updateHud()) statt eines fest
+        // verdrahteten Mindestabstands (war 210px, verdeckte auf kleinen
+        // Bildschirmen einen unverhaeltnismaessig grossen Teil, siehe
+        // gemeldeter/per Screenshot belegter Bug).
+        const countdownY = Math.max(size.height * 0.27, cachedBannerBottom + 24);
         // Weisser Umriss + dunkle Fuellung: bleibt so sowohl vor dem hellen
         // Hintergrund oben als auch vor der dunklen Gleis-Grafik lesbar,
         // statt vor dem dunklen Bereich foermlich zu verschwinden.
@@ -602,7 +614,8 @@ export function createSwitchRunGame(): MinigameModule {
           ctx.fillRect(0, 0, size.width, size.height);
 
           ctx.textAlign = "center";
-          ctx.font = `800 26px ${theme.fontDisplay}`;
+          const outcomeFont = Math.max(14, Math.min(34, size.height * 0.048));
+          ctx.font = `800 ${outcomeFont}px ${theme.fontDisplay}`;
           ctx.fillStyle = crashed ? theme.danger : theme.success;
           // "Keine Wahl getroffen" statt "Sackgasse!", wenn schlicht nicht
           // rechtzeitig gewaehlt wurde (Zug haelt einfach an, siehe Intro-Text

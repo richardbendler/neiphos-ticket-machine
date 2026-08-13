@@ -5,7 +5,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
-import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
@@ -102,6 +102,9 @@ function createTrainPhotoGame(): MinigameModule {
   let currentSize = { width: 480, height: 800 };
   let selectedLevel: SpeedLevel | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
+  // Echt gemessen (siehe core/highscoreBanner.ts#measurePlayAreaTop) --
+  // gleiches Muster wie games/count-passengers.
+  let cachedPlayAreaTop = 60;
 
   let speedPanel: HTMLDivElement;
   let sheet: HTMLDivElement;
@@ -121,16 +124,18 @@ function createTrainPhotoGame(): MinigameModule {
     speedPanel.style.display = phase === "speed-select" ? "flex" : "none";
     if (phase !== "speed-select") return;
 
+    speedPanel.style.top = `${measurePlayAreaTop() + 8}px`;
+
     const title = document.createElement("div");
     title.className = "stage-sheet__title";
-    title.style.fontSize = "1rem";
+    title.style.fontSize = "clamp(0.6rem, 2.6vh, 1.1rem)";
     title.style.color = "var(--text)";
     title.textContent = "Wie schnell soll der Zug fahren?";
     speedPanel.appendChild(title);
 
     const desc = document.createElement("p");
     desc.style.color = "var(--text-muted)";
-    desc.style.fontSize = "0.85rem";
+    desc.style.fontSize = "clamp(0.5rem, 2.1vh, 0.9rem)";
     desc.style.margin = "0 0 4px";
     desc.textContent = "Je höher die Stufe, desto schwerer lässt sich der richtige Moment zum Auslösen treffen.";
     speedPanel.appendChild(desc);
@@ -156,6 +161,7 @@ function createTrainPhotoGame(): MinigameModule {
   function selectSpeed(level: SpeedLevel): void {
     selectedLevel = level;
     highscoreBanner.update(getHighscoreBoard(GAME_ID, level.key));
+    cachedPlayAreaTop = measurePlayAreaTop();
     resetRound();
   }
 
@@ -684,27 +690,29 @@ function createTrainPhotoGame(): MinigameModule {
       const titleFont = Math.max(11, Math.min(24, size.height * 0.05));
       const subFont = Math.max(9, Math.min(20, size.height * 0.042));
       const countdownFont = Math.max(36, Math.min(110, size.height * 0.2));
+      // Math.max mit cachedPlayAreaTop -- siehe games/count-passengers-Kommentar.
+      const titleY = Math.max(size.height * 0.2, cachedPlayAreaTop + 22);
       if (phase === "countdown") {
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
         ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;
-        ctx.fillText("Halte die Kamera bereit!", size.width / 2, size.height * 0.2);
+        ctx.fillText("Halte die Kamera bereit!", size.width / 2, titleY);
         ctx.font = `600 ${subFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Der Zug kommt gleich...", size.width / 2, size.height * 0.3);
+        ctx.fillText("Der Zug kommt gleich...", size.width / 2, titleY + size.height * 0.1);
         ctx.font = `800 ${countdownFont}px ${theme.fontDisplay}`;
         ctx.fillStyle = theme.accent;
-        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, size.height * 0.47);
+        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, titleY + size.height * 0.27);
       } else if (phase === "waiting") {
         // Bewusst OHNE Zahl/Timer -- man soll nicht genau wissen, wann der
         // Zug tatsaechlich kommt.
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
         ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;
-        ctx.fillText("Gleich ist es so weit...", size.width / 2, size.height * 0.22);
+        ctx.fillText("Gleich ist es so weit...", size.width / 2, titleY + size.height * 0.02);
         ctx.font = `600 ${subFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Bereithalten!", size.width / 2, size.height * 0.3);
+        ctx.fillText("Bereithalten!", size.width / 2, titleY + size.height * 0.1);
       } else if (phase === "running") {
         drawTrain(ctx, trainOffsetX, y);
       }

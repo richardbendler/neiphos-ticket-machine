@@ -365,7 +365,8 @@ export function createTrainSimGame(): MinigameModule {
     const title = document.createElement("div");
     title.style.fontFamily = "var(--font-display)";
     title.style.fontWeight = "800";
-    title.style.fontSize = "1.2rem";
+    // War fix 1.2rem -- skaliert jetzt mit, siehe .btn-Kommentar in style.css.
+    title.style.fontSize = "clamp(0.6rem, 4vh, 1.5rem)";
     title.style.color = theme.accent;
     // Der Shuttle ist zu diesem Zeitpunkt bereits losgefahren (siehe
     // drawShuttleScene) -- Text entsprechend in der Vergangenheit/als
@@ -375,7 +376,8 @@ export function createTrainSimGame(): MinigameModule {
 
     const detail = document.createElement("div");
     detail.style.color = "var(--text-muted)";
-    detail.style.fontSize = "0.88rem";
+    // War fix 0.88rem -- skaliert jetzt mit, siehe .btn-Kommentar in style.css.
+    detail.style.fontSize = "clamp(0.48rem, 2.8vh, 1.05rem)";
     detail.style.margin = "6px 0 12px";
     detail.textContent = reachedFestival
       ? `In Breddin ins Shuttle gestiegen, ab jetzt geht's zum Neiphos Festival — in ${formatLegCount(legsCompleted)} geschafft.`
@@ -726,7 +728,8 @@ export function createTrainSimGame(): MinigameModule {
       goalLine = document.createElement("div");
       goalLine.style.fontFamily = "var(--font-display)";
       goalLine.style.fontWeight = "600";
-      goalLine.style.fontSize = "0.85rem";
+      // War fix 0.85rem -- skaliert jetzt mit, siehe .btn-Kommentar in style.css.
+      goalLine.style.fontSize = "clamp(0.5rem, 3vh, 1.1rem)";
       goalLine.style.color = theme.accent;
       goalLine.style.textAlign = "center";
       goalLine.style.width = "100%";
@@ -743,7 +746,8 @@ export function createTrainSimGame(): MinigameModule {
       currentCityLabel = document.createElement("div");
       currentCityLabel.style.fontFamily = "var(--font-display)";
       currentCityLabel.style.fontWeight = "800";
-      currentCityLabel.style.fontSize = "1.05rem";
+      // War fix 1.05rem -- skaliert jetzt mit, siehe .btn-Kommentar in style.css.
+      currentCityLabel.style.fontSize = "clamp(0.55rem, 3.6vh, 1.3rem)";
       currentCityLabel.style.color = "var(--text)";
       sheet.appendChild(currentCityLabel);
 
@@ -758,7 +762,8 @@ export function createTrainSimGame(): MinigameModule {
       // Deutlich kraeftiger als die urspruengliche kleine Titelzeile -- das
       // ist die eigentliche Handlungsaufforderung ("was soll ich tun?"),
       // direkt unter der auf die Nachbarstationen hervorgehobenen Karte.
-      choiceTitle.style.fontSize = "1.05rem";
+      // War fix 1.05rem -- skaliert jetzt mit, siehe .btn-Kommentar in style.css.
+      choiceTitle.style.fontSize = "clamp(0.55rem, 3.6vh, 1.3rem)";
       choiceTitle.style.fontWeight = "800";
       choiceTitle.style.color = "var(--accent-dark)";
       choiceTitle.textContent = "Wohin geht die Fahrt?";
@@ -779,11 +784,11 @@ export function createTrainSimGame(): MinigameModule {
       centerBtn.className = "btn";
       centerBtn.textContent = "⌖ Zentrieren";
       centerBtn.style.position = "absolute";
-      centerBtn.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
+      centerBtn.style.top = "calc(var(--header-h) + 6vh + var(--safe-top))";
       centerBtn.style.right = "calc(10px + var(--safe-right))";
       centerBtn.style.zIndex = "16";
-      centerBtn.style.padding = "6px 12px";
-      centerBtn.style.fontSize = "0.78rem";
+      centerBtn.style.padding = "clamp(3px, 1.2vh, 6px) clamp(6px, 2vw, 12px)";
+      centerBtn.style.fontSize = "clamp(0.5rem, 2.4vh, 0.9rem)";
       centerBtn.style.display = "none";
       centerBtn.addEventListener("click", () => {
         pendingCameraFit = [currentCityId, ...currentOptions.map((o) => o.to)];

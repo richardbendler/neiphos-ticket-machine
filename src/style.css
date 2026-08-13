@@ -58,28 +58,33 @@
   /* Hoehe der fixen Kopf-/Fussleiste (ohne Safe-Area-Inset) -- zentral
      definiert, damit Spielbuehnen-Layouts (stage-top-bar, stage-center-panel,
      ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. War fix
-     86px -- auf ausdruecklichen Wunsch jetzt prozentual zur Bildschirmhoehe
-     (vh) statt eines starren Pixelwerts, damit die Leiste auf sehr kleinen
-     Kiosk-Displays nicht unverhaeltnismaessig viel Platz frisst und auf
-     sehr grossen nicht unverhaeltnismaessig duenn wirkt. Der clamp()-Bereich
-     ist so gewaehlt, dass bei einer "normalen" Kiosk-Bildschirmhoehe (~900px)
-     weiterhin ungefaehr der alte Wert herauskommt -- vh statt vw/min(), weil
-     dies eine reine VERTIKALE Abmessung ist (anders als z. B. Buttons, die
-     in beide Richtungen mitwachsen sollen). */
-  --header-h: clamp(56px, 9.5vh, 110px);
+     86px -- auf ausdruecklichen Wunsch jetzt ECHT prozentual zur
+     Bildschirmhoehe (vh) statt eines starren Pixelwerts, OHNE eine hohe
+     Untergrenze: eine erste Fassung hatte hier noch einen komfortablen
+     56px-Sockel, der auf einem sehr kurzen (aber breiten) Browserfenster
+     dazu fuehrte, dass die Leiste (und ihr Inhalt, siehe .chrome-bar__logo/
+     .chrome-menu-btn/.chrome-highscore-btn) nicht mehr im selben Verhaeltnis
+     mitschrumpfte wie der Rest des Bildschirms -- wirkte dadurch
+     "viel zu gross" (gemeldeter/per Screenshot belegter Bug). Die
+     Untergrenze ist jetzt nur noch eine technische Notbremse (verhindert
+     0px/negative Werte), keine gestalterische Komfort-Untergrenze mehr. Der
+     mittlere vh-Wert ist weiterhin so gewaehlt, dass bei einer "normalen"
+     Laptop-Bildschirmhoehe (~900px) ungefaehr der bisherige Wert
+     herauskommt. */
+  --header-h: clamp(18px, 9.5vh, 160px);
   /* War fix 78px -- dieselbe Umstellung wie --header-h oben, aus demselben
-     Grund. Etwas kleinerer clamp()-Bereich als der Header (der Header traegt
-     zusaetzlich das groessere Logo, siehe .chrome-bar__logo), passend zum
-     urspruenglichen Groessenverhaeltnis der beiden Leisten zueinander.
-     Die zusaetzliche (teils zweizeilig umbrechende)
-     ".chrome-footer-credit__line--wrap"-Zeile (Hinweis auf die Domain zum
-     Weiterspielen) macht den tatsaechlichen Fusszeilen-Inhalt hoeher als
-     eine einzelne Textzeile, wodurch er bei mehreren Spielen sichtbar mit
-     deren unterster Bedienleiste (z. B. .stage-sheet, Weichenspiel-
-     Richtungsknoepfe) ueberlappte (gemeldeter Bug) -- alle Spiel-Layouts
-     richten sich zentral nach dieser Variable aus, daher hier einmal
-     angepasst statt an jeder einzelnen Stelle. */
-  --footer-h: clamp(48px, 8vh, 96px);
+     Grund (siehe dortigen Kommentar). Etwas kleinerer vh-Anteil als der
+     Header (der Header traegt zusaetzlich das groessere Logo, siehe
+     .chrome-bar__logo), passend zum urspruenglichen Groessenverhaeltnis der
+     beiden Leisten zueinander. Die zusaetzliche (teils zweizeilig
+     umbrechende) ".chrome-footer-credit__line--wrap"-Zeile (Hinweis auf die
+     Domain zum Weiterspielen) macht den tatsaechlichen Fusszeilen-Inhalt
+     hoeher als eine einzelne Textzeile, wodurch er bei mehreren Spielen
+     sichtbar mit deren unterster Bedienleiste (z. B. .stage-sheet,
+     Weichenspiel-Richtungsknoepfe) ueberlappte (gemeldeter Bug) -- alle
+     Spiel-Layouts richten sich zentral nach dieser Variable aus, daher hier
+     einmal angepasst statt an jeder einzelnen Stelle. */
+  --footer-h: clamp(16px, 8vh, 140px);
 
   /* Verfuegbare Hoehe der eigentlichen Spielflaeche (zwischen Kopf- und
      Fussleiste, Safe-Areas abgezogen) -- fuer Layouts, die diesen Bereich in
@@ -181,8 +186,13 @@ button {
   /* Auf Groesse von .chrome-highscore-btn angeglichen (siehe dortiger
      Kommentar) -- beide teilen sich denselben Platz oben links (setNavMode)
      und muessten sonst beim Wechsel Hauptmenue<->Spiel sichtbar schrumpfen/
-     wachsen. */
-  height: clamp(37px, 11.5vw, 48px);
+     wachsen. Ueber min() zusaetzlich an --header-h gekoppelt (62% davon) --
+     ohne das koennte der Button (der vorher einen eigenen, von der Leisten-
+     hoehe unabhaengigen 37px-Sockel hatte) auf einem sehr kurzen Bildschirm
+     wieder aus der jetzt genauso ohne Sockel schrumpfenden Kopfleiste
+     herausragen (gleiches Bug-Muster wie beim Logo, siehe
+     .chrome-bar__logo-Kommentar). */
+  height: min(11.5vw, calc(var(--header-h) * 0.62));
   padding: 0 clamp(11px, 3.6vw, 20px) 0 clamp(8px, 2.6vw, 13px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--btn-border);
@@ -190,7 +200,9 @@ button {
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.86rem, 3.7vw, 1.12rem);
+  /* Ebenfalls per min() an --header-h gekoppelt statt eines fixen Sockels --
+     aus demselben Grund wie bei der Hoehe oben. */
+  font-size: min(3.7vw, calc(var(--header-h) * 0.2));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -200,10 +212,13 @@ button {
   background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
+/* em-relativ statt eigener clamp()-Groesse -- folgt dadurch automatisch der
+   (jetzt an --header-h gekoppelten) Schrift des umgebenden Buttons, ohne
+   selbst erneut ueberlaufen zu koennen. */
 .chrome-menu-btn svg {
   flex-shrink: 0;
-  width: clamp(19px, 5.7vw, 24px);
-  height: clamp(19px, 5.7vw, 24px);
+  width: 1.15em;
+  height: 1.15em;
 }
 
 /* Golden/pokalfarben statt im silbernen Look der uebrigen Kopfleisten-
@@ -221,8 +236,10 @@ button {
   /* Auf ausdruecklichen Wunsch etwas groesser als vorher (war 34-44px /
      0.78-1.02rem) -- siehe auch .chrome-footer-btn, das bewusst auf
      dieselbe Schriftgroesse angeglichen wurde, damit beide Buttons (oben/
-     unten, unterschiedliche Leisten) gleich gross wirken. */
-  height: clamp(37px, 11.5vw, 48px);
+     unten, unterschiedliche Leisten) gleich gross wirken. Ueber min() an
+     --header-h gekoppelt statt eines fixen Sockels -- siehe
+     .chrome-menu-btn-Kommentar fuer den Grund. */
+  height: min(11.5vw, calc(var(--header-h) * 0.62));
   padding: 0 clamp(11px, 3.6vw, 20px) 0 clamp(8px, 2.6vw, 13px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent-dark);
@@ -230,7 +247,7 @@ button {
   color: #2b2004;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.86rem, 3.7vw, 1.12rem);
+  font-size: min(3.7vw, calc(var(--header-h) * 0.2));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -242,8 +259,8 @@ button {
 
 .chrome-highscore-btn svg {
   flex-shrink: 0;
-  width: clamp(19px, 5.7vw, 24px);
-  height: clamp(19px, 5.7vw, 24px);
+  width: 1.15em;
+  height: 1.15em;
 }
 
 .chrome-bar__title {
@@ -276,7 +293,9 @@ button {
 .chrome-bar__clock {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.62rem, 2.6vw, 0.9rem);
+  /* Ueber min() an --header-h gekoppelt statt eines fixen Sockels -- siehe
+     .chrome-menu-btn-Kommentar fuer den Grund. */
+  font-size: min(2.6vw, calc(var(--header-h) * 0.15));
   letter-spacing: 0.03em;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -293,7 +312,9 @@ button {
 .chrome-bar__game-title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(0.85rem, 3.6vw, 1.18rem);
+  /* Ueber min() an --header-h gekoppelt statt eines fixen Sockels -- siehe
+     .chrome-menu-btn-Kommentar fuer den Grund. */
+  font-size: min(3.6vw, calc(var(--header-h) * 0.2));
   color: var(--text);
   max-width: 100%;
   white-space: nowrap;
@@ -325,8 +346,13 @@ button {
      breiten, aber FLACHEN Bildschirm (z. B. 800x480) waere der Header dank
      wenig vh-Hoehe schmaler, als das rein breitenbasierte Logo gross werden
      wollte -- das Logo ragte dann sichtbar oben aus der Kopfleiste heraus
-     (beobachtet/gemeldeter Bug). */
-  height: clamp(28px, min(12.6vw, var(--header-h) * 0.72), 67px);
+     (beobachtet/gemeldeter Bug). Bewusst OHNE eigenen clamp()-Sockel mehr --
+     ein fixer px-Mindestwert wuerde auf einem sehr kurzen Bildschirm genau
+     denselben Ueberlauf-Bug wieder einfuehren, sobald --header-h (das jetzt
+     selbst keine hohe Untergrenze mehr hat, siehe dortiger Kommentar) unter
+     diesen Mindestwert faellt. min() allein kann nie groesser als seine
+     kleinste Eingabe werden, ist also von sich aus schon ueberlaufsicher. */
+  height: min(12.6vw, calc(var(--header-h) * 0.72));
   width: auto;
   max-width: 40vw;
   object-fit: contain;
@@ -393,14 +419,18 @@ button {
   /* Auf ausdruecklichen Wunsch an .chrome-highscore-btn (Kopfleiste)
      angeglichen -- gleiche Schriftgroesse, damit "Feedback geben" (unten)
      und "Highscores" (oben) trotz unterschiedlicher Leisten gleich gross
-     wirken. Padding/Icon entsprechend mitgewachsen (war 4-7px/12-15px). */
-  padding: clamp(6px, 2vw, 9px) clamp(9px, 3.2vw, 16px);
+     wirken. Padding/Icon entsprechend mitgewachsen (war 4-7px/12-15px).
+     Vertikales Padding + Schrift ueber min() an --footer-h gekoppelt statt
+     eines fixen Sockels -- siehe .chrome-menu-btn-Kommentar fuer den Grund
+     (horizontales Padding bleibt rein vw-basiert, verursacht keinen
+     vertikalen Ueberlauf). */
+  padding: min(2vw, calc(var(--footer-h) * 0.12)) clamp(9px, 3.2vw, 16px);
   display: flex;
   align-items: center;
   gap: 6px;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: clamp(0.86rem, 3.7vw, 1.12rem);
+  font-size: min(3.7vw, calc(var(--footer-h) * 0.24));
   flex-shrink: 1;
   min-width: 0;
   white-space: nowrap;
@@ -412,10 +442,12 @@ button {
   background: linear-gradient(180deg, var(--btn-face-active-top), var(--btn-face-active-bottom));
 }
 
+/* em-relativ statt eigener clamp()-Groesse -- folgt automatisch der (jetzt
+   an --footer-h gekoppelten) Schrift des Buttons. */
 .chrome-footer-btn__icon {
   flex-shrink: 0;
-  width: clamp(15px, 4.6vw, 19px);
-  height: clamp(15px, 4.6vw, 19px);
+  width: 0.95em;
+  height: 0.95em;
   display: inline-flex;
 }
 
@@ -434,8 +466,9 @@ button {
   color: var(--accent-dark);
   font-family: var(--font-display);
   font-weight: 700;
-  /* War fix 0.62rem -- skaliert jetzt mit, siehe .chrome-footer-btn-Kommentar. */
-  font-size: clamp(0.56rem, 2.2vw, 0.72rem);
+  /* War fix 0.62rem, dann clamp() -- jetzt ueber min() an --footer-h
+     gekoppelt statt eines fixen Sockels, siehe .chrome-menu-btn-Kommentar. */
+  font-size: min(2.2vw, calc(var(--footer-h) * 0.13));
   white-space: nowrap;
 }
 
@@ -443,10 +476,11 @@ button {
   color: var(--danger);
 }
 
+/* em-relativ statt eigener Groesse -- folgt der (an --footer-h gekoppelten) Schrift. */
 .chrome-footer-paper-warn__icon {
   display: inline-flex;
-  width: clamp(11px, 2.8vw, 15px);
-  height: clamp(11px, 2.8vw, 15px);
+  width: 0.9em;
+  height: 0.9em;
   flex-shrink: 0;
 }
 
@@ -471,15 +505,17 @@ button {
   color: var(--text-muted);
   font-family: var(--font-display);
   font-weight: 700;
-  /* War fix 0.62rem -- skaliert jetzt mit, siehe .chrome-footer-btn-Kommentar. */
-  font-size: clamp(0.56rem, 2.2vw, 0.72rem);
+  /* War fix 0.62rem, dann clamp() -- jetzt ueber min() an --footer-h
+     gekoppelt statt eines fixen Sockels, siehe .chrome-menu-btn-Kommentar. */
+  font-size: min(2.2vw, calc(var(--footer-h) * 0.13));
   white-space: nowrap;
 }
 
+/* em-relativ statt eigener Groesse -- folgt der (an --footer-h gekoppelten) Schrift. */
 .chrome-footer-cooldown-badge__icon {
   display: inline-flex;
-  width: clamp(11px, 2.8vw, 15px);
-  height: clamp(11px, 2.8vw, 15px);
+  width: 0.9em;
+  height: 0.9em;
   flex-shrink: 0;
 }
 
@@ -499,8 +535,9 @@ button {
   color: var(--accent-dark);
   font-family: var(--font-display);
   font-weight: 700;
-  /* War fix 0.56rem -- skaliert jetzt mit, siehe .chrome-footer-btn-Kommentar. */
-  font-size: clamp(0.5rem, 2vw, 0.66rem);
+  /* War fix 0.56rem, dann clamp() -- jetzt ueber min() an --footer-h
+     gekoppelt statt eines fixen Sockels, siehe .chrome-menu-btn-Kommentar. */
+  font-size: min(2vw, calc(var(--footer-h) * 0.12));
   white-space: nowrap;
 }
 
@@ -549,15 +586,23 @@ button {
    Zeilen sein, aber nur etwas groesser als zuvor (war clamp(0.52rem, 2.2vw,
    0.68rem) fuer alle drei Zeilen gemeinsam, wodurch sich Haupt- und
    Subzeile kaum unterschieden -- gemeldet). */
+/* Ueber min() an --footer-h gekoppelt statt eines fixen Sockels -- diese
+   Zeile sitzt in einem absolut positionierten Block OHNE eigenes
+   overflow:hidden (siehe .chrome-footer-credit) -- ein rein breitenbasierter
+   (vw) Wert schrumpfte auf einem sehr kurzen (aber breiten) Bildschirm nicht
+   mit, wodurch der Credit-Block sichtbar aus der (jetzt selbst ohne
+   Komfort-Sockel schrumpfenden, siehe --footer-h-Kommentar) Fussleiste
+   herausragte (gemeldeter/per Screenshot belegter Bug). */
 .chrome-footer-credit__line--main {
-  font-size: clamp(0.58rem, 2.5vw, 0.76rem);
+  font-size: min(2.5vw, calc(var(--footer-h) * 0.15));
 }
 
 .chrome-footer-credit__line--sub {
   font-style: italic;
   /* Deutlich kleiner als die Namenszeile (vorher nur 0.94em davon, kaum
-     wahrnehmbar kleiner -- gemeldet). */
-  font-size: clamp(0.44rem, 1.85vw, 0.58rem);
+     wahrnehmbar kleiner -- gemeldet). Ueber min() an --footer-h gekoppelt,
+     siehe .chrome-footer-credit__line--main-Kommentar. */
+  font-size: min(1.85vw, calc(var(--footer-h) * 0.11));
 }
 
 /* Einzige Fusszeilen-Zeile, die (im Unterschied zu den anderen) auf
@@ -571,7 +616,11 @@ button {
   text-align: center;
   line-height: 1.25;
   margin-top: 2px;
-  font-size: clamp(0.45rem, 1.9vw, 0.58rem);
+  /* Ueber min() an --footer-h gekoppelt, siehe
+     .chrome-footer-credit__line--main-Kommentar -- bei DIESER Zeile umso
+     wichtiger, weil sie als einzige mehrzeilig umbrechen darf und dadurch
+     bei zu grosser Schrift am schnellsten sichtbar ueberlief. */
+  font-size: min(1.9vw, calc(var(--footer-h) * 0.11));
   opacity: 0.85;
 }
 

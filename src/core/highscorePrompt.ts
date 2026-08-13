@@ -3,7 +3,7 @@ import { OnScreenKeyboard } from "./OnScreenKeyboard";
 import { icons } from "./icons";
 import { playHighscoreOpenSound } from "./sound";
 import { printTicket, friendlyPrintErrorMessage, type TicketVariant, type TicketFields, type PrintTicketResult } from "./ticket";
-import type { TicketReasonKind } from "./ticketMethods";
+import { isPrintingEnabled, type TicketReasonKind } from "./ticketMethods";
 import { openPaperChangeInstructions } from "./paperChangeInstructions";
 import { getTicketCooldownRemainingMs, formatCooldownRemainingRough, recordTicketPrinted } from "./ticketCooldown";
 
@@ -103,7 +103,12 @@ export function promptHighscoreName(opts: {
       // "nur speichern"-Weg (ohne Ticket) sitzt stattdessen als eigener,
       // bewusst weniger auffaelliger (kein Puls-Effekt mehr noetig, da die
       // Tastatur selbst schon den Ticket-Weg abdeckt) Button DARUNTER.
-      const rawTicketVariant = opts.ticketReason !== null ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
+      // isPrintingEnabled(): globaler Admin-Schalter (Adminpanel, direkt
+      // neben dem Testdruck-Button, siehe core/ticketMethods.ts) -- ist der
+      // Ticketdruck komplett abgeschaltet, verhaelt sich dieser Dialog so,
+      // als gaebe es ueberhaupt keinen Ticket-Verdienstweg: nur noch der
+      // normale "Speichern"-Button, kein Ticket-Button, kein Cooldown-Hinweis.
+      const rawTicketVariant = opts.ticketReason !== null && isPrintingEnabled() ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
       // Cooldown-Sperre (siehe core/ticketCooldown.ts): waehrend der Cooldown
       // laeuft, verhaelt sich dieser Dialog so, als gaebe es gar keinen
       // Ticket-Verdienstweg -- der Name/Highscore wird trotzdem ganz normal

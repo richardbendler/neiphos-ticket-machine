@@ -12,7 +12,17 @@ import { guardedClick } from "../core/guardedClick";
 import { playHighscoreOpenSound } from "../core/sound";
 import { printTicket, printDiagnosticStrip, friendlyPrintErrorMessage } from "../core/ticket";
 import { openPaperChangeInstructions } from "../core/paperChangeInstructions";
-import { getTicketMethods, setTicketMethod, type TicketMethodSettings, MILESTONE_GAMES, type MilestoneGameDef, getMilestones, setMilestone } from "../core/ticketMethods";
+import {
+  getTicketMethods,
+  setTicketMethod,
+  type TicketMethodSettings,
+  MILESTONE_GAMES,
+  type MilestoneGameDef,
+  getMilestones,
+  setMilestone,
+  isPrintingEnabled,
+  setPrintingEnabled,
+} from "../core/ticketMethods";
 import { getTicketCooldownSettings, setTicketCooldownEnabled, setTicketCooldownMinutes } from "../core/ticketCooldown";
 import {
   isScreensaverEnabled,
@@ -873,6 +883,29 @@ function renderPrinterControl(): HTMLDivElement {
   testBtn.style.fontSize = "0.82rem";
   testBtn.textContent = "🖨️ Testdruck";
   wrap.appendChild(testBtn);
+
+  // Globaler Not-Aus fuer den Besucher-Ticketdruck (siehe core/ticketMethods.ts#
+  // isPrintingEnabled/setPrintingEnabled fuer die genaue Wirkung) -- auf
+  // ausdruecklichen Wunsch DIREKT NEBEN dem Testdruck-Button. Der Testdruck
+  // selbst bleibt bewusst unabhaengig davon nutzbar (siehe dortiger
+  // Kommentar), deshalb hier als eigenes Label statt den Button zu ersetzen.
+  const printToggleLabel = document.createElement("label");
+  printToggleLabel.style.display = "inline-flex";
+  printToggleLabel.style.alignItems = "center";
+  printToggleLabel.style.gap = "6px";
+  printToggleLabel.style.marginLeft = "12px";
+  printToggleLabel.style.fontSize = "0.82rem";
+  printToggleLabel.style.cursor = "pointer";
+  const printToggleCheckbox = document.createElement("input");
+  printToggleCheckbox.type = "checkbox";
+  printToggleCheckbox.style.width = "18px";
+  printToggleCheckbox.style.height = "18px";
+  printToggleCheckbox.checked = isPrintingEnabled();
+  printToggleCheckbox.addEventListener("change", () => setPrintingEnabled(printToggleCheckbox.checked));
+  const printToggleText = document.createElement("span");
+  printToggleText.textContent = "Ticketdruck für Besucher:innen aktiv";
+  printToggleLabel.append(printToggleCheckbox, printToggleText);
+  wrap.appendChild(printToggleLabel);
 
   // Auf ausdruecklichen Wunsch immer sichtbar direkt hinter dem Testdruck-
   // Button (nicht erst wenn der Status schon "leer/knapp" meldet) -- so

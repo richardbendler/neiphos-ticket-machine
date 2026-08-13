@@ -1,8 +1,10 @@
 # Neiphos Ticket Machine
 
 Offline-Kiosk-Spielesammlung für einen umgebauten Fahrkartenautomaten. Ein
-Touch-Display (Hochformat, nahe 4:3) wird von einem Raspberry Pi 5 angesteuert,
-Chromium läuft im Kiosk-Modus, komplett ohne Internetverbindung.
+Touch-Display (Querformat) wird von einem Raspberry Pi 5 angesteuert, Chromium
+läuft im Kiosk-Modus, komplett ohne Internetverbindung. Die App ist bewusst
+nur im Querformat nutzbar (siehe .orientation-lock in style.css) -- bei
+Hochformat blockiert ein "Bitte Gerät drehen"-Hinweis die Bedienung.
 
 Aus einem Hauptmenü heraus sind sieben Zug-/Bahn-Minigames erreichbar:
 

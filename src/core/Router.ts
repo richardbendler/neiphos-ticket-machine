@@ -49,6 +49,40 @@ export class Router {
   private sessionStartedAt = 0;
   private teardownFns: Array<() => void> = [];
 
+  // Fussleisten-Hintergrundabfragen (ungelesenes Feedback/Papierstand/
+  // Ticket-Cooldown, siehe buildChromeFooterBar) -- auf ausdruecklichen
+  // Wunsch waehrend eines laufenden Spiels pausiert (siehe pauseFooterPolling/
+  // resumeFooterPolling unten): der Footer selbst bleibt sichtbar/erreichbar,
+  // aber diese rein informativen Werte muessen waehrend des eigentlichen
+  // Spielens (30fps-Canvas-Loop auf schwacher Pi-3-Hardware) nicht auch noch
+  // regelmaessig neu abgefragt/neu gezeichnet werden -- sie sind beim naechsten
+  // Menuebesuch ohnehin sofort wieder aktuell (resumeFooterPolling fragt
+  // einmalig sofort neu ab).
+  private footerRefreshers: Array<{ run: () => void; intervalMs: number; id: number | null }> = [];
+
+  private registerFooterPoll(run: () => void, intervalMs: number): void {
+    run();
+    this.footerRefreshers.push({ run, intervalMs, id: window.setInterval(run, intervalMs) });
+  }
+
+  private pauseFooterPolling(): void {
+    for (const r of this.footerRefreshers) {
+      if (r.id !== null) {
+        window.clearInterval(r.id);
+        r.id = null;
+      }
+    }
+  }
+
+  private resumeFooterPolling(): void {
+    for (const r of this.footerRefreshers) {
+      if (r.id === null) {
+        r.run();
+        r.id = window.setInterval(r.run, r.intervalMs);
+      }
+    }
+  }
+
   constructor(root: HTMLElement) {
     this.root = root;
     const chromeBar = this.buildChromeBar();
@@ -213,7 +247,6 @@ export class Router {
         unreadBadge.style.display = "block";
       });
     };
-    refreshUnreadBadge();
     // Feedback kommt waehrend eines Festivals unregelmaessig rein -- ein
     // gelegentliches Nachfragen reicht, keine aufwendigere Live-Loesung
     // (z. B. Websocket) noetig fuer eine reine Kiosk-Randnotiz. War 60s --
@@ -221,7 +254,7 @@ export class Router {
     // oben), der Hinweis aktualisierte sich also bis zu eine ganze Minute
     // lang gar nicht, was sich wie eine verschluckte Meldung anfuehlte
     // (gemeldet). Der Endpunkt ist trivial billig, daher deutlich kuerzer.
-    window.setInterval(refreshUnreadBadge, 15_000);
+    this.registerFooterPoll(refreshUnreadBadge, 15_000);
 
     // Papier-Warnung -- auf ausdruecklichen Wunsch, "falls es geht": der
     // Bondrucker beantwortet eine ESC/POS-Statusabfrage (siehe server/
@@ -262,8 +295,7 @@ export class Router {
           paperWarn.style.display = "none";
         });
     };
-    refreshPaperWarning();
-    window.setInterval(refreshPaperWarning, 60_000);
+    this.registerFooterPoll(refreshPaperWarning, 60_000);
 
     // Ticket-Cooldown-Countdown (siehe core/ticketCooldown.ts) -- nur
     // sichtbar, waehrend wirklich einer laeuft. Ein Tippen darauf oeffnet
@@ -288,8 +320,7 @@ export class Router {
       cooldownText.textContent = `Ticket-Cooldown: noch ${formatCooldownCountdown(remaining)}`;
       cooldownBadge.style.display = "flex";
     };
-    refreshCooldownBadge();
-    window.setInterval(refreshCooldownBadge, 1000);
+    this.registerFooterPoll(refreshCooldownBadge, 1000);
 
     // Kleine, unaufdringliche Versionsanzeige -- auf ausdruecklichen Wunsch,
     // damit auf einen Blick erkennbar ist, welcher Stand gerade laeuft (fuer
@@ -412,6 +443,7 @@ export class Router {
     this.setNavMode("menu-screen");
     this.chromeGameTitle.textContent = "";
     this.startClock();
+    this.resumeFooterPolling();
     // Im Admin-Panel deaktivierte Spiele werden im Hauptmenue nicht
     // aufgelistet (bleiben aber ueber ihre ID technisch weiterhin normal
     // spielbar -- "deaktiviert" heisst hier bewusst nur "aus dem Menue
@@ -472,6 +504,12 @@ export class Router {
     this.startClock();
     this.chromeGameTitle.textContent = meta.title;
     this.setNavMode("elsewhere");
+    // Siehe pauseFooterPolling()-Kommentar: waehrend des eigentlichen Spielens
+    // (30fps-Canvas-Loop) muessen Feedback-/Papier-/Cooldown-Hinweis nicht
+    // auch noch regelmaessig neu abgefragt werden, spart etwas Leistung auf
+    // schwacher Pi-3-Hardware. showMenu() holt beim Verlassen sofort wieder
+    // den aktuellen Stand nach.
+    this.pauseFooterPolling();
 
     const stage = document.createElement("div");
     stage.className = "game-stage";

@@ -183,7 +183,10 @@ function renderChipsRow(container: HTMLElement, lines: string[], onRemove: (inde
   const wrap = document.createElement("div");
   wrap.className = "breadcrumb";
   wrap.style.justifyContent = "center";
-  wrap.style.minHeight = "28px";
+  // min-height kommt jetzt aus .breadcrumb selbst (siehe style.css) -- dort
+  // bewusst auf zwei Chip-Zeilen bemessen statt hier auf einen fixen
+  // Klein-Wert, siehe dortiger Kommentar (verhindert den Skalierungssprung
+  // in fitBuildingContent je nach Auswahl-Anzahl).
 
   if (lines.length === 0) {
     const hint = document.createElement("span");

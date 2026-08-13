@@ -805,6 +805,12 @@ button {
   .menu-grid {
     overflow-y: auto;
     touch-action: pan-y;
+    /* Aeltere iOS-Safari-Versionen aktivierten natives Momentum-Touch-
+       Scrollen bei overflow:auto nur mit diesem (heute sonst ueberfluessigen)
+       Praefix -- kostet auf modernen Browsern nichts, ist aber ein billiges
+       zusaetzliches Sicherheitsnetz fuer den gemeldeten "kann auf dem Handy
+       nicht scrollen"-Bug. */
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -980,6 +986,8 @@ button {
   .highscore-board {
     overflow-y: auto;
     touch-action: pan-y;
+    /* Siehe gleichlautender Kommentar bei .menu-grid oben. */
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -2411,10 +2419,29 @@ button {
   aspect-ratio: 1 / 1;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  /* War "hidden" -- damit haette es das vergroesserte Antippfeld unten
+     (::before mit negativem inset) mit abgeschnitten. Rundung/Zuschnitt des
+     Fotos uebernimmt jetzt stattdessen direkt das <img> selbst (siehe
+     unten), das braucht dafuer kein overflow:hidden auf der Kachel mehr. */
+  overflow: visible;
   padding: 0;
   background: var(--panel-alt);
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+}
+
+/* Vergroessertes, unsichtbares Antippfeld -- greift bis in die Luecke
+   zwischen den Kacheln (.tile-grid gap: 8px) hinein, damit ein knapp daneben
+   gesetzter Tipp auf dem (gemeldet traegeren) Kiosk-Touchscreen trotzdem
+   noch als Treffer auf der naechstliegenden Kachel zaehlt ("Huepftiere sind
+   noch etwas schwer zu fangen"). 5px auf jeder Seite lassen bei 8px Luecke
+   weiterhin 8-5-5=-2 rechnerisch minimal ueberlappend zu -- bewusst so
+   knapp gewaehlt, dass sich zwei benachbarte Antippfelder in der Mitte der
+   Luecke gerade noch treffen, ohne dass eine Kachel dabei sichtbar waechst
+   (rein pointer-events-Flaeche, kein Hintergrund/Rand). */
+.tile-grid__cell::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
 }
 
 .tile-grid__cell img {
@@ -2422,6 +2449,7 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: inherit;
 }
 
 .tile-grid__cell--found {

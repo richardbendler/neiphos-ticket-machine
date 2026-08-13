@@ -253,9 +253,9 @@ function fitColumnsLayout(containerWidth: number, containerHeight: number, clust
 
 function computeGridLayout(containerWidth: number, containerHeight: number, clusters: GameMeta[][]): ColumnsLayout {
   const isPortrait = containerHeight > containerWidth;
+  const isPhone = containerWidth < PHONE_BREAKPOINT;
 
   if (!isPortrait) {
-    const isPhone = containerWidth < PHONE_BREAKPOINT;
     const landscapeCols = isPhone ? LANDSCAPE_COLS_PHONE : LANDSCAPE_COLS;
     const cols = Math.min(landscapeCols, Math.max(1, clusters.length));
     return fitColumnsLayout(containerWidth, containerHeight, clusters, cols, isPhone);
@@ -263,10 +263,18 @@ function computeGridLayout(containerWidth: number, containerHeight: number, clus
 
   // Hochformat: probiert 1..PORTRAIT_MAX_COLS Saeulen durch und waehlt die
   // Variante mit der groessten resultierenden Kachelhoehe (= beste
-  // Lesbarkeit).
-  let best = fitColumnsLayout(containerWidth, containerHeight, clusters, 1);
+  // Lesbarkeit). Auf Handygroesse (isPhone) muss dabei genau wie im
+  // Querformat oben allowScroll durchgereicht werden -- sonst wuerde
+  // solveTileHeight (siehe dort) die Kacheln IMMER so weit stauchen, dass
+  // alles ohne Scrollen in containerHeight passt, selbst bis auf 1px/Zeile.
+  // Bei vielen Spiele-Clustern auf einem schmalen Handy im Hochformat (der
+  // mit Abstand haeufigsten Handy-Haltung) blieb dadurch nie etwas zum
+  // Scrollen uebrig, obwohl .menu-grid in style.css fuer genau diesen Fall
+  // (max-width:960px) laengst overflow-y:auto+touch-action:pan-y bekommt
+  // (gemeldeter Bug: "kann im Hauptmenue auf dem Handy nicht scrollen").
+  let best = fitColumnsLayout(containerWidth, containerHeight, clusters, 1, isPhone);
   for (let cols = 2; cols <= Math.min(PORTRAIT_MAX_COLS, clusters.length); cols++) {
-    const candidate = fitColumnsLayout(containerWidth, containerHeight, clusters, cols);
+    const candidate = fitColumnsLayout(containerWidth, containerHeight, clusters, cols, isPhone);
     if (candidate.tileHeight > best.tileHeight) best = candidate;
   }
   return best;

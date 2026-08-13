@@ -268,14 +268,19 @@ function createCountPassengersGame(): MinigameModule {
       const resultTitle = document.createElement("div");
       resultTitle.style.fontFamily = "var(--font-display)";
       resultTitle.style.fontWeight = "700";
-      resultTitle.style.fontSize = "1.05rem";
+      // War 1.05rem -- auf ausdruecklichen Wunsch etwas groesser, damit der
+      // Kommentar zum Ergebnis ("Uff, das war schwer zu zaehlen, oder?")
+      // beim ersten Blick besser auffaellt.
+      resultTitle.style.fontSize = "1.2rem";
       resultTitle.style.color = color;
       resultTitle.textContent = text;
       panel.appendChild(resultTitle);
 
       const detail = document.createElement("div");
       detail.style.color = "var(--text-muted)";
-      detail.style.fontSize = "0.88rem";
+      // War 0.88rem -- gleicher Grund wie bei resultTitle oben (Ist-Wert +
+      // "X daneben"-Zeile sollen ebenfalls etwas groesser sein).
+      detail.style.fontSize = "1.0rem";
       detail.style.margin = "6px 0 12px";
       detail.textContent =
         diff === 0

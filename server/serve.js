@@ -461,7 +461,16 @@ function serveStatic(res, pathname) {
       // gecacht werden, ein geaenderter Inhalt fuehrt ja automatisch zu
       // einem neuen Dateinamen (kein Invalidierungsproblem moeglich).
       if (ext === ".html") {
-        headers["Cache-Control"] = "no-cache";
+        // "no-cache" allein wurde von einem Nutzer-Handy trotz manuellem
+        // Reload weiterhin ignoriert (vermutlich ein aggressiver Mobilfunk-/
+        // Datenspar-Proxy oder ein aelterer Browser, der Cache-Control nicht
+        // vollstaendig respektiert) -- "no-store" zusaetzlich zu Pragma/
+        // Expires (fuer sehr alte HTTP/1.0-Zwischen-Caches) ist die staerkste
+        // verfuegbare Kombination: verbietet JEDE Zwischenspeicherung, nicht
+        // nur eine ohne Revalidierung.
+        headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+        headers["Pragma"] = "no-cache";
+        headers["Expires"] = "0";
       } else if (relative.startsWith("assets" + path.sep) || relative.startsWith("assets/")) {
         headers["Cache-Control"] = "public, max-age=31536000, immutable";
       }
@@ -483,7 +492,12 @@ function serveStatic(res, pathname) {
         res.end("Not found");
         return;
       }
-      res.writeHead(200, { "Content-Type": MIME[".html"], "Cache-Control": "no-cache" });
+      res.writeHead(200, {
+        "Content-Type": MIME[".html"],
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      });
       res.end(data);
     });
   });

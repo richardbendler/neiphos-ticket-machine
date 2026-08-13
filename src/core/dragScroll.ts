@@ -15,6 +15,14 @@
  * dadurch automatisch JEDEN scrollbaren Bereich ab (Admin-Bereich,
  * Feedback, Highscores, Spiel-Anleitungen, ...), auch zukuenftig neu
  * hinzukommende, ohne dass man jede Stelle eigens verdrahten muesste.
+ *
+ * Sobald ein Scroll-Drag erkannt wurde (siehe "moved" im pointermove-
+ * Handler), wird zusaetzlich e.preventDefault() aufgerufen -- auf einem
+ * ECHTEN Handy-Touchscreen (nicht nur dem Kiosk-Panel oben) konkurrierte
+ * sonst dieser manuelle Mechanismus mit dem nativen Touch-Scrollen des
+ * Browsers um dieselbe Geste, wodurch teils GAR NICHTS mehr scrollte
+ * (gemeldeter Bug: "ich kann auf meinem Handy nicht mit dem Finger
+ * scrollen"). Der Listener ist deshalb bewusst NICHT passive.
  */
 
 const DRAG_THRESHOLD_PX = 6;
@@ -76,9 +84,18 @@ export function installDragScroll(): void {
         if (Math.abs(deltaY) < DRAG_THRESHOLD_PX || Math.abs(deltaY) < Math.abs(deltaX)) return;
         moved = true;
       }
+      // Ab hier NICHT mehr passiv: sobald wirklich ein vertikaler Scroll-
+      // Drag erkannt wurde, muss das native Touch-Scrollen/-Gesten des
+      // Browsers unterdrueckt werden, sonst konkurrieren beide Mechanismen
+      // um dieselbe Geste -- je nach Geraet/Browser "gewinnt" dabei
+      // manchmal keiner von beiden und es scrollt ueberhaupt nichts mehr
+      // (gemeldeter Bug auf einem echten Handy-Touchscreen, obwohl
+      // scrollTop hier korrekt gesetzt wird). preventDefault() ist nur
+      // erlaubt, weil dieser Listener unten bewusst NICHT mehr passive ist.
+      e.preventDefault();
       target.scrollTop = startScrollTop - deltaY;
     },
-    { passive: true },
+    { passive: false },
   );
 
   const endDrag = (e: PointerEvent) => {

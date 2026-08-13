@@ -493,6 +493,32 @@ button {
   height: 100%;
 }
 
+/* Die Kopf-/Fussleisten-Buttons (.chrome-menu-btn/.chrome-highscore-btn/
+   .chrome-footer-btn, siehe deren Basis-Regeln oben) berechnen Hoehe/
+   Schrift ueber min(vw, --header-h*Faktor bzw. --footer-h*Faktor) -- der
+   min()-Anteil greift bei den bewusst kleinen Handy-Mindesthoehen der
+   Leisten selbst (40px/36px, siehe :root-Media-Query am Dateianfang) und
+   macht die Buttons winzig (~9px Schrift), obwohl die Leiste selbst schon
+   wieder komfortabel gross ist (gemeldeter Bug: "Footer- und Feedback-
+   geben-Button sollen wieder ein kleines bisschen groesser werden"). max()
+   wrappt die bestehende Formel mit einer zusaetzlichen Handy-Mindestgroesse,
+   OHNE Tablet/Desktop zu beeinflussen (dort bleibt der min()-Wert ohnehin
+   schon groesser als dieser Sockel). Muss NACH den Basis-Regeln stehen --
+   bei gleicher Spezifitaet gewinnt in der Cascade die spaetere Regel,
+   unabhaengig davon, ob eine Media-Query beteiligt ist. */
+@media (max-width: 960px) {
+  .chrome-menu-btn,
+  .chrome-highscore-btn {
+    height: max(30px, min(11.5vw, calc(var(--header-h) * 0.62)));
+    font-size: max(12px, min(3.7vw, calc(var(--header-h) * 0.2)));
+  }
+
+  .chrome-footer-btn {
+    padding: max(4px, min(2vw, calc(var(--footer-h) * 0.12))) clamp(9px, 3.2vw, 16px);
+    font-size: max(12px, min(3.7vw, calc(var(--footer-h) * 0.24)));
+  }
+}
+
 /* Papier-Warnung unten rechts (siehe Router.ts#refreshPaperWarning) --
    bernsteinfarben bei "wird knapp", rot bei "leer" (Modifier-Klasse), mit
    Text daneben statt nur dem Warndreieck allein. */
@@ -3094,8 +3120,9 @@ button {
 .hopper-easter-egg {
   position: fixed;
   z-index: 1150;
-  width: 40px;
-  height: 40px;
+  /* Breite/Hoehe kommen als Inline-Style von hopperEasterEgg.ts
+     (measureHopperSize) -- prozentual zur echten Kopfleisten-Hoehe statt
+     eines festen Pixelwerts, siehe dortigen Kommentar. */
   padding: 0;
   border: none;
   background: transparent;

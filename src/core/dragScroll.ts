@@ -16,25 +16,36 @@
  * Feedback, Highscores, Spiel-Anleitungen, ...), auch zukuenftig neu
  * hinzukommende, ohne dass man jede Stelle eigens verdrahten muesste.
  *
- * Sobald ein Scroll-Drag erkannt wurde (siehe "moved" im pointermove-
- * Handler), wird zusaetzlich e.preventDefault() aufgerufen. Das genuegt
- * aber NICHT zuverlaessig: dank touch-action:pan-y (siehe style.css) darf
- * der Browser die Scroll-Geste bereits nach dem ERSTEN touchmove nativ
- * uebernehmen -- ab dann ist die Geste laut Spezifikation nicht mehr
- * abbrechbar, unser spaeteres preventDefault() kommt zu spaet. Auf einem
- * ECHTEN Handy-Touchscreen (anders als auf dem Kiosk-Panel, wo natives
- * Scrollen ueberhaupt nicht zuverlaessig anspringt) laeuft das native
- * Scrollen also parallel weiter. Wuerde dieser manuelle Mechanismus dabei
- * scrollTop bei jedem pointermove ABSOLUT ab einem beim pointerdown
- * gespeicherten Startwert neu setzen, wuerde er das native Scrollen bei
- * jedem Tick wieder zurueckdrehen -- beide Mechanismen heben sich
- * gegenseitig auf, es wirkt komplett wie "gar kein Scrollen" (gemeldeter
- * Bug: "ich kann auf meinem Handy nicht mit dem Finger scrollen"). Deshalb
- * INKREMENTELL: jede Bewegung wird relativ zur vorherigen Pointer-Position
- * auf den JEWEILS AKTUELLEN scrollTop-Wert addiert, statt ihn zu
- * ueberschreiben -- so summiert sich das mit parallelem nativen Scrollen
- * (statt es zu bekaempfen), waehrend es auf dem Kiosk-Panel weiterhin ganz
- * allein die volle Arbeit uebernimmt.
+ * WICHTIG: Dieser Listener ruft bewusst KEIN e.preventDefault() mehr auf
+ * (frueher hier vorhanden -- gemeldeter Bug "auf dem Handy kann ich weder
+ * im Hauptmenue noch im Highscoreboard scrollen" trat trotz allem
+ * weiterhin auf). Der Grund: dank touch-action:pan-y (siehe style.css)
+ * darf der Browser die Scroll-Geste schon nach dem ERSTEN touchmove nativ
+ * uebernehmen, OHNE vorher auf einen JS-Handler zu warten (genau dafuer
+ * wurde touch-action erfunden) -- ein preventDefault() hier waere dann
+ * wirkungslos, kommt zu spaet. ABER: sobald irgendwo im Dokument ein
+ * NICHT-passiver pointermove-Listener haengt (wie es dieser hier vorher
+ * war), koennen manche Browser/WebViews aus Vorsicht auf den langsameren,
+ * synchronen Weg zurueckfallen (erst JS fragen, ob es preventDefault()
+ * aufruft, BEVOR ueberhaupt gescrollt wird) -- und in genau diesem Fall
+ * HAT unser preventDefault() (sobald "moved" true wird) das native
+ * Scrollen tatsaechlich abgewuergt, dauerhaft fuer die gesamte Geste, nicht
+ * nur fuer den einen Frame. Auf dem Kiosk-Panel faellt das nicht auf, weil
+ * dort ohnehin nie natives Scrollen zustande kommt (das ist ja der Grund
+ * fuer diese Datei) -- der manuelle scrollTop-Mechanismus unten bleibt
+ * dort die einzige wirksame Kraft, mit oder ohne preventDefault(). Auf
+ * einem echten Handy dagegen war preventDefault() vermutlich genau die
+ * Bremse, die jedes Scrollen verhinderte. Der Listener ist deshalb auch
+ * wieder passive:true (kein Grund mehr, non-passive zu sein), was dem
+ * Browser zusaetzlich erlaubt, den schnellen nativen Scroll-Pfad ohne
+ * Umweg ueber JS zu nehmen.
+ *
+ * Der manuelle scrollTop-Mechanismus bleibt trotzdem bestehen (fuer den
+ * Kiosk weiterhin noetig) -- INKREMENTELL: jede Bewegung wird relativ zur
+ * vorherigen Pointer-Position auf den JEWEILS AKTUELLEN scrollTop-Wert
+ * addiert statt ihn zu ueberschreiben, damit er sich mit eventuell
+ * parallel laufendem nativen Scrollen auf einem echten Handy addiert
+ * (verstaerkt es hoechstens etwas), statt dagegen anzukaempfen.
  */
 
 const DRAG_THRESHOLD_PX = 6;
@@ -96,11 +107,8 @@ export function installDragScroll(): void {
         if (Math.abs(deltaY) < DRAG_THRESHOLD_PX || Math.abs(deltaY) < Math.abs(deltaX)) return;
         moved = true;
       }
-      // Ab hier NICHT mehr passiv (siehe Datei-Kommentar). preventDefault()
-      // ist nur erlaubt, weil dieser Listener unten bewusst NICHT mehr
-      // passive ist -- bringt auf Geraeten mit touch-action:pan-y zwar oft
-      // nichts mehr (siehe Datei-Kommentar), schadet dort aber auch nicht.
-      e.preventDefault();
+      // KEIN e.preventDefault() mehr hier (siehe Datei-Kommentar oben) --
+      // Listener bleibt deshalb auch passive:true.
       // Inkrementell ab der ZULETZT gesehenen Pointer-Position auf den
       // AKTUELLEN scrollTop-Wert addieren (statt absolut ab dem
       // Drag-Start neu zu setzen) -- kooperiert dadurch mit eventuell
@@ -109,7 +117,7 @@ export function installDragScroll(): void {
       lastY = e.clientY;
       target.scrollTop -= stepDelta;
     },
-    { passive: false },
+    { passive: true },
   );
 
   const endDrag = (e: PointerEvent) => {

@@ -8,6 +8,7 @@ import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } 
 import { buildMenuButton } from "../../core/menuButton";
 import { guardedClick } from "../../core/guardedClick";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
+import { playTrainChugBurst, preloadTrainChug } from "../../core/sound";
 
 /**
  * "Hüpftier-Glück" -- klassischer Ein-Arm-Bandit (drei Walzen statt
@@ -268,6 +269,15 @@ export function createHopperSlotsGame(): MinigameModule {
     updateStatusUI();
     messageEl.textContent = "";
     messageEl.classList.remove("hs-message--win");
+
+    // Auf ausdruecklichen Wunsch ein Geraeusch waehrend des Walzendrehens --
+    // derselbe Zug-Tucker-Clip wie bei den anderen Fahrt-Animationen (siehe
+    // core/sound.ts), passt thematisch zum Bahn-Kiosk und ist bereits fuer
+    // genau diesen "kurze Animation, kein eigener Dauer-Loop noetig"-Fall
+    // gedacht (playTrainChugBurst). Laenge an die laengste Walze gekoppelt
+    // (siehe totalWait unten), damit der Sound nicht schon vor dem
+    // sichtbaren Stillstand der letzten Walze verklingt.
+    playTrainChugBurst(Math.max(...REEL_STOP_DELAYS_MS) + 80, 0.3);
 
     const targets = Array.from({ length: REEL_COUNT }, () => pickWeightedSymbol());
 
@@ -538,6 +548,7 @@ export function createHopperSlotsGame(): MinigameModule {
 
     init(env: GameEnv) {
       exitGame = env.exit;
+      preloadTrainChug();
 
       // ---------------------------------------------------------- Automat
       cabinet = document.createElement("div");

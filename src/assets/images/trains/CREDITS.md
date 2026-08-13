@@ -15,7 +15,7 @@ Genutzt in: Zug-Quartett, Memory, Zug-Spotter (Captcha).
 | big-boy.jpg | Union Pacific Big Boy No. 4012 Side.jpg | CC BY-SA 4.0 | Photo by and (c)2013 Derek Ramsey (Ram-Man) | https://commons.wikimedia.org/wiki/File:Union_Pacific_Big_Boy_No._4012_Side.jpg |
 | br-103.jpg | Elektrolokomotive der Baureihe 103 der Deutsche Bundesbahn.jpg | CC BY-SA 2.0 de | K. Jähne | https://commons.wikimedia.org/wiki/File:Elektrolokomotive_der_Baureihe_103_der_Deutsche_Bundesbahn.jpg |
 | br-218.jpg | DB Baureihe 218 400-0 in München.JPG | CC BY 3.0 de | High Contrast | https://commons.wikimedia.org/wiki/File:DB_Baureihe_218_400-0_in_M%C3%BCnchen.JPG |
-| tgv-duplex.jpg | SNCF TGV Duplex Viaduc de Cize - Bolozon.jpg | CC BY-SA 3.0 | Kabelleger / David Gubler (http://www.bahnbilder.ch) | https://commons.wikimedia.org/wiki/File:SNCF_TGV_Duplex_Viaduc_de_Cize_-_Bolozon.jpg |
+| tgv-duplex.jpg | TGV Duplex.jpg | CC BY-SA 3.0 | Laurentdu84 | https://commons.wikimedia.org/wiki/File:TGV_Duplex.jpg |
 | ice1.jpg | Triebkopf ICE 1 (4872423367).jpg | CC BY 2.0 | Yannick Bammert | https://commons.wikimedia.org/wiki/File:Triebkopf_ICE_1_(4872423367).jpg |
 | ice3.jpg | BR 403 vor dem Kölner Dom.jpg | CC BY-SA 4.0 | New York-air | https://commons.wikimedia.org/wiki/File:BR_403_vor_dem_K%C3%B6lner_Dom.jpg |
 | ice4.jpg | ICE 4 Berlin Südkreuz (20171004 144102).jpg | CC BY-SA 4.0 | DeffiSK | https://commons.wikimedia.org/wiki/File:ICE_4_Berlin_S%C3%BCdkreuz_(20171004_144102).jpg |

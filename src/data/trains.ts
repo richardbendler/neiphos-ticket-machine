@@ -150,7 +150,16 @@ export const trainCards: TrainCard[] = [
     name: "TGV Duplex",
     subtitle: "Doppelstöckiger französischer Hochgeschwindigkeitszug",
     category: "Hochgeschwindigkeitszug",
+    // War ein Luftbild eines Viadukts (Cize-Bolozon) MIT einem TGV, der darauf
+    // aber winzig und kaum zu erkennen war -- auf ausdruecklichen Wunsch
+    // ("das Bild ist nicht gut") gegen ein Foto getauscht, auf dem der Zug
+    // selbst gross/deutlich im Bild ist (siehe CREDITS.md fuer die neue
+    // Quellenangabe).
     image: tgvDuplex,
+    // Zug steht etwas rechts der Bildmitte und weiter unten (Landschaft
+    // nimmt den oberen Bildteil ein) -- ohne das schnitte ein zentrierter
+    // quadratischer Zuschnitt (Zug-Spotter/-Memory) den Zug seitlich an.
+    focus: "68% 62%",
     stats: { baujahr: 1996, hoechstgeschwindigkeitKmh: 320, leistungKw: 8800, laengeM: 200, gewichtT: 380 },
   },
   {

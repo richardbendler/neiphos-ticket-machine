@@ -166,6 +166,7 @@ export function createTrainSimGame(): MinigameModule {
 
   let topBar: HTMLDivElement;
   let goalLine: HTMLDivElement;
+  let kmLine: HTMLDivElement;
   let sheet: HTMLDivElement;
   let currentCityLabel: HTMLDivElement;
   let choiceHost: HTMLDivElement;
@@ -700,17 +701,10 @@ export function createTrainSimGame(): MinigameModule {
   }
 
   function drawMap(ctx: CanvasRenderingContext2D, env: GameEnv): void {
-    const { size } = env;
-
     if (phase === "shuttle") {
       drawShuttleScene(ctx, env, shuttleT);
     } else if (phase === "traveling" && targetCityId) {
       drawNetworkMap(ctx, env, { toId: targetCityId, t: travelT });
-
-      ctx.textAlign = "center";
-      ctx.font = `600 12px ${theme.font}`;
-      ctx.fillStyle = theme.textMuted;
-      ctx.fillText(`${Math.round(travelT * currentEdgeKm)} / ${Math.round(currentEdgeKm)} km`, size.width / 2, size.height - 22);
     } else {
       drawNetworkMap(ctx, env, null);
     }
@@ -735,6 +729,20 @@ export function createTrainSimGame(): MinigameModule {
       goalLine.style.width = "100%";
 
       topBar.appendChild(goalLine);
+
+      // War als Canvas-Text ganz unten am Bildschirmrand eingeblendet (siehe
+      // drawMap) -- ueberlappte sich dort mit der Fussleisten-Schrift
+      // (gemeldeter Bug). Jetzt stattdessen direkt unter der Zielzeile im
+      // oberen HUD, aktualisiert in update() waehrend der Fahrt.
+      kmLine = document.createElement("div");
+      kmLine.style.fontFamily = "var(--font-display)";
+      kmLine.style.fontWeight = "600";
+      kmLine.style.fontSize = "clamp(0.42rem, 2.4vh, 0.9rem)";
+      kmLine.style.color = "var(--text-muted)";
+      kmLine.style.textAlign = "center";
+      kmLine.style.width = "100%";
+      topBar.appendChild(kmLine);
+
       env.overlay.appendChild(topBar);
 
       sheet = document.createElement("div");
@@ -852,12 +860,17 @@ export function createTrainSimGame(): MinigameModule {
       mapPulseTimer += dt;
 
       if (phase === "shuttle") {
+        kmLine.textContent = "";
         shuttleT = Math.min(1, shuttleT + dt / SHUTTLE_DURATION_S);
         if (shuttleT >= 1) finish(true);
         return;
       }
-      if (phase !== "traveling") return;
+      if (phase !== "traveling") {
+        kmLine.textContent = "";
+        return;
+      }
       travelT = Math.min(1, travelT + dt / TRAVEL_DURATION_S);
+      kmLine.textContent = `${Math.round(travelT * currentEdgeKm)} / ${Math.round(currentEdgeKm)} km`;
       if (travelT >= 1) {
         arriveAtTarget();
       }

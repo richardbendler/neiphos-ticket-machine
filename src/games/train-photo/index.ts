@@ -517,8 +517,16 @@ function createTrainPhotoGame(): MinigameModule {
     ctx.fillStyle = lensGradientCache.gradient;
     ctx.fillRect(0, 0, size.width, size.height);
 
-    const inset = 18;
-    const armLen = 26;
+    // War fix 18px/26px -- auf einem grossen Bildschirm sassen die Ecken-
+    // Winkel dadurch so nah am tatsaechlichen Bildschirmrand, dass sie kaum
+    // noch zu sehen waren (gemeldeter Bug, vermutlich zusaetzlich verschaerft
+    // durch etwas Overscan-Randbeschnitt auf dem konkreten Kiosk-Display).
+    // Jetzt proportional zur kuerzeren Kantenlaenge statt eines festen
+    // Pixelwerts, bleibt dadurch auf JEDER Bildschirmgroesse ein spuerbares
+    // Stueck vom echten Rand entfernt.
+    const shortSide = Math.min(size.width, size.height);
+    const inset = shortSide * 0.07;
+    const armLen = shortSide * 0.1;
     ctx.strokeStyle = "rgba(255,255,255,0.55)";
     ctx.lineWidth = 3;
     const corners: Array<[number, number, number, number]> = [

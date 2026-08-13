@@ -2180,6 +2180,20 @@ button {
   /* War fix 0.78rem -- skaliert jetzt mit, siehe .chip-Kommentar. */
   font-size: clamp(0.322rem, 2.556vh, 1.84rem);
   color: var(--text-muted);
+  /* Reserviert Platz fuer bis zu zwei Zeilen ausgewaehlter Linien-Chips
+     (games/connection-puzzle/ui.ts#renderChipsRow, max. 4 Linien pro Route
+     -- passen normalerweise in eine Zeile, koennten auf einem sehr schmalen
+     Bildschirm aber umbrechen) -- unabhaengig davon, ob gerade 0 oder N
+     Chips angezeigt werden. Ohne das aenderte sich die "natuerliche" Hoehe
+     dieser Zeile je nach Auswahl (leer: nur der kleine Hinweistext, gefuellt:
+     die deutlich hoeheren .chip-Kacheln), wodurch fitBuildingContent (siehe
+     dort) bei JEDER Auswahl/Abwahl neu und unterschiedlich stark skalierte
+     -- die Linienauswahl darunter wurde dadurch sichtbar mal groesser, mal
+     kleiner (gemeldeter Bug, "sieht unprofessionell aus"). Rechnung
+     entspricht der Hoehe eines echten .chip (2x dessen Polsterung + Schrift)
+     mal zwei Zeilen plus einer Zeilenluecke -- dieselben clamp()-Werte wie
+     .chip, damit es bei jeder Bildschirmgroesse tatsaechlich passt. */
+  min-height: calc(2 * (2 * clamp(7px, 1.6vh, 16px) + clamp(0.42rem, 3.333vh, 2.4rem) * 1.3) + clamp(4px, 1vh, 10px));
 }
 
 .breadcrumb__sep {
@@ -2351,6 +2365,22 @@ button {
    */
   overflow-y: auto;
   touch-action: pan-y;
+}
+
+/* Auf einem Handy im (durch .orientation-lock erzwungenen) Querformat ist
+   die Bildschirmhoehe sehr knapp (typ. 380-430px) -- 46% davon nahm dort die
+   Haelfte der Spielflaeche ein und verdeckte z.B. bei games/train-photo das
+   eigentliche Zugfoto darueber fast komplett (gemeldeter Bug, "nur ein
+   Handyproblem": auf dem groesseren Kiosk-Bildschirm faellt das nicht auf).
+   Der ueberschuessige Inhalt scrollt ja bereits innerhalb des Sheets (siehe
+   overflow-y oben), ein kleinerer Anteil kostet also nur etwas mehr Scrollen
+   statt abgeschnittenen Inhalt. 500px liegt sicher UNTER der Hoehe jedes
+   ueblichen Kiosk-Bildschirms, aber ueber der Hoehe auch eines im
+   Querformat eher grossen Handys. */
+@media (max-height: 500px) {
+  .stage-sheet {
+    max-height: 30%;
+  }
 }
 
 .stage-center-panel {

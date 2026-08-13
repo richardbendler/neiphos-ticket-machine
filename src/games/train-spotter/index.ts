@@ -189,14 +189,19 @@ export function createTrainSpotterGame(): MinigameModule {
   }
 
   function renderDone(): void {
-    // Setzt den waehrend des Spielens gemessenen, absichtlich hohen
-    // top-Versatz (siehe beginRound(), Reserve fuer Highscore-Banner/Timer-
-    // Text auf dem jetzt ausgeblendeten Canvas) wieder zurueck -- doneOverlay
-    // teilt sich denselben gridWrap-Container, braucht diese Reserve aber
-    // nicht und wirkte dadurch spuerbar zu tief statt echt vertikal
-    // zentriert (gleicher Bug/gleicher Fix wie bei showThemeSelect() unten).
-    gridWrap.style.top = "";
-    gridWrap.style.bottom = "";
+    // War hier zwischenzeitlich zurueckgesetzt (gridWrap.style.top/bottom =
+    // "") -- doneOverlay teilt sich denselben gridWrap-Container wie das
+    // Kachelraster, dessen Groesse per fitSquareToContainer(gridHost, wrap,
+    // ...) an genau diesen Container gekoppelt ist. Ein Zuruecksetzen liess
+    // "wrap" ploetzlich groesser werden (der waehrend des Spielens reservierte
+    // Platz fuer Highscore-Banner/Timer-Text faellt weg), wodurch sich beim
+    // Fertigstellen einer Runde sichtbar die Kachelgroesse aenderte
+    // (gemeldeter Bug: "sobald der Timer verschwindet, werden die Bilder
+    // ploetzlich groesser"). Jetzt bewusst UNVERAENDERT gelassen -- der
+    // reservierte Bereich bleibt ueber eine ganze Runde hinweg konstant,
+    // "Alle Zuege gefunden!" wirkt dadurch zwar nicht mehr exakt
+    // bildschirmmittig, aber die Groessenkonstanz hat auf ausdruecklichen
+    // Wunsch Vorrang.
     doneOverlay.style.display = "flex";
     doneOverlay.innerHTML = "";
     const title = document.createElement("div");

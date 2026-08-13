@@ -1787,22 +1787,26 @@ button {
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
-/* ---------- Querformat-Sperre ---------- */
+/* ---------- Querformat-Hinweis ---------- */
 
-/* Dieser Automat ist als Kiosk-Bildschirm fest im Querformat verbaut --
-   auf ausdruecklichen Wunsch soll die App bei einem (versehentlich oder
-   auf einem Testgeraet) hochkant stehenden Bildschirm komplett blockiert
-   werden, statt ein verzerrtes/unbrauchbares Layout zu zeigen. Rein
-   CSS-gesteuert per orientation-Media-Query (kein JS/ResizeObserver
-   noetig) -- reagiert dadurch sofort und zuverlaessig auf jede
-   Seitenverhaeltnis-Aenderung, auch wenn JS (aus welchem Grund auch immer)
-   noch nicht geladen ist. */
+/* Dieser Automat ist als Kiosk-Bildschirm eigentlich fuers Querformat
+   gebaut -- auf ausdruecklichen Wunsch war das lange Zeit eine harte Sperre
+   (Hochformat komplett blockiert). Jetzt stattdessen nur noch ein
+   wegklickbarer Hinweis: wer will, kann trotzdem im Hochformat weiterspielen
+   (core/orientationHint.ts setzt dafuer die Klasse "orientation-dismissed"
+   auf <html>, sobald "Trotzdem im Hochformat weiter" angetippt wurde --
+   faellt bei einer Drehung zurueck ins Querformat automatisch wieder weg,
+   damit der Hinweis beim naechsten Wechsel zurueck ins Hochformat wieder
+   frisch erscheint). Rein CSS-gesteuert per orientation-Media-Query (kein
+   JS noetig, um den Hinweis initial anzuzeigen) -- reagiert dadurch sofort
+   und zuverlaessig auf jede Seitenverhaeltnis-Aenderung, auch wenn JS (aus
+   welchem Grund auch immer) noch nicht geladen ist. */
 .orientation-lock {
   display: none;
 }
 
 @media (orientation: portrait) {
-  .orientation-lock {
+  html:not(.orientation-dismissed) .orientation-lock {
     display: flex;
     position: fixed;
     inset: 0;
@@ -1819,10 +1823,11 @@ button {
   /* Alles dahinter (App, Kopf-/Fussleiste, jedes Modal) verstecken UND aus
      der Bedienbarkeit nehmen -- verhindert insbesondere, dass ein per
      Tastatur/Screenreader fokussierbares Element im Hochformat trotzdem
-     erreichbar bliebe. */
-  #app,
-  .chrome-bar,
-  .chrome-footer-bar {
+     erreichbar bliebe. Nur, solange der Hinweis oben nicht weggeklickt
+     wurde -- siehe Datei-Kommentar. */
+  html:not(.orientation-dismissed) #app,
+  html:not(.orientation-dismissed) .chrome-bar,
+  html:not(.orientation-dismissed) .chrome-footer-bar {
     visibility: hidden;
     pointer-events: none;
   }
@@ -1877,6 +1882,28 @@ button {
      Ueberschrift oben. */
   font-size: clamp(0.322rem, 3.6vw, 3.6rem);
   color: rgba(255, 255, 255, 0.75);
+}
+
+/* "Trotzdem im Hochformat weiter" -- helle Umrandung statt Volltonflaeche,
+   damit der Button auf dem dunklen Bezel-Hintergrund erkennbar sekundaer
+   wirkt (die eigentliche Empfehlung ist ja "bitte drehen", nicht dieser
+   Button). Touch-Ziel bewusst grosszuegig, siehe .btn-Kommentar an anderer
+   Stelle zum gleichen Prinzip. */
+.orientation-lock__dismiss {
+  appearance: none;
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-md);
+  color: #ffffff;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: clamp(0.4rem, 2.6vw, 1.4rem);
+  padding: clamp(8px, 1.6vh, 16px) clamp(16px, 3.2vw, 28px);
+  cursor: pointer;
+}
+
+.orientation-lock__dismiss:active {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* ---------- Scrollbalken dezent (Touch-Kiosk braucht keine breiten Balken) ---------- */

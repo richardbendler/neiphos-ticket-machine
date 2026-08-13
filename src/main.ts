@@ -6,11 +6,13 @@ import { pullHighscoresFromServer } from "./core/sync";
 import { initScreensaver } from "./core/screensaver";
 import { installDragScroll } from "./core/dragScroll";
 import { initHopperEasterEgg } from "./core/hopperEasterEgg";
+import { initOrientationHint } from "./core/orientationHint";
 
 installKioskHardening();
 initScreensaver();
 installDragScroll();
 initHopperEasterEgg();
+initOrientationHint();
 
 const app = document.getElementById("app");
 if (!app) throw new Error("#app-Root nicht gefunden");

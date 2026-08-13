@@ -58,8 +58,13 @@ const PORTRAIT_MAX_COLS = 3;
 // "Tablet oder groesser" -- selber Schwellwert wie bei der Highscore-
 // Uebersicht/den Tastatur-Dialogen (siehe .highscore-board/.modal-panel--
 // keyboard in style.css), fuer ein konsistentes Verhalten quer durch die
-// App.
-const PHONE_BREAKPOINT = 820;
+// App. War 820 -- reale, nicht sonderlich kleine Handys im Querformat
+// (z. B. viele aktuelle Android-/iPhone-Modelle) melden dabei durchaus
+// CSS-Breiten von 850-935px, blieben mit 820 also faelschlich in der
+// "Tablet"-Einstufung haengen (gemeldet: "auf meinem Handy sind auch immer
+// noch drei Spalten"). 960 liegt sicher UNTER dem kleinsten gaengigen
+// Tablet im Querformat (kleinste iPads/Android-Tablets ab ca. 1024px).
+const PHONE_BREAKPOINT = 960;
 // Kachelbreite, bei der Schrift/Icon in style.css ihre "normale" Groesse
 // (1.08rem/0.76rem/46px) haben -- der Skalierungsfaktor ist relativ dazu.
 const REFERENCE_TILE_WIDTH = 280;

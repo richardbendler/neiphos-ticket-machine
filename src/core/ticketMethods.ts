@@ -38,6 +38,30 @@ export function setTicketMethod(method: keyof TicketMethodSettings, enabled: boo
   saveJSON(METHODS_KEY, { ...getTicketMethods(), [method]: enabled });
 }
 
+// ------------------------------------------------------- Ticketdruck an/aus
+//
+// Globaler Not-Aus fuer den kompletten Ticketdruck (Admin-Panel, direkt
+// neben dem Testdruck-Button) -- auf ausdruecklichen Wunsch, z. B. falls der
+// Bondrucker/das Papier fuer laengere Zeit ausfaellt oder das Festival ganz
+// ohne Ticket-Bar-Aktion laufen soll. Bewusst EIGENSTAENDIG von
+// TicketMethodSettings oben (die regeln nur, WELCHES Ereignis ueberhaupt als
+// Ticket-wuerdig gilt) -- dieser Schalter wirkt UNABHAENGIG davon: ist er
+// aus, gibt es im Highscore-Dialog (core/highscorePrompt.ts) nur noch den
+// normalen "Speichern"-Button, ganz ohne Ticket-Option, egal welcher
+// Verdienstweg sonst aktiv waere. Der Admin-Testdruck bleibt davon bewusst
+// unberuehrt (siehe admin/AdminPanel.ts) -- der soll auch bei global
+// abgeschaltetem Besucher-Ticketdruck weiterhin fuers Pruefen der
+// Drucker-Hardware nutzbar sein.
+const PRINTING_ENABLED_KEY = ["settings", "ticketPrintingEnabled"];
+
+export function isPrintingEnabled(): boolean {
+  return loadJSON<boolean>(PRINTING_ENABLED_KEY, true);
+}
+
+export function setPrintingEnabled(enabled: boolean): void {
+  saveJSON(PRINTING_ENABLED_KEY, enabled);
+}
+
 // --------------------------------------------------------------- Meilensteine
 
 /** Je Spiel mit Geschwindigkeits-/Schwierigkeitsstufen (siehe MilestoneGameDef.levels) -- key/label identisch zu den SPEED_LEVELS der jeweiligen Spiele (games/train-photo, games/count-passengers), hier absichtlich dupliziert statt importiert, um keinen Import von core/ auf games/ einzugehen. */

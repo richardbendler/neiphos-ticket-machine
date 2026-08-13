@@ -291,6 +291,17 @@ export class Router {
     refreshCooldownBadge();
     window.setInterval(refreshCooldownBadge, 1000);
 
+    // Kleine, unaufdringliche Versionsanzeige -- auf ausdruecklichen Wunsch,
+    // damit auf einen Blick erkennbar ist, welcher Stand gerade laeuft (fuer
+    // Debugging/um zu pruefen, ob ein Deploy wirklich angekommen ist). Ganz
+    // klein/gedaempft gehalten (eigene, kleinere Fussleisten-Schriftgroesse),
+    // bewusst unten LINKS (siehe notifyCol unten) statt z.B. neben dem Logo,
+    // wo es zu sehr auffallen wuerde. __APP_BUILD__/__APP_BUILD_TIME__ werden
+    // erst beim Bauen eingesetzt, siehe vite.config.ts.
+    const versionLabel = document.createElement("span");
+    versionLabel.className = "chrome-footer-version";
+    versionLabel.textContent = `Build ${__APP_BUILD__} · ${__APP_BUILD_TIME__}`;
+
     const notifyCol = document.createElement("div");
     notifyCol.style.display = "flex";
     notifyCol.style.flexDirection = "column";
@@ -300,7 +311,7 @@ export class Router {
     // der Text natuerlich am selben Rand wie die Fussleiste beginnt.
     notifyCol.style.alignItems = "flex-start";
     notifyCol.style.gap = "3px";
-    notifyCol.append(paperWarn, cooldownBadge, unreadBadge);
+    notifyCol.append(paperWarn, cooldownBadge, unreadBadge, versionLabel);
 
     // Auf ausdruecklichen Wunsch Seiten getauscht (war Feedback-Button
     // links/Meldungen rechts) -- angelehnt an die VBB-Vorlage, wo der

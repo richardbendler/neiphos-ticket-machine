@@ -17,12 +17,24 @@
  * hinzukommende, ohne dass man jede Stelle eigens verdrahten muesste.
  *
  * Sobald ein Scroll-Drag erkannt wurde (siehe "moved" im pointermove-
- * Handler), wird zusaetzlich e.preventDefault() aufgerufen -- auf einem
- * ECHTEN Handy-Touchscreen (nicht nur dem Kiosk-Panel oben) konkurrierte
- * sonst dieser manuelle Mechanismus mit dem nativen Touch-Scrollen des
- * Browsers um dieselbe Geste, wodurch teils GAR NICHTS mehr scrollte
- * (gemeldeter Bug: "ich kann auf meinem Handy nicht mit dem Finger
- * scrollen"). Der Listener ist deshalb bewusst NICHT passive.
+ * Handler), wird zusaetzlich e.preventDefault() aufgerufen. Das genuegt
+ * aber NICHT zuverlaessig: dank touch-action:pan-y (siehe style.css) darf
+ * der Browser die Scroll-Geste bereits nach dem ERSTEN touchmove nativ
+ * uebernehmen -- ab dann ist die Geste laut Spezifikation nicht mehr
+ * abbrechbar, unser spaeteres preventDefault() kommt zu spaet. Auf einem
+ * ECHTEN Handy-Touchscreen (anders als auf dem Kiosk-Panel, wo natives
+ * Scrollen ueberhaupt nicht zuverlaessig anspringt) laeuft das native
+ * Scrollen also parallel weiter. Wuerde dieser manuelle Mechanismus dabei
+ * scrollTop bei jedem pointermove ABSOLUT ab einem beim pointerdown
+ * gespeicherten Startwert neu setzen, wuerde er das native Scrollen bei
+ * jedem Tick wieder zurueckdrehen -- beide Mechanismen heben sich
+ * gegenseitig auf, es wirkt komplett wie "gar kein Scrollen" (gemeldeter
+ * Bug: "ich kann auf meinem Handy nicht mit dem Finger scrollen"). Deshalb
+ * INKREMENTELL: jede Bewegung wird relativ zur vorherigen Pointer-Position
+ * auf den JEWEILS AKTUELLEN scrollTop-Wert addiert, statt ihn zu
+ * ueberschreiben -- so summiert sich das mit parallelem nativen Scrollen
+ * (statt es zu bekaempfen), waehrend es auf dem Kiosk-Panel weiterhin ganz
+ * allein die volle Arbeit uebernimmt.
  */
 
 const DRAG_THRESHOLD_PX = 6;
@@ -51,7 +63,7 @@ export function installDragScroll(): void {
   let pointerId: number | null = null;
   let startX = 0;
   let startY = 0;
-  let startScrollTop = 0;
+  let lastY = 0;
   let moved = false;
 
   document.addEventListener(
@@ -65,7 +77,7 @@ export function installDragScroll(): void {
       pointerId = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
-      startScrollTop = scrollable.scrollTop;
+      lastY = e.clientY;
       moved = false;
     },
     { passive: true },
@@ -84,16 +96,18 @@ export function installDragScroll(): void {
         if (Math.abs(deltaY) < DRAG_THRESHOLD_PX || Math.abs(deltaY) < Math.abs(deltaX)) return;
         moved = true;
       }
-      // Ab hier NICHT mehr passiv: sobald wirklich ein vertikaler Scroll-
-      // Drag erkannt wurde, muss das native Touch-Scrollen/-Gesten des
-      // Browsers unterdrueckt werden, sonst konkurrieren beide Mechanismen
-      // um dieselbe Geste -- je nach Geraet/Browser "gewinnt" dabei
-      // manchmal keiner von beiden und es scrollt ueberhaupt nichts mehr
-      // (gemeldeter Bug auf einem echten Handy-Touchscreen, obwohl
-      // scrollTop hier korrekt gesetzt wird). preventDefault() ist nur
-      // erlaubt, weil dieser Listener unten bewusst NICHT mehr passive ist.
+      // Ab hier NICHT mehr passiv (siehe Datei-Kommentar). preventDefault()
+      // ist nur erlaubt, weil dieser Listener unten bewusst NICHT mehr
+      // passive ist -- bringt auf Geraeten mit touch-action:pan-y zwar oft
+      // nichts mehr (siehe Datei-Kommentar), schadet dort aber auch nicht.
       e.preventDefault();
-      target.scrollTop = startScrollTop - deltaY;
+      // Inkrementell ab der ZULETZT gesehenen Pointer-Position auf den
+      // AKTUELLEN scrollTop-Wert addieren (statt absolut ab dem
+      // Drag-Start neu zu setzen) -- kooperiert dadurch mit eventuell
+      // parallel laufendem nativen Scrollen, siehe Datei-Kommentar oben.
+      const stepDelta = e.clientY - lastY;
+      lastY = e.clientY;
+      target.scrollTop -= stepDelta;
     },
     { passive: false },
   );

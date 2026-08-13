@@ -604,6 +604,19 @@ button {
   white-space: nowrap;
 }
 
+/* Versionsanzeige (Build-Nummer + Datum/Uhrzeit, siehe core/Router.ts#
+   buildChromeFooterBar) -- auf ausdruecklichen Wunsch bewusst deutlich
+   kleiner/unauffaelliger als die uebrigen Fussleisten-Hinweise oben (reine
+   Debug-/Kontrollinfo, nicht fuer den normalen Blick gedacht), dazu gedaempft
+   statt in einer Akzentfarbe. */
+.chrome-footer-version {
+  color: var(--text-muted);
+  opacity: 0.6;
+  font-weight: 400;
+  font-size: min(1.3vw, calc(var(--footer-h) * 0.08));
+  white-space: nowrap;
+}
+
 .chrome-footer-credit {
   /* Absolut UND zur ganzen Leiste zentriert (nicht mehr per justify-self
      innerhalb einer Grid-Spalte, siehe .chrome-footer-bar-Kommentar) --

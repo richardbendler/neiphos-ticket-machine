@@ -49,6 +49,16 @@ const PORTRAIT_MAX_COLS = 3;
 // Kachelbreite, bei der Schrift/Icon in style.css ihre "normale" Groesse
 // (1.08rem/0.76rem/46px) haben -- der Skalierungsfaktor ist relativ dazu.
 const REFERENCE_TILE_WIDTH = 280;
+// Kachelhoehe, die eine REFERENCE_TILE_WIDTH breite Kachel beim (fruehen)
+// festen Seitenverhaeltnis TILE_ASPECT gehabt haette -- seit tileWidth auf
+// sehr breiten/kurzen Bildschirmen bewusst von diesem Seitenverhaeltnis
+// abweichen darf (siehe fitColumnsLayout), ist die Kachelhoehe die
+// zuverlaessigere Bezugsgroesse fuer die Schrift-/Icon-Skalierung: sie
+// bleibt (anders als die Breite) immer an die tatsaechlich verfuegbare
+// VERTIKALE Zeilenhoehe gekoppelt, ueber die eine Kachel unabhaengig von
+// ihrer Breite nie hinauswachsen darf. Bei unveraendertem Seitenverhaeltnis
+// ergibt sich exakt derselbe Skalierungsfaktor wie zuvor ueber die Breite.
+const REFERENCE_TILE_HEIGHT = REFERENCE_TILE_WIDTH / TILE_ASPECT;
 // War 0.5 -- auf sehr kleinen/flachen Bildschirmen (z.B. 800x480, ein
 // gaengiges 5"-Kiosk-Display) konnten die Kacheln durch viele Spiele/
 // Cluster so schmal werden, dass die per 0.5 nach unten gedeckelte Schrift
@@ -197,8 +207,16 @@ function fitColumnsLayout(containerWidth: number, containerHeight: number, clust
 
   const tileHeight = Math.max(1, Math.floor(solvedTileHeight));
   const rawWidthTileWidth = (containerWidth - clusterGap * (c - 1)) / c;
-  const widthTileWidth = Math.max(MIN_TILE_WIDTH, Math.min(rawWidthTileWidth, MAX_TILE_WIDTH));
-  const tileWidth = Math.max(MIN_TILE_WIDTH, Math.min(widthTileWidth, Math.floor(tileHeight * TILE_ASPECT)));
+  // KEIN Deckel mehr bei tileHeight * TILE_ASPECT (war so) -- auf einem sehr
+  // breiten, aber kurzen Bildschirm ist tileHeight hoehen-limitiert (siehe
+  // solveTileHeight), ein an der Hoehe orientierter Breiten-Deckel liess die
+  // Kacheln dann unnoetig schmal bleiben, obwohl in der Spalte noch reichlich
+  // Breite frei war -- Schrift wurde dadurch teils unlesbar klein/abgeschnitten
+  // (gemeldeter/per Screenshot belegter Bug: "die Breite soll mehr ausgelastet
+  // werden"). Die Kachel darf jetzt bewusst von ihrem festen Seitenverhaeltnis
+  // abweichen und die volle Spaltenbreite ausfuellen -- MAX_TILE_WIDTH bleibt
+  // als Obergrenze fuer den umgekehrten Fall (sehr breite Bildschirme).
+  const tileWidth = Math.max(MIN_TILE_WIDTH, Math.min(rawWidthTileWidth, MAX_TILE_WIDTH));
   return { cols: c, tileWidth, tileHeight, gap, clusterGap, columns };
 }
 
@@ -322,7 +340,11 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
       tile.style.width = `${tileWidth}px`;
       tile.style.height = `${tileHeight}px`;
     }
-    const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, tileWidth / REFERENCE_TILE_WIDTH));
+    // Ueber die Hoehe statt der Breite skaliert (siehe REFERENCE_TILE_HEIGHT-
+    // Kommentar) -- seit tileWidth vom festen Seitenverhaeltnis abweichen
+    // darf, waere Schrift/Icon sonst auf einem breiten/kurzen Bildschirm
+    // groesser geworden, als in die (weiterhin knappe) Kachelhoehe passt.
+    const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, tileHeight / REFERENCE_TILE_HEIGHT));
     grid.style.setProperty("--menu-tile-scale", String(scale));
   };
 

@@ -219,6 +219,13 @@ export class OnScreenKeyboard {
     // gebaut -- bei caseToggle (Start = kleingeschrieben) muss die
     // Beschriftung daher einmalig auf klein umgestellt werden.
     if (this.opts.caseToggle) this.applyCaseToLetterKeys();
+
+    // Beim allerersten Aufbau (aus dem Konstruktor heraus) haengt this.el
+    // noch nicht im DOM -- getBoundingClientRect() liefert dann ueberall
+    // nur Nullen, eine Neuberechnung waere sinnlos. Nach mount() (siehe
+    // dort) UND bei jedem spaeteren Neuaufbau (z.B. "?123"/"ABC"-Umschalten,
+    // siehe handleClick) dagegen schon.
+    if (this.el.isConnected) this.fitLetterKeys();
   }
 
   private buildNumpad(): HTMLDivElement {
@@ -406,6 +413,31 @@ export class OnScreenKeyboard {
       this.fitNumericKeys();
       this.resizeObserver = new ResizeObserver(() => this.fitNumericKeys());
       this.resizeObserver.observe(this.el);
+    } else {
+      // Buchstaben-/Sonderzeichentastatur (Highscore-Name, Admin-Login, ...):
+      // war bisher rein vh/vw-basiert mit einem festen 44px-Sockel -- auf
+      // einem sehr kurzen Bildschirm (z.B. Testgeraet 528x300) sprengten
+      // 4 Reihen a 44px plus Anzeigefeld/Modal-Polsterung zusammen locker
+      // die verfuegbare Hoehe, das Modal musste dann gescrollt werden
+      // (gemeldeter Bug, "will auf gar keinen Fall bei 'ner Tastatur
+      // scrollen muessen"). Gleiches Prinzip wie fitNumericKeys(): echte
+      // Messung statt geschaetzter vh-Werte, siehe fitLetterKeys().
+      this.fitLetterKeys();
+      this.resizeObserver = new ResizeObserver(() => this.fitLetterKeys());
+      this.resizeObserver.observe(this.el);
+      // KEIN eigener MutationObserver hier (fuer z. B. einen erst nach
+      // mount() angehaengten "Abbrechen"-Button oder eine spaeter per JS
+      // gesetzte Fehlermeldung, siehe admin/AdminPanel.ts/core/
+      // highscorePrompt.ts): core/modal.ts#openModal beobachtet fuer
+      // Tastatur-Modals bereits das gesamte Panel und skaliert es bei
+      // Bedarf ALS GANZES per transform:scale() (fasst dabei automatisch
+      // auch die Tastatur mit). Ein zusaetzlicher Observer HIER wuerde bei
+      // genau diesen Aenderungen erneut fitLetterKeys() ausloesen, WAEHREND
+      // das Panel unter Umstaenden bereits transformiert ist -- alle
+      // getBoundingClientRect()-Messungen unten liefern dann bereits
+      // VERZERRTE (durch die Panel-Skalierung gestauchte) Werte, was zu
+      // einer falsch berechneten (doppelt verkleinerten) Tastengroesse
+      // fuehrte (beobachtet/per Messung belegt).
     }
   }
 
@@ -453,12 +485,19 @@ export class OnScreenKeyboard {
       scrollAncestor && scrollAncestor !== document.body
         ? scrollAncestor.getBoundingClientRect().bottom
         : (document.querySelector(".chrome-footer-bar")?.getBoundingClientRect().top ?? window.innerHeight);
+    // Eigenes unteres Padding des Scroll-Vorfahren (z.B. .stage-sheet)
+    // gehoert zu dessen Box (getBoundingClientRect().bottom schliesst es
+    // ein), ist aber KEIN fuer die Tastatur nutzbarer Platz -- ohne Abzug
+    // ragten die Tasten entsprechend weit in dieses Padding hinein (gleicher
+    // Fehler wie urspruenglich bei fitLetterKeys(), siehe dort).
+    const scrollAncestorPaddingBottom =
+      scrollAncestor && scrollAncestor !== document.body ? parseFloat(getComputedStyle(scrollAncestor).paddingBottom) || 0 : 0;
     // "- 18" statt "- 8": zusaetzlich zum Sicherheitsabstand faellt zwischen
     // Anzeigefeld und Tastenblock noch dessen eigener marginBottom (10px)
     // UND der Flex-"gap" von ".osk" (8px) an -- beides zusammen 18px, die
     // sonst im Budget fehlten und die Tastatur trotz "echter" Messung noch
     // ein Stueck zu gross werden liessen.
-    const availableHeight = Math.max(0, limitBottom - contentTop - 18);
+    const availableHeight = Math.max(0, limitBottom - contentTop - 18 - scrollAncestorPaddingBottom);
     const heightBasedSize = (availableHeight - rowGapVertical * (rows - 1)) / rows;
     const size = Math.floor(Math.min(widthBasedSize, heightBasedSize));
     // War Math.max(50, ...) -- auf einem sehr kurzen Bildschirm liess dieser
@@ -470,6 +509,76 @@ export class OnScreenKeyboard {
     const clamped = Math.max(14, Math.min(110, size));
     this.el.style.setProperty("--osk-key-size", `${clamped}px`);
     this.el.style.setProperty("--osk-row-gap", `${rowGap}px`);
+  }
+
+  /**
+   * Analog zu fitNumericKeys(), aber fuer die Buchstaben-/Sonderzeichen-
+   * tastatur (und das optionale Zahlenfeld daneben bei extraKeys): die
+   * Tastenhoehe kam vorher rein aus CSS (vh/vw-Clamp mit 44px-Sockel), der
+   * auf kurzen Bildschirmen zusammen mit Anzeigefeld + Modal-Titel/-Text +
+   * Polsterung ueber die verfuegbare Hoehe hinausragte -- das Modal musste
+   * dann gescrollt werden, was bei einer Tastatur nie passieren soll. Misst
+   * jetzt genau wie beim Ziffernblock von der Unterkante des Anzeigefelds
+   * bis zum unteren Rand des naechsten scrollbaren Vorfahren (i.d.R.
+   * .modal-panel) und teilt den so ermittelten Platz durch die tatsaechliche
+   * Zeilenzahl (3 Buchstaben-/Sonderzeichenreihen + 1 Leerzeichen/OK-Reihe).
+   * Die Breite regelt weiterhin reines Flexbox (jede Taste flex:1), das
+   * bleibt unveraendert -- nur die Hoehe (und mit ihr die Schriftgroesse)
+   * wird hier bewusst begrenzt.
+   */
+  private fitLetterKeys(): void {
+    if (!this.lettersArea) return;
+    const rows = (this.symbolsMode ? SYMBOL_ROWS : ALPHA_ROWS).length + 1;
+    const contentTop = this.display.getBoundingClientRect().bottom;
+    let scrollAncestor: HTMLElement | null = this.el.parentElement;
+    while (scrollAncestor && scrollAncestor !== document.body) {
+      const overflowY = getComputedStyle(scrollAncestor).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") break;
+      scrollAncestor = scrollAncestor.parentElement;
+    }
+    // War hier (anders als bei limitBottom selbst) bisher NICHT beruecksichtigt:
+    // der Scroll-Vorfahre (i.d.R. .modal-panel) hat selbst ein eigenes
+    // unteres Padding (siehe .modal-panel), das Teil seiner
+    // getBoundingClientRect()-Box ist, aber KEIN fuer Inhalt nutzbarer
+    // Platz -- ohne Abzug ragte die Tastatur trotz "echter" Messung
+    // weiterhin ein Stueck in dieses Padding hinein und das Panel musste
+    // (minimal) gescrollt werden (per Playwright-Messung belegt).
+    const scrollAncestorPaddingBottom =
+      scrollAncestor && scrollAncestor !== document.body ? parseFloat(getComputedStyle(scrollAncestor).paddingBottom) || 0 : 0;
+    const limitBottom =
+      scrollAncestor && scrollAncestor !== document.body ? scrollAncestor.getBoundingClientRect().bottom : window.innerHeight;
+    // Geschwister-Elemente, die ERST NACH mount() (und damit nach DIESER
+    // Messung) im selben Eltern-Container angehaengt werden -- z. B. ein
+    // "Abbrechen"-Button, siehe admin/AdminPanel.ts/core/highscorePrompt.ts
+    // -- kennt diese Funktion bewusst nicht: core/modal.ts#openModal
+    // beobachtet fuer Tastatur-Modals das GESAMTE Panel per ResizeObserver/
+    // MutationObserver und skaliert es bei Bedarf als Ganzes, das faengt
+    // auch nachtraeglich angehaengte Geschwister zuverlaessig ab (siehe
+    // Kommentar bei mount() oben, warum das NICHT hier zusaetzlich versucht
+    // wird).
+    const availableHeight = Math.max(0, limitBottom - contentTop - 18 - scrollAncestorPaddingBottom);
+    // Der Zeilenabstand skaliert bewusst PROPORTIONAL mit der Tastenhoehe
+    // (statt eines fixen 8px-Werts) -- auf einem sehr kurzen Bildschirm
+    // (z.B. Testgeraet 528x300 mit ohnehin knappem Modal-Platz oberhalb der
+    // Tastatur, siehe .modal-panel-Padding/-Titel/-Beschreibung) sprengte
+    // allein ein fixer Zeilenabstand von 3 x 8px = 24px bereits einen
+    // Grossteil des verfuegbaren Budgets, WEIT bevor die Tasten selbst auf
+    // eine sinnvolle Groesse schrumpfen konnten -- die Tastatur ragte trotz
+    // Sockel-Groesse weiterhin unten heraus. Aufloesung von
+    // "verfuegbar = rows*key + (rows-1)*gapFactor*key" nach key.
+    const gapFactor = 0.18;
+    const rawKeySize = availableHeight / (rows + (rows - 1) * gapFactor);
+    // Kein hoher Komfort-Sockel (war 14, siehe style.css-Kommentar zu
+    // frueheren, aehnlichen Faellen) -- auf ausdruecklichen Wunsch soll eine
+    // Tastatur NIE gescrollt werden muessen, auch nicht auf einem extrem
+    // kurzen Testbildschirm mit vollem Anzeigefeld/Modal-Titel darueber.
+    // 6px ist nur eine technische Notbremse gegen eine Groesse von 0.
+    const clamped = Math.max(6, Math.min(92, Math.floor(rawKeySize)));
+    const rowGap = Math.max(2, Math.round(clamped * gapFactor));
+    const fontSize = Math.max(7, Math.min(42, Math.floor(clamped * 0.34)));
+    this.el.style.setProperty("--osk-letter-key-size", `${clamped}px`);
+    this.el.style.setProperty("--osk-letter-font-size", `${fontSize}px`);
+    this.el.style.setProperty("--osk-letter-row-gap", `${rowGap}px`);
   }
 
   destroy(): void {

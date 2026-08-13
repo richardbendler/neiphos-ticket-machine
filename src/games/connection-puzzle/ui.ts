@@ -281,7 +281,10 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
 
   for (const mode of ["u-bahn", "s-bahn", "tram"] as const) {
     const label = document.createElement("div");
-    label.style.fontSize = "0.72rem";
+    // War fix 0.72rem -- skalierte dadurch nie mit, siehe fitBuildingContent-
+    // Kommentar unten (derselbe Grund, warum die ganze Zone ueberhaupt
+    // skaliert werden muss).
+    label.className = "connection-puzzle-picker-label";
     label.style.color = "var(--text-faint)";
     label.style.margin = "clamp(3px, 1.2vh, 8px) 0 clamp(2px, 0.8vh, 4px)";
     label.textContent = MODE_LABEL[mode];
@@ -303,6 +306,53 @@ function renderLinePicker(container: HTMLElement, actions: ScreenActions): void 
 }
 
 /**
+ * Die Linienauswahl-Zone (.connection-puzzle-connections-zone) hat eine
+ * FESTE Hoehe (50% von --game-area-h, siehe style.css) -- bei vielen Linien
+ * (3 Verkehrsmittel-Gruppen mit je eigener Chip-Reihe) reichte reines
+ * Schrumpfen einzelner clamp()-Untergrenzen (vorherige Fassung) auf kleinen
+ * Bildschirmen nicht aus, die Zone musste gescrollt werden -- auf
+ * ausdruecklichen Wunsch soll bei DIESEM Spiel aber nirgends (ausser
+ * eventuell der Karte) gescrollt werden muessen. Deshalb wird der komplette
+ * "building"-Inhalt (Breadcrumb + gewaehlte Linien-Chips + Fehler/Tipp +
+ * Buttons + Linienauswahl) jetzt in einen eigenen Wrapper gerendert und bei
+ * Bedarf per CSS-transform:scale() gleichmaessig verkleinert, bis er
+ * garantiert in die verfuegbare Hoehe passt -- transform:scale() aendert
+ * dabei NUR die visuelle Groesse, nicht die Layout-Box, deshalb bleibt
+ * scrollHeight (die "natuerliche" ungestreckte Hoehe) bei jedem Aufruf
+ * zuverlaessig messbar, auch nach einer vorherigen Verkleinerung.
+ */
+function fitBuildingContent(container: HTMLElement, content: HTMLElement): void {
+  content.style.transform = "";
+  // container.clientHeight schliesst dessen eigenes (wenn auch kleines)
+  // Padding oben/unten mit ein (siehe .connection-puzzle-connections-zone)
+  // -- das ist KEIN fuer den Inhalt nutzbarer Platz, muss also von der
+  // verfuegbaren Hoehe abgezogen werden, sonst faellt die berechnete
+  // Skalierung geringfuegig zu grosszuegig aus und der untere Rand ragt
+  // trotzdem noch ein paar Pixel in die Fussleiste hinein (per Playwright-
+  // Messung belegt: 4px Ueberlappung bei 528x300 ohne diesen Abzug).
+  const cs = getComputedStyle(container);
+  const verticalPadding = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const available = container.clientHeight - verticalPadding;
+  const natural = content.scrollHeight;
+  if (available > 0 && natural > available) {
+    // Zusaetzlicher 4%-Sicherheitsabstand (0.96 statt exakt 1:1) faengt
+    // Rundungs-/Sub-Pixel-Abweichungen zwischen Layout- und Transform-
+    // Koordinatenraum ab, die sonst denselben minimalen Ueberlapp-Effekt
+    // verursachen koennten. BEWUSST kein hoher Sockel-Wert (war 0.4/0.35) --
+    // auf ausdruecklichen Wunsch soll dieses Spiel NIE gescrollt werden
+    // muessen, auch nicht auf einem extrem kleinen Testbildschirm mit vielen
+    // Linien. Ein Sockel haette genau das auf sehr kurzen Bildschirmen
+    // wieder verhindert (per Playwright-Messung belegt: 400x240 und kleiner
+    // ragte der Inhalt bei einem 0.35er-Sockel weiterhin in die Fussleiste).
+    // 0.12 ist nur eine technische Notbremse gegen einen (praktisch nie
+    // erreichten) Skalierungsfaktor von 0.
+    const scale = Math.max(0.12, (available / natural) * 0.96);
+    content.style.transform = `scale(${scale})`;
+    content.style.transformOrigin = "top center";
+  }
+}
+
+/**
  * headerContainer = eigene Start/Ziel-Zone (20% von --game-area-h), body-
  * Container = Zone fuer Linienauswahl/Feedback/Zusammenfassung (55%) --
  * beide fest positioniert, siehe .connection-puzzle-*-zone in style.css.
@@ -314,8 +364,12 @@ export function renderScreen(headerContainer: HTMLElement, container: HTMLElemen
   container.innerHTML = "";
 
   if (state.phase === "building") {
-    renderBreadcrumb(container, state, actions);
-    renderLinePicker(container, actions);
+    const content = document.createElement("div");
+    content.className = "connection-puzzle-building-content";
+    container.appendChild(content);
+    renderBreadcrumb(content, state, actions);
+    renderLinePicker(content, actions);
+    fitBuildingContent(container, content);
   } else if (state.phase === "feedback" && state.feedback) {
     const fb = state.feedback;
     const msg = document.createElement("p");

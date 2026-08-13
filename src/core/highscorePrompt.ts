@@ -60,26 +60,36 @@ export function promptHighscoreName(opts: {
       playHighscoreOpenSound();
 
       const iconWrap = document.createElement("div");
-      iconWrap.style.width = "40px";
-      iconWrap.style.height = "40px";
+      // War fix 40x40px/8px -- auf einem kurzen Bildschirm zusammen mit der
+      // Tastatur darunter einer der Hauptgruende, warum dieser Dialog
+      // gescrollt werden musste (gemeldeter Bug, siehe .hs-name-actions-
+      // Kommentar in style.css fuer die gleichartigen Fixe bei den Buttons
+      // darunter).
+      iconWrap.style.width = "clamp(16px, 5vh, 40px)";
+      iconWrap.style.height = "clamp(16px, 5vh, 40px)";
       iconWrap.style.color = "var(--accent)";
-      iconWrap.style.marginBottom = "8px";
+      iconWrap.style.marginBottom = "clamp(2px, 1vh, 8px)";
       iconWrap.innerHTML = icons.trophy;
 
       const h2 = document.createElement("h2");
       h2.textContent = opts.title ?? "Neuer Highscore!";
       // Deutlich groesser als der generische Modal-Titel (1.3rem) -- das ist
       // der aufregende Teil dieses speziellen Dialogs, soll auf den ersten
-      // Blick auffallen.
-      h2.style.fontSize = "1.6rem";
+      // Blick auffallen. War fix 1.6rem -- blieb dadurch (anders als der
+      // generische ".modal-panel h2", siehe dort) auf einem kurzen
+      // Bildschirm unveraendert riesig und war einer der Hauptgruende, warum
+      // dieser Dialog samt Tastatur darunter gescrollt werden musste
+      // (gemeldeter Bug, Tastaturen sollen nie scrollen muessen).
+      h2.style.fontSize = "clamp(0.5rem, min(2.85vw, 5vh), 1.6rem)";
 
       const p = document.createElement("p");
       p.textContent = opts.message;
       // Groesser als ein generischer Modal-Absatz (0.9rem), aber weiterhin
       // klar kleiner als die Ueberschrift oben -- enthaelt den eigentlichen
       // erzielten Wert, soll also deutlich lesbarer sein als bisher, ohne die
-      // Ueberschrift zu ueberragen.
-      p.style.fontSize = "1.15rem";
+      // Ueberschrift zu ueberragen. War fix 1.15rem, gleicher Grund/gleiche
+      // Loesung wie bei h2 oben.
+      p.style.fontSize = "clamp(0.38rem, min(2.05vw, 3.6vh), 1.15rem)";
       p.style.fontWeight = "700";
       p.style.color = "var(--text)";
 
@@ -148,32 +158,37 @@ export function promptHighscoreName(opts: {
       });
       kb.mount(panel);
 
+      // Gemeinsamer Wrapper statt je eigenem festen marginTop (war 10px/8px)
+      // -- auf einem kurzen Bildschirm zusammen mit der Tastatur darueber
+      // einer der Hauptgruende, warum dieser Dialog gescrollt werden musste
+      // (siehe .hs-name-actions in style.css fuer den vh-gekoppelten
+      // Abstand/Innenabstand/Schrift beider Buttons hier).
+      const actions = document.createElement("div");
+      actions.className = "hs-name-actions";
+
       if (ticketVariant !== null) {
         const saveOnlyBtn = document.createElement("button");
         saveOnlyBtn.type = "button";
         saveOnlyBtn.className = "btn hs-save-only-btn";
-        saveOnlyBtn.style.width = "100%";
-        saveOnlyBtn.style.marginTop = "10px";
         saveOnlyBtn.textContent = "Speichern (ohne Ticket drucken)";
         saveOnlyBtn.addEventListener("click", () => {
           const trimmed = kb.getValue().trim();
           close();
           opts.onDone(trimmed || null);
         });
-        panel.appendChild(saveOnlyBtn);
+        actions.appendChild(saveOnlyBtn);
       }
 
       const skipBtn = document.createElement("button");
       skipBtn.type = "button";
       skipBtn.className = "btn btn--ghost";
-      skipBtn.style.width = "100%";
-      skipBtn.style.marginTop = "8px";
       skipBtn.textContent = "Nicht speichern";
       skipBtn.addEventListener("click", () => {
         close();
         opts.onDone(null);
       });
-      panel.appendChild(skipBtn);
+      actions.appendChild(skipBtn);
+      panel.appendChild(actions);
     },
     // War als einziger der drei Tastatur-Dialoge (Highscore/Admin-Login/
     // Feedback) OHNE eigene Breiten-Option unterwegs, wirkte dadurch

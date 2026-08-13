@@ -470,6 +470,32 @@ export function createTrainQuartetGame(): MinigameModule {
     ctx.fillText(count === 1 ? "1 Karte" : `${count} Karten`, anchorX, countY);
   }
 
+  /**
+   * Kuerzt "text" mit "…" so weit, bis es (mit dem aktuell auf ctx
+   * gesetzten Font) in maxWidth passt -- betrifft in der Praxis nur die
+   * lange Statzeilen-Beschriftung "Höchstgeschwindigkeit" auf kleinen
+   * Karten: die feste Schriftgroessen-Untergrenze weiter unten
+   * (Math.max(7, 11*scale)) verhindert zwar zu winzige, unlesbare Schrift,
+   * aber genau DESHALB blieb die Beschriftung bei sehr kleinen Karten
+   * breiter als ihre Haelfte der Zeile und lief sichtbar in den rechts
+   * ausgerichteten Wert hinein (gemeldeter/per Screenshot belegter Bug:
+   * "Höchstgeschw" und der Wert "88,8km/h" liefen ineinander). Alle
+   * uebrigen (kuerzeren) Beschriftungen sind davon nie betroffen, deren
+   * Font bleibt unveraendert -- nur diese eine Zeile wird bei Bedarf
+   * abgeschnitten statt die Schriftgroesse fuer alle Zeilen zu verkleinern.
+   */
+  function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (ctx.measureText(text.slice(0, mid) + "…").width <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo > 0 ? text.slice(0, lo) + "…" : "…";
+  }
+
   function drawCardFace(
     ctx: CanvasRenderingContext2D,
     rect: Rect,
@@ -585,7 +611,12 @@ export function createTrainQuartetGame(): MinigameModule {
       ctx.fillStyle = theme.paperText;
       ctx.font = `600 ${Math.max(7, 11 * scale)}px ${theme.font}`;
       ctx.textAlign = "left";
-      ctx.fillText(STAT_LABELS[key].label, rowRect.x + 6 * scale, rowRect.y + rowRect.height / 2 + 4 * scale);
+      // Haelfte der Zeile abzueglich beidseitiger Polsterung bleibt der
+      // Beschriftung -- die andere Haelfte ist fuer den rechts
+      // ausgerichteten Wert reserviert (siehe truncateToWidth-Kommentar).
+      const maxLabelWidth = Math.max(10, rowRect.width / 2 - 6 * scale);
+      const labelText = truncateToWidth(ctx, STAT_LABELS[key].label, maxLabelWidth);
+      ctx.fillText(labelText, rowRect.x + 6 * scale, rowRect.y + rowRect.height / 2 + 4 * scale);
 
       ctx.font = `700 ${Math.max(8, 12 * scale)}px ${theme.fontDisplay}`;
       ctx.textAlign = "right";
@@ -611,7 +642,11 @@ export function createTrainQuartetGame(): MinigameModule {
       // Hatte bisher GAR keine eigene Schriftgroesse (erbte den Browser-
       // Standard, ~16px, unabhaengig von der Bildschirmgroesse) -- jetzt
       // wie der Rest der App prozentual.
-      messageEl.style.fontSize = "clamp(0.8rem, 2.4vw, 1.2rem)";
+      // min() aus vw UND vh -- rein vw-basiert schrumpfte die Rundenergebnis-
+      // Zeile ("Du gewinnst diese Runde!" usw.) auf einem kurzen (aber nicht
+      // unbedingt schmalen) Bildschirm nicht mit (gemeldeter/per Screenshot
+      // belegter Bug).
+      messageEl.style.fontSize = "clamp(0.45rem, min(2.4vw, 4vh), 1.2rem)";
       messageEl.style.display = "none";
 
       evaluationEl = document.createElement("div");
@@ -842,12 +877,18 @@ export function createTrainQuartetGame(): MinigameModule {
             ctx.fill();
 
             ctx.fillStyle = theme.accent;
-            ctx.font = `800 30px ${theme.fontDisplay}`;
+            // War fix 30px -- skaliert jetzt mit der (bereits an die
+            // verfuegbare Flaeche angepassten) Kartenbreite statt einer
+            // Bildschirmgroesse-unabhaengigen Konstante.
+            const tutorialFont = Math.max(13, Math.min(34, cardWidth * 0.09));
+            ctx.font = `800 ${tutorialFont}px ${theme.fontDisplay}`;
             ctx.textAlign = "center";
             ctx.fillText("Wähle eine Eigenschaft!", size.width / 2, arrowTopY + 82);
           } else {
             ctx.fillStyle = theme.textMuted;
-            ctx.font = `700 15px ${theme.fontDisplay}`;
+            // War fix 15px -- siehe Kommentar bei tutorialFont oben.
+            const hintFont = Math.max(8, Math.min(18, cardWidth * 0.045));
+            ctx.font = `700 ${hintFont}px ${theme.fontDisplay}`;
             ctx.textAlign = "center";
             ctx.fillText("Tippe eine Eigenschaft an, um sie zu vergleichen", size.width / 2, rect.y + rect.height + 24);
           }

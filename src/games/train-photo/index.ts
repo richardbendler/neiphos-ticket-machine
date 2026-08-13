@@ -102,9 +102,6 @@ function createTrainPhotoGame(): MinigameModule {
   let currentSize = { width: 480, height: 800 };
   let selectedLevel: SpeedLevel | null = null;
   let highscoreTimer: ReturnType<typeof setTimeout> | null = null;
-  // Echt gemessen (siehe core/highscoreBanner.ts#measurePlayAreaTop) --
-  // gleiches Muster wie games/count-passengers.
-  let cachedPlayAreaTop = 60;
 
   let speedPanel: HTMLDivElement;
   let sheet: HTMLDivElement;
@@ -161,7 +158,6 @@ function createTrainPhotoGame(): MinigameModule {
   function selectSpeed(level: SpeedLevel): void {
     selectedLevel = level;
     highscoreBanner.update(getHighscoreBoard(GAME_ID, level.key));
-    cachedPlayAreaTop = measurePlayAreaTop();
     resetRound();
   }
 
@@ -690,8 +686,9 @@ function createTrainPhotoGame(): MinigameModule {
       const titleFont = Math.max(11, Math.min(24, size.height * 0.05));
       const subFont = Math.max(9, Math.min(20, size.height * 0.042));
       const countdownFont = Math.max(36, Math.min(110, size.height * 0.2));
-      // Math.max mit cachedPlayAreaTop -- siehe games/count-passengers-Kommentar.
-      const titleY = Math.max(size.height * 0.2, cachedPlayAreaTop + 22);
+      // Math.max mit measurePlayAreaTop() -- jeden Frame frisch gemessen,
+      // siehe games/count-passengers-Kommentar.
+      const titleY = Math.max(size.height * 0.2, measurePlayAreaTop() + 22);
       if (phase === "countdown") {
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";

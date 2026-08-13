@@ -104,7 +104,7 @@ function showCaughtModal(): void {
     okBtn.className = "btn btn--accent";
     okBtn.style.width = "100%";
     okBtn.style.marginTop = "12px";
-    okBtn.textContent = "Yay!";
+    okBtn.textContent = "Hüpftier wieder freilassen";
     okBtn.addEventListener("click", close);
     panel.appendChild(okBtn);
   });

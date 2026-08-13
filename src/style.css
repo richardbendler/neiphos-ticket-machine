@@ -1356,7 +1356,7 @@ button {
      Box -- der Titel wirkte dadurch abgeschnitten UND war nicht dorthin
      scrollbar. Empirisch ermittelt: 22px Polsterung reichte nicht, ab ca.
      40px war der Effekt zuverlaessig weg (siehe auch .modal-panel h2). */
-  padding: 44px 22px 22px;
+  padding: clamp(40px, 6vh, 60px) clamp(14px, 3vw, 28px) clamp(14px, 3vh, 28px);
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15), 0 16px 40px rgba(0, 0, 0, 0.3);
 }
 
@@ -1444,7 +1444,10 @@ button {
 }
 
 .game-intro-list li {
-  margin-bottom: 8px;
+  /* War fix 8px -- auf einem sehr kurzen Bildschirm summierte sich das ueber
+     mehrere Stichpunkte spuerbar auf und liess die Anleitung mehr scrollen
+     als noetig (gemeldet: "betrifft alle Anleitungen"). */
+  margin-bottom: clamp(2px, 1.2vh, 8px);
 }
 
 .game-intro-list li::marker {
@@ -1952,7 +1955,12 @@ button {
 }
 
 .stage-highscore-banner__label {
-  font-size: 0.74rem;
+  /* War fix 0.74rem -- ueber min() an --header-h gekoppelt statt eines
+     fixen Sockels, siehe .chrome-menu-btn-Kommentar. Diese Pille sitzt
+     direkt unter dem Header und muss mit ihm mitschrumpfen, sonst kollidiert
+     sie auf kleinen Bildschirmen mit darunter liegendem Spiel-Text
+     (gemeldeter/per Screenshot belegter Bug, siehe z. B. Zug-Spotter). */
+  font-size: min(2vw, calc(var(--header-h) * 0.13));
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1961,12 +1969,12 @@ button {
 .stage-highscore-banner__value {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.98rem;
+  font-size: min(2.6vw, calc(var(--header-h) * 0.17));
   color: var(--accent-dark);
 }
 
 .stage-highscore-banner__names {
-  font-size: 0.82rem;
+  font-size: min(2.2vw, calc(var(--header-h) * 0.15));
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2897,15 +2905,20 @@ button {
 }
 
 /* Auf ausdruecklichen Wunsch ca. verdoppelt (war 0.78rem/1rem) -- dieses
-   Panel war zuvor deutlich kleiner als der Rest der Spiel-UI. */
+   Panel war zuvor deutlich kleiner als der Rest der Spiel-UI. War danach
+   fix 1.5rem/2rem -- sitzt dicht unter dem Header (siehe .mm-panel--top-right)
+   und kollidierte auf kleinen Bildschirmen mit anderen dort positionierten
+   Elementen (gemeldeter/per Screenshot belegter Bug), deshalb jetzt ueber
+   min() an --header-h gekoppelt statt eines fixen Sockels, siehe
+   .chrome-menu-btn-Kommentar. */
 .mm-panel__day {
-  font-size: 1.5rem;
+  font-size: min(3.2vw, calc(var(--header-h) * 0.24));
   color: var(--text-muted);
   font-weight: 600;
 }
 
 .mm-panel__delivered {
-  font-size: 2rem;
+  font-size: min(4.2vw, calc(var(--header-h) * 0.32));
   font-weight: 800;
   color: var(--text);
   line-height: 1.1;

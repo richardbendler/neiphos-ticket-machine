@@ -608,6 +608,10 @@ export function createTrainQuartetGame(): MinigameModule {
       messageEl.style.textAlign = "center";
       messageEl.style.fontFamily = "var(--font-display)";
       messageEl.style.fontWeight = "700";
+      // Hatte bisher GAR keine eigene Schriftgroesse (erbte den Browser-
+      // Standard, ~16px, unabhaengig von der Bildschirmgroesse) -- jetzt
+      // wie der Rest der App prozentual.
+      messageEl.style.fontSize = "clamp(0.8rem, 2.4vw, 1.2rem)";
       messageEl.style.display = "none";
 
       evaluationEl = document.createElement("div");
@@ -728,8 +732,13 @@ export function createTrainQuartetGame(): MinigameModule {
       // uebertrafen headerBottom+bottomMargin zusammen frueher schon die
       // gesamte Bildschirmhoehe (gemeldeter Bug), jetzt skaliert bottomMargin
       // mit herunter (Obergrenze = bisheriger, auf normalen/grossen
-      // Bildschirmen unveraendert bleibender Wert).
-      const bottomMargin = Math.min(210, size.height * 0.32);
+      // Bildschirmen unveraendert bleibender Wert). Faktor/Deckel nochmal
+      // leicht angehoben (war 0.32/210) -- messageEl hatte bis eben gar
+      // keine eigene, dem Rest der App entsprechende Schriftgroesse (siehe
+      // init()), wodurch diese Reserve auf manchen Bildschirmen knapp zu
+      // klein war und die Rundenergebnis-Box sichtbar mit der Karte
+      // ueberlappte (gemeldeter/per Screenshot belegter Bug).
+      const bottomMargin = Math.min(220, size.height * 0.36);
       const availableHeight = Math.max(120, size.height - headerBottom - bottomMargin);
       // Festes Seitenverhaeltnis (CARD_ASPECT) statt getrennter Breiten fuer
       // Einzel-/Paar-Ansicht -- dieselbe cardWidth gilt fuer beide, damit die

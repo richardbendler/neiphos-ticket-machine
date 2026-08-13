@@ -204,17 +204,31 @@ const STATION_SPAWN_INTERVAL_S = DAY_MS / 1000;
 // selbst sind separate, deckende DOM-Ebenen, die einfach DARueBER liegen
 // (siehe core/Router.ts). Ohne ausreichend Rand ragten Haltestellen (vor
 // allem das nach oben spitz zulaufende Dreieck) sichtbar unter der
-// Kopfzeile hervor bzw. wurden von ihr angeschnitten (gemeldet). --header-h
-// ist 86px, --footer-h 78px (style.css) -- die Werte hier liegen bewusst
-// deutlich darueber, damit zusaetzlich die eigenen Overlay-Elemente
-// (Ressourcen-/Tageszaehler oben, Linienfarb-Spalte rechts, wartende
-// Passagiere ueber jeder Haltestelle) sicher Platz haben. MARGIN_TOP wurde
-// nochmal angehoben (war 150), weil die wartenden Huepftiere jetzt groesser
-// sind und dadurch mehr Platz ueber der Haltestelle brauchen.
-const MARGIN_TOP = 175;
-const MARGIN_RIGHT = 90;
-const MARGIN_LEFT = 24;
-const MARGIN_BOTTOM = 100;
+// Kopfzeile hervor bzw. wurden von ihr angeschnitten (gemeldet), zusaetzlich
+// brauchen die eigenen Overlay-Elemente (Ressourcen-/Tageszaehler oben,
+// Linienfarb-Spalte rechts, wartende Passagiere ueber jeder Haltestelle)
+// sicher Platz.
+//
+// Waren frueher feste px-Konstanten (--header-h/--footer-h waren damals
+// selbst noch fix, siehe deren Kommentar in style.css) -- jetzt Funktionen
+// von der tatsaechlichen Canvas-Groesse, sonst nahmen sie auf einem sehr
+// kleinen Bildschirm einen unverhaeltnismaessig grossen Anteil ein bzw. der
+// auf MARGIN_BOTTOM aufbauende Tutorial-Pfeil (siehe drawTutorialArrow)
+// landete durch den fixen "150"-Zuschlag praktisch am oberen statt am
+// unteren Bildschirmrand und ueberlagerte dort andere Elemente (gemeldeter/
+// per Screenshot belegter Bug).
+function marginTop(size: { height: number }): number {
+  return Math.max(46, size.height * 0.16);
+}
+function marginRight(size: { width: number }): number {
+  return Math.max(34, size.width * 0.06);
+}
+function marginLeft(size: { width: number }): number {
+  return Math.max(10, size.width * 0.02);
+}
+function marginBottom(size: { height: number }): number {
+  return Math.max(34, size.height * 0.13);
+}
 const MIN_STATION_DIST = STATION_RADIUS * 4.2;
 // Die drei Start-Haltestellen sollen sichtbar in der Bildschirmmitte
 // beginnen (auf ausdruecklichen Wunsch), statt gleich zu Rundenbeginn ueber
@@ -494,9 +508,13 @@ export function createMiniMetroGame(): MinigameModule {
    * bisherigen Verhalten).
    */
   function getCameraPivot(size: { width: number; height: number }): { x: number; y: number } {
+    const mLeft = marginLeft(size);
+    const mRight = marginRight(size);
+    const mTop = marginTop(size);
+    const mBottom = marginBottom(size);
     return {
-      x: MARGIN_LEFT + (size.width - MARGIN_LEFT - MARGIN_RIGHT) / 2,
-      y: MARGIN_TOP + (size.height - MARGIN_TOP - MARGIN_BOTTOM) / 2,
+      x: mLeft + (size.width - mLeft - mRight) / 2,
+      y: mTop + (size.height - mTop - mBottom) / 2,
     };
   }
 
@@ -520,8 +538,8 @@ export function createMiniMetroGame(): MinigameModule {
     // Durch worldZoom geteilt -- je weiter herausgezoomt (kleinerer Wert),
     // desto groesser der Weltbereich, in dem neue Haltestellen entstehen
     // koennen (siehe Datei-Kommentar bei WORLD_ZOOM_MIN).
-    const w = (size.width - MARGIN_LEFT - MARGIN_RIGHT) / worldZoom;
-    const h = (size.height - MARGIN_TOP - MARGIN_BOTTOM) / worldZoom;
+    const w = (size.width - marginLeft(size) - marginRight(size)) / worldZoom;
+    const h = (size.height - marginTop(size) - marginBottom(size)) / worldZoom;
     if (w < 40 || h < 40) return null;
     const pivot = getCameraPivot(size);
     const left = pivot.x - w / 2;
@@ -2124,8 +2142,15 @@ export function createMiniMetroGame(): MinigameModule {
     // Zusaetzlicher Abstand (war -85), seit es unten links auch den
     // Bahnansagen-Umschalter gibt (siehe .mm-panel--left-bottom) -- der
     // zentrierte, auf schmalen Bildschirmen recht breite Hinweistext reichte
-    // sonst bis in dessen Bereich hinein (gemeldete Ueberdeckung).
-    const tipY = size.height - MARGIN_BOTTOM - 150 + bounce;
+    // sonst bis in dessen Bereich hinein (gemeldete Ueberdeckung). Der
+    // Zuschlag ("150") war frueher ein fixer px-Wert -- auf einem sehr
+    // kurzen Bildschirm landete tipY dadurch nicht mehr unten, sondern
+    // praktisch oben am Bildschirmrand und ueberlagerte die dort sitzenden
+    // Kopfzeilen-Overlays (gemeldeter/per Screenshot belegter Bug), jetzt
+    // proportional zur Canvas-Hoehe.
+    const tipY = size.height - marginBottom(size) - Math.max(70, size.height * 0.16) + bounce;
+    const arrowFont = Math.max(13, Math.min(24, size.height * 0.032));
+    const hintFont = Math.max(9, Math.min(15, size.height * 0.019));
     ctx.fillStyle = theme.accent;
     ctx.beginPath();
     ctx.moveTo(cx, tipY);
@@ -2139,10 +2164,10 @@ export function createMiniMetroGame(): MinigameModule {
     ctx.fill();
 
     ctx.fillStyle = theme.accent;
-    ctx.font = `800 22px ${theme.fontDisplay}`;
+    ctx.font = `800 ${arrowFont}px ${theme.fontDisplay}`;
     ctx.textAlign = "center";
     ctx.fillText("Ziehe deine erste Linie!", cx, tipY + 58);
-    ctx.font = `700 13px ${theme.fontDisplay}`;
+    ctx.font = `700 ${hintFont}px ${theme.fontDisplay}`;
     ctx.fillStyle = theme.textMuted;
     ctx.fillText("Verbinde zwei Haltestellen mit dem Finger", cx, tipY + 76);
   }

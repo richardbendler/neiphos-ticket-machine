@@ -675,27 +675,36 @@ function createTrainPhotoGame(): MinigameModule {
 
       if (!started || phase === "speed-select") return;
 
+      // Schriftgroessen UND Y-Positionen waren hier frueher feste px-Werte
+      // (18/15/86px, y-170/-135/-40 usw.) -- auf einem sehr kurzen Canvas
+      // rutschten die oberen Zeilen dadurch ins Negative (ausserhalb des
+      // sichtbaren Canvas nach oben), der Text wirkte "abgeschnitten"
+      // (gleiches Bug-Muster wie in games/count-passengers, siehe dortigen
+      // Kommentar). Jetzt relativ zur tatsaechlichen Canvas-Hoehe.
+      const titleFont = Math.max(11, Math.min(24, size.height * 0.05));
+      const subFont = Math.max(9, Math.min(20, size.height * 0.042));
+      const countdownFont = Math.max(36, Math.min(110, size.height * 0.2));
       if (phase === "countdown") {
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
-        ctx.font = `700 18px ${theme.fontDisplay}`;
-        ctx.fillText("Halte die Kamera bereit!", size.width / 2, y - 170);
-        ctx.font = `600 15px ${theme.font}`;
+        ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;
+        ctx.fillText("Halte die Kamera bereit!", size.width / 2, size.height * 0.2);
+        ctx.font = `600 ${subFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Der Zug kommt gleich...", size.width / 2, y - 135);
-        ctx.font = `800 86px ${theme.fontDisplay}`;
+        ctx.fillText("Der Zug kommt gleich...", size.width / 2, size.height * 0.3);
+        ctx.font = `800 ${countdownFont}px ${theme.fontDisplay}`;
         ctx.fillStyle = theme.accent;
-        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, y - 40);
+        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, size.height * 0.47);
       } else if (phase === "waiting") {
         // Bewusst OHNE Zahl/Timer -- man soll nicht genau wissen, wann der
         // Zug tatsaechlich kommt.
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
-        ctx.font = `700 18px ${theme.fontDisplay}`;
-        ctx.fillText("Gleich ist es so weit...", size.width / 2, y - 150);
-        ctx.font = `600 15px ${theme.font}`;
+        ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;
+        ctx.fillText("Gleich ist es so weit...", size.width / 2, size.height * 0.22);
+        ctx.font = `600 ${subFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Bereithalten!", size.width / 2, y - 120);
+        ctx.fillText("Bereithalten!", size.width / 2, size.height * 0.3);
       } else if (phase === "running") {
         drawTrain(ctx, trainOffsetX, y);
       }

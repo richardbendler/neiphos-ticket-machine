@@ -15,7 +15,18 @@ import { openModal, hasOpenModal } from "./modal";
 const MIN_DELAY_MS = 60_000;
 const MAX_DELAY_MS = 5 * 60_000;
 const WALK_DURATION_S = 9;
-const HOPPER_SIZE_PX = 40;
+// Auf ausdruecklichen Wunsch prozentual zur Bildschirmgroesse statt eines
+// festen Pixelwerts (war 40) -- an der Kopfleisten-Hoehe orientiert (die ist
+// bereits selbst prozentual zur Bildschirmhoehe, siehe --header-h), "soll
+// schon relativ klein sein, ein Fuenftel so hoch wie der Header".
+const HOPPER_SIZE_RATIO = 0.2;
+const MIN_HOPPER_SIZE_PX = 14;
+
+function measureHopperSize(): number {
+  const header = document.querySelector(".chrome-bar");
+  const headerHeight = header ? header.getBoundingClientRect().height : 60;
+  return Math.max(MIN_HOPPER_SIZE_PX, Math.round(headerHeight * HOPPER_SIZE_RATIO));
+}
 
 type PathChoice = { centerY: number };
 
@@ -44,28 +55,28 @@ function trySpawn(): void {
 }
 
 /** Waehlt zufaellig eine der aktuell verfuegbaren Linien -- die Menue-Trennlinie existiert nur, wenn gerade das Hauptmenue angezeigt wird. */
-function pickPath(): PathChoice | null {
+function pickPath(hopperSize: number): PathChoice | null {
   const candidates: PathChoice[] = [];
 
   const header = document.querySelector(".chrome-bar");
   if (header) {
     const r = header.getBoundingClientRect();
-    candidates.push({ centerY: r.bottom - HOPPER_SIZE_PX / 2 - 2 });
+    candidates.push({ centerY: r.bottom - hopperSize / 2 - 2 });
   }
 
   const footer = document.querySelector(".chrome-footer-bar");
   if (footer) {
     const r = footer.getBoundingClientRect();
-    // Etwas mehr Abstand zur Unterkante als beim Header (siehe HOPPER_SIZE_PX/
+    // Etwas mehr Abstand zur Unterkante als beim Header (siehe hopperSize/
     // -Abzug oben) -- soll komplett INNERHALB der Fussleiste sichtbar bleiben,
     // nicht am echten Bildschirmrand ueberstehen (auf ausdruecklichen Wunsch).
-    candidates.push({ centerY: r.bottom - HOPPER_SIZE_PX / 2 - 6 });
+    candidates.push({ centerY: r.bottom - hopperSize / 2 - 6 });
   }
 
   const menuHeader = document.querySelector(".menu-header");
   if (menuHeader) {
     const r = menuHeader.getBoundingClientRect();
-    candidates.push({ centerY: r.bottom - HOPPER_SIZE_PX / 2 });
+    candidates.push({ centerY: r.bottom - hopperSize / 2 });
   }
 
   if (candidates.length === 0) return null;
@@ -100,7 +111,8 @@ function showCaughtModal(): void {
 }
 
 function spawnHopper(): void {
-  const choice = pickPath();
+  const hopperSize = measureHopperSize();
+  const choice = pickPath(hopperSize);
   if (!choice) return;
 
   const card = hopperAnimalCards[Math.floor(Math.random() * hopperAnimalCards.length)];
@@ -109,7 +121,9 @@ function spawnHopper(): void {
   const el = document.createElement("button");
   el.type = "button";
   el.className = `hopper-easter-egg ${leftToRight ? "hopper-easter-egg--ltr" : "hopper-easter-egg--rtl"}`;
-  el.style.top = `${Math.round(choice.centerY - HOPPER_SIZE_PX / 2)}px`;
+  el.style.top = `${Math.round(choice.centerY - hopperSize / 2)}px`;
+  el.style.width = `${hopperSize}px`;
+  el.style.height = `${hopperSize}px`;
   el.style.setProperty("--hopper-duration", `${WALK_DURATION_S}s`);
   el.setAttribute("aria-label", "Verstecktes Hüpftier");
 

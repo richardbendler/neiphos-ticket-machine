@@ -3271,8 +3271,13 @@ button {
   /* Auf schmalen Bildschirmen reicht der Platz bis zum naechsten Panel
      (Uhr/Tageszaehler oben rechts) nicht fuer den vollen Beschriftungstext
      in einer Zeile -- lieber umbrechen als vom Nachbar-Panel abgeschnitten
-     werden (gemeldeter Bug). */
-  max-width: 165px;
+     werden (gemeldeter Bug). War 165px -- auf grossen Bildschirmen (wo
+     font-size in .mm-sound-toggle Richtung ihres clamp()-Maximums geht)
+     ragte die umgebrochene Beschriftung ("Bahngeräuschkulisse an-/
+     ausschalten") trotzdem noch leicht ueber den Panel-Rand hinaus
+     (gemeldeter Bug), deshalb rundum etwas grosszuegiger. */
+  max-width: 190px;
+  padding: clamp(4px, 1.2vh, 8px) clamp(6px, 1.9vw, 12px);
 }
 
 .mm-sound-toggle {

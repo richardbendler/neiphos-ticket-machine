@@ -14,10 +14,13 @@ import { registerGame } from "../registry";
 const GAME_ID = "memory";
 const MISMATCH_DELAY = 0.8;
 const HIGHSCORE_POPUP_DELAY_MS = 1000; // vorher 2000 -- auf ausdruecklichen Wunsch kuerzer
-// Feste Breite der beiden Spieler-Panels im Duo-Modus (siehe
-// updateDuoLayout) -- das Kartenraster ruemt entsprechend ein, damit links
-// und rechts sichtbar Platz fuer "Spieler 1"/"Spieler 2" bleibt.
-const DUO_PANEL_WIDTH = 148;
+// Breite der beiden Spieler-Panels im Duo-Modus (siehe updateDuoLayout) --
+// das Kartenraster ruemt entsprechend ein, damit links und rechts sichtbar
+// Platz fuer "Spieler 1"/"Spieler 2" bleibt. Als CSS-clamp()-Ausdruck statt
+// fixem px-Wert, damit die Panels mit der Bildschirmbreite mitskalieren
+// (war fix 148px -- auf sehr schmalen Bildschirmen frass das unverhaeltnis-
+// maessig viel vom Spielfeld weg, auf sehr breiten wirkte es winzig).
+const DUO_PANEL_WIDTH = "clamp(110px, 13vw, 200px)";
 const DUO_PANEL_GAP = 14;
 const TURN_TOAST_MS = 1900;
 
@@ -363,7 +366,7 @@ function createMemoryGame(): MinigameModule {
     const isDuo = mode === "duo";
     playerPanelLeft.style.display = isDuo ? "flex" : "none";
     playerPanelRight.style.display = isDuo ? "flex" : "none";
-    const inset = isDuo ? `${12 + DUO_PANEL_WIDTH + DUO_PANEL_GAP}px` : "12px";
+    const inset = isDuo ? `calc(12px + ${DUO_PANEL_WIDTH} + ${DUO_PANEL_GAP}px)` : "12px";
     gridWrap.style.left = inset;
     gridWrap.style.right = inset;
   }
@@ -605,7 +608,7 @@ function createMemoryGame(): MinigameModule {
         el.style[side] = "12px";
         el.style.top = "calc(var(--header-h) + 96px + var(--safe-top))";
         el.style.bottom = "calc(var(--footer-h) + 16px + var(--safe-bottom))";
-        el.style.width = `${DUO_PANEL_WIDTH}px`;
+        el.style.width = DUO_PANEL_WIDTH;
         el.style.display = "none";
         el.innerHTML = `<span class="memory-player-panel__name">${playerLabel}</span><span class="memory-player-panel__score">0</span>`;
         return el;

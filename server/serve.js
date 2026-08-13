@@ -450,7 +450,22 @@ function serveStatic(res, pathname) {
   fs.stat(filePath, (err, stat) => {
     if (!err && stat.isFile()) {
       const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+      const headers = { "Content-Type": MIME[ext] || "application/octet-stream" };
+      // Es gab bisher UEBERHAUPT keine Cache-Control-Header -- ein Browser
+      // (v.a. mobile Safari/Chrome) darf index.html dann nach eigenem
+      // Ermessen zwischenspeichern und zeigte nach einem Deploy trotz
+      // manuellem Reload weiterhin die alte Version (gemeldeter Bug: "ich
+      // hab die Seite reloaded, sehe aber immer noch die alte Anleitung").
+      // index.html referenziert die (bei jedem Build neu gehashten)
+      // JS/CSS-Dateinamen -- die DARF dagegen unbegrenzt/aggressiv
+      // gecacht werden, ein geaenderter Inhalt fuehrt ja automatisch zu
+      // einem neuen Dateinamen (kein Invalidierungsproblem moeglich).
+      if (ext === ".html") {
+        headers["Cache-Control"] = "no-cache";
+      } else if (relative.startsWith("assets" + path.sep) || relative.startsWith("assets/")) {
+        headers["Cache-Control"] = "public, max-age=31536000, immutable";
+      }
+      res.writeHead(200, headers);
       fs.createReadStream(filePath).pipe(res);
       return;
     }
@@ -468,7 +483,7 @@ function serveStatic(res, pathname) {
         res.end("Not found");
         return;
       }
-      res.writeHead(200, { "Content-Type": MIME[".html"] });
+      res.writeHead(200, { "Content-Type": MIME[".html"], "Cache-Control": "no-cache" });
       res.end(data);
     });
   });

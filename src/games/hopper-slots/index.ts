@@ -4,7 +4,7 @@ import { showGameIntro } from "../../core/gameIntro";
 import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../core/storage";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
-import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { buildMenuButton } from "../../core/menuButton";
 import { guardedClick } from "../../core/guardedClick";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
@@ -683,6 +683,19 @@ export function createHopperSlotsGame(): MinigameModule {
 
       highscoreBanner = mountHighscoreBanner(env.overlay, formatPoints);
       highscoreBanner.update(getHighscoreBoard(GAME_ID));
+
+      // Echt gemessen statt der CSS-Standardposition (die nur die Kopfleiste
+      // kennt, nicht das Highscore-Banner darunter) -- ohne das ueberlappte
+      // das Banner auf kleinen Bildschirmen die Investitionsbildschirm-
+      // Ueberschrift "SETZE DEINE CREDITS EIN" (gemeldeter/per Messung
+      // belegter Bug: "dass niemals das Highscore Feld irgendwas verdecken
+      // kann"). Einmalig hier gesetzt (nicht bei jedem Render) reicht, da
+      // cabinet/investPanel feste, wiederverwendete Elemente sind (nur ihr
+      // display wird umgeschaltet) und die Banner-Hoehe sich waehrend einer
+      // laufenden Runde praktisch nicht aendert.
+      const playAreaTop = `${measurePlayAreaTop() + 8}px`;
+      cabinet.style.top = playAreaTop;
+      investPanel.style.top = playAreaTop;
 
       renderPaytable();
 

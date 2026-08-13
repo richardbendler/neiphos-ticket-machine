@@ -1293,13 +1293,31 @@ button {
   background: linear-gradient(180deg, var(--primary-light), var(--primary));
   color: #ffffff;
   border: 2px solid var(--primary-dark);
-  /* War fix 0.95rem/12px 18px -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.308rem, 1.375vw, 1.76rem);
-  padding: clamp(9px, 1.9vw, 15px) clamp(13px, 2.8vw, 22px);
 }
 
 .hs-save-only-btn:active {
   background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+}
+
+/* Wrapper um "Speichern (ohne Ticket drucken)" + "Nicht speichern" im
+   Highscore-Namensdialog (siehe core/highscorePrompt.ts) -- ersetzt vormals
+   je Button einen eigenen FESTEN marginTop (10px/8px) und ein rein
+   breitenbasiertes .btn/.hs-save-only-btn-Padding (siehe dortiger
+   Kommentar). Beides zusammen mit der ebenfalls vorher fixen Ueberschrift/
+   dem fixen Absatztext war einer der Hauptgruende, warum dieser Dialog samt
+   Tastatur auf einem kurzen Bildschirm gescrollt werden musste (gemeldeter
+   Bug, Tastaturen sollen nie scrollen muessen). */
+.hs-name-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1.2vh, 10px);
+  margin-top: clamp(4px, 1.2vh, 10px);
+}
+
+.hs-name-actions .btn {
+  width: 100%;
+  font-size: clamp(0.3rem, min(1.375vw, 2.4vh), 1.76rem);
+  padding: clamp(5px, min(1.9vw, 2vh), 15px) clamp(13px, 2.8vw, 22px);
 }
 
 .btn__icon svg {
@@ -1382,6 +1400,18 @@ button {
 .modal-panel--keyboard {
   width: min(80vw, 1000px);
   max-width: min(80vw, 1000px);
+  /* Kleineres oberes Padding als der generische .modal-panel-Deckel (40px,
+     siehe dortiger Kommentar zu einem frueheren Headless-Chromium-
+     Renderfehler bei GESCROLLTEN Panels) -- dieser Fehler trat konkret nur
+     auf, wenn das Panel tatsaechlich ueberlief und gescrollt werden musste.
+     Bei Tastatur-Modals ist das jetzt (siehe OnScreenKeyboard.ts#
+     fitLetterKeys) explizit NICHT mehr der Fall, das Risiko des alten
+     Fehlers entfaellt damit. Auf einem sehr kurzen Testbildschirm (z. B.
+     528x300) war der 40px-Deckel zusammen mit Titel/Text/Tastatur/
+     Bestaetigen-Button trotz auf ihre technische Untergrenze geschrumpfter
+     Tastatur weiterhin der groesste einzelne Platzverbraucher (gemeldeter
+     Bug, Tastaturen sollen nie scrollen muessen). */
+  padding-top: clamp(28px, 5vh, 60px);
 }
 
 /* Zusaetzlicher Schliessen-Button oben rechts, ergaenzend zum Button unten
@@ -1427,15 +1457,17 @@ button {
 .modal-panel h2 {
   font-family: var(--font-display);
   margin: 0 0 4px;
-  /* War fix 1.3rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.434rem, 1.938vw, 2.48rem);
+  /* War fix 1.3rem, dann rein vw-basiert -- jetzt zusaetzlich per min() an
+     vh gekoppelt, siehe .game-intro-list-Kommentar. */
+  font-size: clamp(0.35rem, min(1.938vw, 3.4vh), 2.48rem);
   color: var(--text);
 }
 
 .modal-panel p {
   color: var(--text-muted);
-  /* War fix 0.9rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.294rem, 1.313vw, 1.68rem);
+  /* War fix 0.9rem, dann rein vw-basiert -- jetzt zusaetzlich per min() an
+     vh gekoppelt, siehe .game-intro-list-Kommentar. */
+  font-size: clamp(0.28rem, min(1.313vw, 2.3vh), 1.68rem);
   line-height: 1.4;
 }
 
@@ -1446,9 +1478,13 @@ button {
   margin: 10px 0 0;
   padding-left: 24px;
   color: var(--text-muted);
-  /* War fix 1.35rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
-  font-size: clamp(0.476rem, 2.125vw, 2.72rem);
-  line-height: 1.45;
+  /* War fix 1.35rem, dann rein vw-basiert -- auf einem kurzen (aber nicht
+     unbedingt schmalen) Bildschirm schrumpfte die Anleitungs-Schrift dadurch
+     nicht mit, man musste trotzdem scrollen (gemeldeter/per Screenshot
+     belegter Bug, z. B. Huepftier-Metro-Anleitung mit 4 Stichpunkten).
+     Jetzt zusaetzlich per min() an vh gekoppelt. */
+  font-size: clamp(0.4rem, min(2.125vw, 3.6vh), 2.72rem);
+  line-height: 1.4;
 }
 
 .game-intro-list li {
@@ -1495,8 +1531,24 @@ button {
 .modal-actions {
   display: flex;
   gap: 10px;
-  margin-top: 16px;
+  /* War fix 16px -- auf einem sehr kurzen Bildschirm (z.B. Testgeraet
+     528x300) blieb dieser feste Abstand zusammen mit den ebenfalls fix
+     bemessenen .btn-Innenabstaenden (siehe .modal-actions .btn) einer der
+     Hauptgruende, warum ein Modal mit Bildschirmtastatur (z. B. Admin-
+     Login/-Bestaetigung) trotz bereits bis auf ihre technische Untergrenze
+     geschrumpfter Tastatur weiterhin scrollen musste (per Playwright-
+     Messung belegt, siehe OnScreenKeyboard.ts#fitLetterKeys). */
+  margin-top: clamp(4px, 2vh, 16px);
   justify-content: flex-end;
+}
+
+/* Nur fuer Buttons in dieser Zeile (typischerweise "Abbrechen" neben einer
+   Tastatur) -- der globale .btn-Innenabstand ist bewusst rein breiten-
+   basiert (siehe dortiger Kommentar) und schrumpft daher auf einem kurzen,
+   aber ausreichend breiten Bildschirm nicht mit. */
+.modal-actions .btn {
+  padding: clamp(4px, 1vh, 9px) clamp(10px, 2vw, 16px);
+  font-size: clamp(0.3rem, min(1.4vw, 2.2vh), 1rem);
 }
 
 /* ---------- Ticket-/Papier-Karten (VBB-Anleihen: Fahrschein-Look) ---------- */
@@ -1685,6 +1737,33 @@ button {
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
 }
 
+/* Buchstaben-/Sonderzeichentasten (Highscore-Name, Admin-Login, WLAN-
+   Passwort, ...): Hoehe/Schriftgroesse kommen jetzt als echte Messwerte von
+   OnScreenKeyboard.fitLetterKeys() (per ResizeObserver, gleiches Prinzip
+   wie beim Ziffernblock oben) statt aus einem reinen vh/vw-Clamp mit
+   44px-Sockel -- der liess die Tastatur auf kurzen Bildschirmen zusammen
+   mit Anzeigefeld/Modal-Polsterung ueber die verfuegbare Hoehe hinausragen,
+   das Modal musste dann gescrollt werden (gemeldeter Bug, Tastaturen sollen
+   nie scrollen muessen). Fallback-Werte greifen nur kurz vor der ersten
+   Messung. */
+.osk__letters .osk__key {
+  height: var(--osk-letter-key-size, clamp(44px, min(9.5vh, 6.5vw), 92px));
+  font-size: var(--osk-letter-font-size, clamp(0.462rem, min(3.667vh, 2.062vw), 2.64rem));
+}
+
+/* War bisher ein reines Block-Element ohne eigenen Zeilenabstand -- die
+   einzelnen Buchstaben-/Sonderzeichenreihen (.osk__row) stapelten sich
+   dadurch OHNE Luecke direkt uebereinander (anders als beim Ziffernblock,
+   dessen Reihen direkte Kinder von .osk sind und daher dessen Flex-Gap
+   erben). fitLetterKeys() geht von einem echten, wenn auch auf kleinen
+   Bildschirmen mitschrumpfenden Abstand aus (--osk-letter-row-gap), der
+   ohne dieses display:flex ins Leere gelaufen waere. */
+.osk__letters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--osk-letter-row-gap, 8px);
+}
+
 .osk__key:active {
   transform: translateY(2px);
   box-shadow: none;
@@ -1744,17 +1823,21 @@ button {
 .osk__numpad {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* Gleicher (mitschrumpfender) Zeilenabstand wie die Buchstabentasten
+     daneben, siehe --osk-letter-row-gap-Kommentar bei .osk__letters. */
+  gap: var(--osk-letter-row-gap, 8px);
   flex-shrink: 0;
   width: clamp(84px, 18.75vw, 336px);
 }
 
-/* Gleiche min(vh,vw)-Logik wie beim Hauptteil (siehe .osk__key oben) --
-   aus demselben Grund: reine vh-Bemessung ignoriert, wie schmal die
-   Spalte auf einem Hochformat-Bildschirm tatsaechlich ist. */
+/* Nutzt dieselbe gemessene Tastenhoehe/-schrift wie die Buchstabentasten
+   daneben (--osk-letter-key-size/-font-size, siehe .osk__letters .osk__key
+   oben und fitLetterKeys() in OnScreenKeyboard.ts) -- beide Spalten haben
+   dieselbe Zeilenzahl (4), sollen also auch optisch gleich hoch bleiben.
+   Fallback-Clamp greift nur kurz vor der ersten Messung. */
 .osk__numpad .osk__key {
-  height: clamp(40px, min(9.5vh, 6.5vw), 88px);
-  font-size: clamp(0.42rem, min(3.333vh, 1.875vw), 2.4rem);
+  height: var(--osk-letter-key-size, clamp(40px, min(9.5vh, 6.5vw), 88px));
+  font-size: var(--osk-letter-font-size, clamp(0.42rem, min(3.333vh, 1.875vw), 2.4rem));
 }
 
 .osk__row--center {
@@ -2034,6 +2117,18 @@ button {
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 12px 14px 12px;
   box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
+  /* Fehlte hier bisher komplett: ohne eigenes overflow-Verhalten rendern
+     Kind-Elemente (z.B. eine laengere Liste von Fahrtzielen bei
+     games/train-sim) bei "mehr Inhalt als max-height erlaubt" trotzdem in
+     ihrer natuerlichen Groesse -- die ueberschuessigen unteren Buttons
+     ragten dadurch UNTER den eigentlich hier endenden Rahmen hinaus und
+     kollidierten mit der Fussleiste/dem "praesentiert von"-Text darunter
+     (gemeldeter/per Screenshot belegter Bug, betrifft jedes Spiel mit
+     .stage-sheet: Zugsimulator, Weichenspiel, Zug-Quartett, ...). Jetzt
+     scrollt der ueberschuessige Teil stattdessen INNERHALB des Sheets.
+   */
+  overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .stage-center-panel {
@@ -2632,6 +2727,28 @@ button {
   overflow-y: auto;
   touch-action: pan-y;
   z-index: 15;
+}
+
+/* Wrapper um den kompletten "building"-Inhalt (Runden-Chips, Linienauswahl,
+   Buttons) -- wird von ui.ts#fitBuildingContent bei Bedarf per
+   transform:scale() verkleinert, siehe Kommentar dort. Uebernimmt die
+   Flex-Spalte+Gap, die vorher direkt auf .connection-puzzle-connections-zone
+   sass, damit die einzelnen Elemente darin weiterhin denselben Abstand
+   zueinander haben. */
+.connection-puzzle-building-content {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vh, 14px);
+  width: 100%;
+}
+
+/* War fix 0.72rem -- skaliert jetzt mit (die umgebende
+   .connection-puzzle-building-content wird bei Bedarf zusaetzlich als
+   Ganzes per transform:scale() verkleinert, siehe ui.ts#fitBuildingContent,
+   ein fixer Wert haette dort ohnehin nur die "natuerliche" Ausgangsgroesse
+   fuer die Messung verfaelscht). */
+.connection-puzzle-picker-label {
+  font-size: clamp(0.4rem, min(1.8vh, 3vw), 1.1rem);
 }
 
 /* ---------- Admin: Touchscreen-Test (core/admin/TouchTest.ts) ---------- */

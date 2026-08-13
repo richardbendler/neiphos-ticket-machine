@@ -105,12 +105,6 @@ function createCountPassengersGame(): MinigameModule {
   let countdown = COUNTDOWN_START;
   let started = false;
   let selectedLevel: SpeedLevel | null = null;
-  // Echt gemessen (siehe core/highscoreBanner.ts#measurePlayAreaTop), damit
-  // der auf dem Canvas gezeichnete Countdown-Text (siehe render()) nie unter
-  // die tatsaechliche Hoehe des Highscore-Banners rutscht -- Startwert 60 nur
-  // ein Platzhalter bis zum ersten selectSpeed()-Aufruf.
-  let cachedPlayAreaTop = 60;
-
   let speedPanel: HTMLDivElement;
   let panel: HTMLDivElement;
   let promptEl: HTMLDivElement;
@@ -170,7 +164,6 @@ function createCountPassengersGame(): MinigameModule {
   function selectSpeed(level: SpeedLevel): void {
     selectedLevel = level;
     highscoreBanner.update(getHighscoreBoard(GAME_ID, level.key));
-    cachedPlayAreaTop = measurePlayAreaTop();
     resetRound();
   }
 
@@ -531,12 +524,17 @@ function createCountPassengersGame(): MinigameModule {
         const titleFont = Math.max(11, Math.min(24, size.height * 0.05));
         const subFont = Math.max(9, Math.min(20, size.height * 0.042));
         const countdownFont = Math.max(36, Math.min(110, size.height * 0.2));
-        // Math.max mit cachedPlayAreaTop (echt gemessen, siehe selectSpeed())
-        // -- reine Bruchteile von size.height reichten nicht, sobald der
-        // Highscore-Banner tatsaechlich sichtbar ist: auf manchen
-        // Bildschirmgroessen/-verhaeltnissen lag "size.height*0.2" trotzdem
-        // noch UNTER dem Banner-Ende (gemeldeter/per Screenshot belegter Bug).
-        const titleY = Math.max(size.height * 0.2, cachedPlayAreaTop + 22);
+        // Math.max mit measurePlayAreaTop() -- reine Bruchteile von
+        // size.height reichten nicht, sobald der Highscore-Banner
+        // tatsaechlich sichtbar ist: auf manchen Bildschirmgroessen/
+        // -verhaeltnissen lag "size.height*0.2" trotzdem noch UNTER dem
+        // Banner-Ende (gemeldeter/per Screenshot belegter Bug). Bewusst JEDEN
+        // Frame frisch gemessen (nicht nur einmalig beim Rundenstart
+        // zwischengespeichert) -- render() laeuft ohnehin per rAF staendig,
+        // eine einzelne getBoundingClientRect()-Messung ist dabei vernach-
+        // laessigbar teuer, macht die Positionierung dafuer unabhaengig von
+        // JEDER moeglichen Reihenfolge-/Timing-Falle beim Banner-Update.
+        const titleY = Math.max(size.height * 0.2, measurePlayAreaTop() + 22);
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
         ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;

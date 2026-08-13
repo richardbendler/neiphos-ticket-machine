@@ -405,9 +405,10 @@ export function createTrainSpotterGame(): MinigameModule {
       // TILE_GRID_TOP_RESERVE in initTileGrid (Startposition des Rasters
       // darunter) passen.
       const timerFont = Math.max(22, Math.min(48, size.height * 0.058));
-      // Math.max mit cachedPlayAreaTop (echt gemessen, siehe beginRound())
-      // -- siehe games/count-passengers-Kommentar.
-      const timerY = Math.max(size.height * 0.22, cachedPlayAreaTop + 26);
+      // Math.max mit measurePlayAreaTop() -- jeden Frame frisch gemessen
+      // (nicht der bei beginRound() zwischengespeicherte Wert), siehe
+      // games/count-passengers-Kommentar.
+      const timerY = Math.max(size.height * 0.22, measurePlayAreaTop() + 26);
       if (phase === "playing" || phase === "done") {
         ctx.textAlign = "center";
         ctx.fillStyle = phase === "playing" ? theme.accent : theme.textFaint;

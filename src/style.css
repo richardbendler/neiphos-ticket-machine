@@ -57,17 +57,29 @@
 
   /* Hoehe der fixen Kopf-/Fussleiste (ohne Safe-Area-Inset) -- zentral
      definiert, damit Spielbuehnen-Layouts (stage-top-bar, stage-center-panel,
-     ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. */
-  --header-h: 86px;
-  /* War 54px -- die zusaetzliche (teils zweizeilig umbrechende)
+     ...) ihre Frei-Flaechen konsistent danach ausrichten koennen. War fix
+     86px -- auf ausdruecklichen Wunsch jetzt prozentual zur Bildschirmhoehe
+     (vh) statt eines starren Pixelwerts, damit die Leiste auf sehr kleinen
+     Kiosk-Displays nicht unverhaeltnismaessig viel Platz frisst und auf
+     sehr grossen nicht unverhaeltnismaessig duenn wirkt. Der clamp()-Bereich
+     ist so gewaehlt, dass bei einer "normalen" Kiosk-Bildschirmhoehe (~900px)
+     weiterhin ungefaehr der alte Wert herauskommt -- vh statt vw/min(), weil
+     dies eine reine VERTIKALE Abmessung ist (anders als z. B. Buttons, die
+     in beide Richtungen mitwachsen sollen). */
+  --header-h: clamp(56px, 9.5vh, 110px);
+  /* War fix 78px -- dieselbe Umstellung wie --header-h oben, aus demselben
+     Grund. Etwas kleinerer clamp()-Bereich als der Header (der Header traegt
+     zusaetzlich das groessere Logo, siehe .chrome-bar__logo), passend zum
+     urspruenglichen Groessenverhaeltnis der beiden Leisten zueinander.
+     Die zusaetzliche (teils zweizeilig umbrechende)
      ".chrome-footer-credit__line--wrap"-Zeile (Hinweis auf die Domain zum
-     Weiterspielen) macht den tatsaechlichen Fusszeilen-Inhalt seitdem hoeher
-     als das, wodurch er bei mehreren Spielen sichtbar mit deren unterster
-     Bedienleiste (z. B. .stage-sheet, Weichenspiel-Richtungsknoepfe)
-     ueberlappte (gemeldeter Bug) -- alle Spiel-Layouts richten sich zentral
-     nach dieser Variable aus, daher hier einmal erhoehen statt an jeder
-     einzelnen Stelle. */
-  --footer-h: 78px;
+     Weiterspielen) macht den tatsaechlichen Fusszeilen-Inhalt hoeher als
+     eine einzelne Textzeile, wodurch er bei mehreren Spielen sichtbar mit
+     deren unterster Bedienleiste (z. B. .stage-sheet, Weichenspiel-
+     Richtungsknoepfe) ueberlappte (gemeldeter Bug) -- alle Spiel-Layouts
+     richten sich zentral nach dieser Variable aus, daher hier einmal
+     angepasst statt an jeder einzelnen Stelle. */
+  --footer-h: clamp(48px, 8vh, 96px);
 
   /* Verfuegbare Hoehe der eigentlichen Spielflaeche (zwischen Kopf- und
      Fussleiste, Safe-Areas abgezogen) -- fuer Layouts, die diesen Bereich in
@@ -306,8 +318,15 @@ button {
   /* Logo-Datei wurde oben/unten auf die Schrift zugeschnitten (kein
      quadratisches Motiv mehr) -- deshalb nur noch die Hoehe vorgeben und
      die Breite ueber object-fit/das echte Seitenverhaeltnis mitwachsen
-     lassen, statt sie in eine quadratische Box zu zwaengen/verzerren. */
-  height: clamp(34px, 12.6vw, 67px);
+     lassen, statt sie in eine quadratische Box zu zwaengen/verzerren.
+     Zusaetzlich per min() an --header-h gekoppelt (72% davon) -- seit
+     --header-h selbst prozentual zur Bildschirmhoehe ist (siehe dortiger
+     Kommentar), reicht der reine vw-Anteil allein nicht mehr: auf einem
+     breiten, aber FLACHEN Bildschirm (z. B. 800x480) waere der Header dank
+     wenig vh-Hoehe schmaler, als das rein breitenbasierte Logo gross werden
+     wollte -- das Logo ragte dann sichtbar oben aus der Kopfleiste heraus
+     (beobachtet/gemeldeter Bug). */
+  height: clamp(28px, min(12.6vw, var(--header-h) * 0.72), 67px);
   width: auto;
   max-width: 40vw;
   object-fit: contain;
@@ -415,7 +434,8 @@ button {
   color: var(--accent-dark);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.62rem;
+  /* War fix 0.62rem -- skaliert jetzt mit, siehe .chrome-footer-btn-Kommentar. */
+  font-size: clamp(0.56rem, 2.2vw, 0.72rem);
   white-space: nowrap;
 }
 
@@ -425,12 +445,45 @@ button {
 
 .chrome-footer-paper-warn__icon {
   display: inline-flex;
-  width: 13px;
-  height: 13px;
+  width: clamp(11px, 2.8vw, 15px);
+  height: clamp(11px, 2.8vw, 15px);
   flex-shrink: 0;
 }
 
 .chrome-footer-paper-warn__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Ticket-Cooldown-Countdown unten links (siehe Router.ts#refreshCooldownBadge,
+   core/ticketCooldown.ts) -- gleiche Groesse/Optik wie die Papier-Warnung
+   direkt darueber, aber als echter Button (antippbar fuer die Erklaerung,
+   siehe core/ticketCooldown.ts#openTicketCooldownInfo). */
+.chrome-footer-cooldown-badge {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  /* War fix 0.62rem -- skaliert jetzt mit, siehe .chrome-footer-btn-Kommentar. */
+  font-size: clamp(0.56rem, 2.2vw, 0.72rem);
+  white-space: nowrap;
+}
+
+.chrome-footer-cooldown-badge__icon {
+  display: inline-flex;
+  width: clamp(11px, 2.8vw, 15px);
+  height: clamp(11px, 2.8vw, 15px);
+  flex-shrink: 0;
+}
+
+.chrome-footer-cooldown-badge__icon svg {
   width: 100%;
   height: 100%;
 }
@@ -446,7 +499,8 @@ button {
   color: var(--accent-dark);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.56rem;
+  /* War fix 0.56rem -- skaliert jetzt mit, siehe .chrome-footer-btn-Kommentar. */
+  font-size: clamp(0.5rem, 2vw, 0.66rem);
   white-space: nowrap;
 }
 
@@ -1043,8 +1097,13 @@ button {
   font-weight: 700;
   letter-spacing: 0.02em;
   border-radius: var(--radius-sm);
-  padding: 12px 22px;
-  font-size: 1rem;
+  /* War fix 12px 22px/1rem -- auf ausdruecklichen Wunsch jetzt prozentual
+     zur Bildschirmgroesse (vw) statt starrer px/rem-Werte, wie der Rest der
+     App (siehe z. B. .chrome-footer-btn). Die Bandbreite ist bewusst so
+     gewaehlt, dass bei einer "normalen" Kiosk-Bildschirmbreite weiterhin
+     ungefaehr die alten Werte herauskommen. */
+  padding: clamp(9px, 1.8vw, 16px) clamp(16px, 3.4vw, 28px);
+  font-size: clamp(0.85rem, 2.6vw, 1.15rem);
   color: var(--text);
   background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
@@ -1123,8 +1182,9 @@ button {
   background: linear-gradient(180deg, var(--primary-light), var(--primary));
   color: #ffffff;
   border: 2px solid var(--primary-dark);
-  font-size: 1.08rem;
-  padding: 15px 22px;
+  /* War fix 1.08rem/15px 22px -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  font-size: clamp(0.95rem, 2.8vw, 1.25rem);
+  padding: clamp(11px, 2.2vw, 19px) clamp(16px, 3.4vw, 28px);
   box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 4px rgba(31, 179, 196, 0.28);
   animation: hs-print-btn-pulse 1.8s ease-in-out infinite;
 }
@@ -1156,8 +1216,9 @@ button {
   background: linear-gradient(180deg, var(--primary-light), var(--primary));
   color: #ffffff;
   border: 2px solid var(--primary-dark);
-  font-size: 0.95rem;
-  padding: 12px 18px;
+  /* War fix 0.95rem/12px 18px -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+  padding: clamp(9px, 1.9vw, 15px) clamp(13px, 2.8vw, 22px);
 }
 
 .hs-save-only-btn:active {
@@ -1265,8 +1326,10 @@ button {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 32px;
-  height: 32px;
+  /* War fix 32x32px -- skaliert jetzt mit der Bildschirmgroesse (clamp mit
+     vw), Untergrenze bleibt aber ein bediengrosses Mindest-Antippziel. */
+  width: clamp(30px, 4.4vw, 42px);
+  height: clamp(30px, 4.4vw, 42px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1274,7 +1337,7 @@ button {
   border: 1px solid var(--panel-border);
   background: var(--panel-alt);
   color: var(--text-muted);
-  font-size: 1.1rem;
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
   line-height: 1;
   cursor: pointer;
   z-index: 5;
@@ -1287,13 +1350,15 @@ button {
 .modal-panel h2 {
   font-family: var(--font-display);
   margin: 0 0 4px;
-  font-size: 1.3rem;
+  /* War fix 1.3rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  font-size: clamp(1.1rem, 3vw, 1.55rem);
   color: var(--text);
 }
 
 .modal-panel p {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  /* War fix 0.9rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  font-size: clamp(0.8rem, 2.1vw, 1.05rem);
   line-height: 1.4;
 }
 
@@ -1304,7 +1369,8 @@ button {
   margin: 10px 0 0;
   padding-left: 24px;
   color: var(--text-muted);
-  font-size: 1.35rem;
+  /* War fix 1.35rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  font-size: clamp(1.05rem, 3.4vw, 1.7rem);
   line-height: 1.45;
 }
 
@@ -1318,13 +1384,14 @@ button {
 
 .field-input {
   width: 100%;
-  padding: 12px 14px;
+  /* War fix 12px 14px/1.1rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  padding: clamp(9px, 1.8vw, 15px) clamp(10px, 2.2vw, 17px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--btn-border);
   background: var(--panel-alt);
   color: var(--text);
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 2.8vw, 1.3rem);
   letter-spacing: 0.03em;
   outline: none;
 }
@@ -1335,7 +1402,8 @@ button {
 
 .field-error {
   color: var(--danger);
-  font-size: 0.85rem;
+  /* War fix 0.85rem -- skaliert jetzt mit, siehe .btn-Kommentar. */
+  font-size: clamp(0.75rem, 2vw, 1rem);
   min-height: 1.2em;
 }
 

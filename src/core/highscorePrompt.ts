@@ -5,6 +5,7 @@ import { playHighscoreOpenSound } from "./sound";
 import { printTicket, friendlyPrintErrorMessage, type TicketVariant, type TicketFields, type PrintTicketResult } from "./ticket";
 import type { TicketReasonKind } from "./ticketMethods";
 import { openPaperChangeInstructions } from "./paperChangeInstructions";
+import { getTicketCooldownRemainingMs, formatCooldownRemainingRough, recordTicketPrinted } from "./ticketCooldown";
 
 const TICKET_VARIANT_BY_REASON: Record<Exclude<TicketReasonKind, null>, TicketVariant> = {
   highscore: "highscore",
@@ -92,7 +93,24 @@ export function promptHighscoreName(opts: {
       // "nur speichern"-Weg (ohne Ticket) sitzt stattdessen als eigener,
       // bewusst weniger auffaelliger (kein Puls-Effekt mehr noetig, da die
       // Tastatur selbst schon den Ticket-Weg abdeckt) Button DARUNTER.
-      const ticketVariant = opts.ticketReason !== null ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
+      const rawTicketVariant = opts.ticketReason !== null ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
+      // Cooldown-Sperre (siehe core/ticketCooldown.ts): waehrend der Cooldown
+      // laeuft, verhaelt sich dieser Dialog so, als gaebe es gar keinen
+      // Ticket-Verdienstweg -- der Name/Highscore wird trotzdem ganz normal
+      // gespeichert (siehe onDone unten), nur der Ticket-Druck faellt fuer
+      // diese Runde weg. Ein kurzer Hinweis (siehe unten) erklaert, warum.
+      const cooldownRemainingMs = rawTicketVariant !== null ? getTicketCooldownRemainingMs() : 0;
+      const cooldownActive = cooldownRemainingMs > 0;
+      const ticketVariant = cooldownActive ? null : rawTicketVariant;
+
+      if (cooldownActive) {
+        const cooldownNote = document.createElement("p");
+        cooldownNote.style.fontSize = "0.85rem";
+        cooldownNote.style.color = "var(--text-muted)";
+        cooldownNote.textContent = `Ticket-Cooldown aktiv (${formatCooldownRemainingRough(cooldownRemainingMs)}) -- diesmal gibt es kein Ticket, dein Ergebnis wird aber trotzdem gespeichert.`;
+        panel.appendChild(cooldownNote);
+      }
+
       // Schuetzt vor einem doppelt ausgeloesten Druckauftrag durch einen
       // Ghost-Touch/Doppel-Tipp auf den Bestaetigen-Key (bekanntes Problem
       // auf diesem Touchscreen, siehe core/guardedClick.ts -- dieser Dialog
@@ -117,7 +135,14 @@ export function promptHighscoreName(opts: {
             // showTicketPrintResult zeigt seine Meldung dadurch sofort an,
             // waehrend im Hintergrund gedruckt wird -- siehe dortigen
             // Kommentar.
-            showTicketPrintResult(printTicket(ticketVariant, ticketFields), ticketVariant, ticketFields);
+            const printPromise = printTicket(ticketVariant, ticketFields);
+            // Startet den Cooldown erst bei WIRKLICH erfolgreichem Druck --
+            // ein fehlgeschlagener Versuch (z. B. Papier leer) hat kein
+            // Ticket ausgegeben, soll also auch keinen Cooldown auslösen.
+            void printPromise.then((result) => {
+              if (result.ok) recordTicketPrinted();
+            });
+            showTicketPrintResult(printPromise, ticketVariant, ticketFields);
           }
         },
       });
@@ -244,7 +269,10 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       retryBtn.addEventListener("click", () => {
         retryBtn.disabled = true;
         retryBtn.textContent = "Versucht erneut …";
-        void printTicket(variant, fields).then((retryResult) => render(retryResult));
+        void printTicket(variant, fields).then((retryResult) => {
+          if (retryResult.ok) recordTicketPrinted();
+          render(retryResult);
+        });
       });
       panel.appendChild(retryBtn);
       panel.appendChild(okBtn);

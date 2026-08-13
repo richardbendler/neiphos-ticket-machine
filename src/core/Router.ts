@@ -13,6 +13,7 @@ import { playHighscoreOpenSound } from "./sound";
 import { renderMainMenu } from "../menu/MainMenu";
 import { openFeedbackDialog } from "./feedbackPrompt";
 import { fetchUnreadFeedbackCount } from "./feedback";
+import { getTicketCooldownRemainingMs, formatCooldownCountdown, openTicketCooldownInfo } from "./ticketCooldown";
 import brandLogo from "../assets/brand/neiphos-logo.png";
 import type { GameEnv, MinigameModule } from "./Game";
 
@@ -264,6 +265,32 @@ export class Router {
     refreshPaperWarning();
     window.setInterval(refreshPaperWarning, 60_000);
 
+    // Ticket-Cooldown-Countdown (siehe core/ticketCooldown.ts) -- nur
+    // sichtbar, waehrend wirklich einer laeuft. Ein Tippen darauf oeffnet
+    // eine kurze Erklaerung, warum es diese Wartezeit gibt.
+    const cooldownBadge = document.createElement("button");
+    cooldownBadge.type = "button";
+    cooldownBadge.className = "chrome-footer-cooldown-badge";
+    cooldownBadge.style.display = "none";
+    const cooldownIcon = document.createElement("span");
+    cooldownIcon.className = "chrome-footer-cooldown-badge__icon";
+    cooldownIcon.innerHTML = icons.clock;
+    const cooldownText = document.createElement("span");
+    cooldownBadge.append(cooldownIcon, cooldownText);
+    guardedClick(cooldownBadge, () => openTicketCooldownInfo());
+
+    const refreshCooldownBadge = () => {
+      const remaining = getTicketCooldownRemainingMs();
+      if (remaining <= 0) {
+        cooldownBadge.style.display = "none";
+        return;
+      }
+      cooldownText.textContent = `Ticket-Cooldown: noch ${formatCooldownCountdown(remaining)}`;
+      cooldownBadge.style.display = "flex";
+    };
+    refreshCooldownBadge();
+    window.setInterval(refreshCooldownBadge, 1000);
+
     const notifyCol = document.createElement("div");
     notifyCol.style.display = "flex";
     notifyCol.style.flexDirection = "column";
@@ -273,7 +300,7 @@ export class Router {
     // der Text natuerlich am selben Rand wie die Fussleiste beginnt.
     notifyCol.style.alignItems = "flex-start";
     notifyCol.style.gap = "3px";
-    notifyCol.append(paperWarn, unreadBadge);
+    notifyCol.append(paperWarn, cooldownBadge, unreadBadge);
 
     // Auf ausdruecklichen Wunsch Seiten getauscht (war Feedback-Button
     // links/Meldungen rechts) -- angelehnt an die VBB-Vorlage, wo der

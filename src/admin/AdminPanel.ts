@@ -13,6 +13,7 @@ import { playHighscoreOpenSound } from "../core/sound";
 import { printTicket, printDiagnosticStrip, friendlyPrintErrorMessage } from "../core/ticket";
 import { openPaperChangeInstructions } from "../core/paperChangeInstructions";
 import { getTicketMethods, setTicketMethod, type TicketMethodSettings, MILESTONE_GAMES, type MilestoneGameDef, getMilestones, setMilestone } from "../core/ticketMethods";
+import { getTicketCooldownSettings, setTicketCooldownEnabled, setTicketCooldownMinutes } from "../core/ticketCooldown";
 import {
   isScreensaverEnabled,
   setScreensaverEnabled,
@@ -1054,6 +1055,96 @@ function renderTicketMethodsControl(): HTMLDivElement {
   return wrap;
 }
 
+/**
+ * Ticket-Cooldown -- auf ausdruecklichen Wunsch GANZ OBEN im Admin-Bereich
+ * (direkt unter der Ueberschrift, siehe renderAdminHome), damit man das als
+ * eine der ersten Einstellungen ueberhaupt sieht. Ein-/Ausschalter plus
+ * Minutenwert (Kommazahlen erlaubt, z. B. 1.5) -- siehe core/
+ * ticketCooldown.ts fuer die eigentliche Sperrlogik (core/highscorePrompt.ts)
+ * und den Countdown unten links in der Fussleiste (core/Router.ts).
+ */
+function renderTicketCooldownControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "18px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Ticket-Cooldown:";
+  wrap.appendChild(title);
+
+  const hint = document.createElement("p");
+  hint.style.fontSize = "0.78rem";
+  hint.style.color = "var(--text-faint)";
+  hint.style.margin = "0 0 10px";
+  hint.textContent =
+    "Nach jedem gedruckten Ticket kann für die eingestellte Zeit kein weiteres gedruckt werden (verhindert, dass sich jemand am Stück beliebig viele Tickets zieht). Highscores/Meilensteine werden davon unabhängig immer gespeichert.";
+  wrap.appendChild(hint);
+
+  const settings = getTicketCooldownSettings();
+
+  const enabledRow = document.createElement("label");
+  enabledRow.style.display = "flex";
+  enabledRow.style.alignItems = "center";
+  enabledRow.style.gap = "8px";
+  enabledRow.style.marginBottom = "8px";
+  enabledRow.style.cursor = "pointer";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = settings.enabled;
+  checkbox.style.width = "20px";
+  checkbox.style.height = "20px";
+
+  const enabledLabel = document.createElement("span");
+  enabledLabel.textContent = "Aktiviert";
+
+  enabledRow.append(checkbox, enabledLabel);
+  wrap.appendChild(enabledRow);
+
+  const minutesRow = document.createElement("div");
+  minutesRow.style.display = "flex";
+  minutesRow.style.alignItems = "center";
+  minutesRow.style.gap = "8px";
+
+  const minutesLabel = document.createElement("span");
+  minutesLabel.textContent = "Wartezeit";
+  minutesLabel.style.fontSize = "0.85rem";
+
+  const minutesInput = document.createElement("input");
+  minutesInput.type = "number";
+  minutesInput.inputMode = "decimal";
+  minutesInput.min = "0.1";
+  minutesInput.step = "0.5";
+  minutesInput.value = String(settings.minutes);
+  minutesInput.style.width = "5em";
+  minutesInput.disabled = !checkbox.checked;
+
+  const minutesUnit = document.createElement("span");
+  minutesUnit.textContent = "Minuten (Kommazahlen möglich)";
+  minutesUnit.style.fontSize = "0.85rem";
+
+  minutesRow.append(minutesLabel, minutesInput, minutesUnit);
+  wrap.appendChild(minutesRow);
+
+  checkbox.addEventListener("change", () => {
+    setTicketCooldownEnabled(checkbox.checked);
+    minutesInput.disabled = !checkbox.checked;
+  });
+
+  minutesInput.addEventListener("change", () => {
+    const minutes = Number(minutesInput.value.replace(",", "."));
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      minutesInput.value = String(getTicketCooldownSettings().minutes);
+      return;
+    }
+    setTicketCooldownMinutes(minutes);
+    minutesInput.value = String(getTicketCooldownSettings().minutes);
+  });
+
+  return wrap;
+}
+
 /** Untermenue zum Bearbeiten aller Meilenstein-Schwellwerte (ein Wert je Spiel, siehe core/ticketMethods.ts#MILESTONE_GAMES). */
 function openMilestonesModal(): void {
   openModal((panel, close) => {
@@ -1447,6 +1538,12 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
   const h2 = document.createElement("h2");
   h2.textContent = "Admin-Bereich";
   panel.appendChild(h2);
+
+  // --- Ticket-Cooldown -------------------------------------------------
+  // Auf ausdruecklichen Wunsch GANZ OBEN, direkt unter der Ueberschrift --
+  // noch vor dem Sync-Status (der stand bisher als einziges dort, siehe
+  // dessen Kommentar), siehe renderTicketCooldownControl.
+  panel.appendChild(renderTicketCooldownControl());
 
   // --- Sync-Status ---------------------------------------------------
   // Direkt unter der Ueberschrift (war frueher ganz unten, auf

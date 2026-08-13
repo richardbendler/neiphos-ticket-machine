@@ -1373,6 +1373,88 @@ button {
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
+/* ---------- Querformat-Sperre ---------- */
+
+/* Dieser Automat ist als Kiosk-Bildschirm fest im Querformat verbaut --
+   auf ausdruecklichen Wunsch soll die App bei einem (versehentlich oder
+   auf einem Testgeraet) hochkant stehenden Bildschirm komplett blockiert
+   werden, statt ein verzerrtes/unbrauchbares Layout zu zeigen. Rein
+   CSS-gesteuert per orientation-Media-Query (kein JS/ResizeObserver
+   noetig) -- reagiert dadurch sofort und zuverlaessig auf jede
+   Seitenverhaeltnis-Aenderung, auch wenn JS (aus welchem Grund auch immer)
+   noch nicht geladen ist. */
+.orientation-lock {
+  display: none;
+}
+
+@media (orientation: portrait) {
+  .orientation-lock {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4vh;
+    padding: 6vh 8vw;
+    background: var(--bezel-dark);
+    text-align: center;
+  }
+
+  /* Alles dahinter (App, Kopf-/Fussleiste, jedes Modal) verstecken UND aus
+     der Bedienbarkeit nehmen -- verhindert insbesondere, dass ein per
+     Tastatur/Screenreader fokussierbares Element im Hochformat trotzdem
+     erreichbar bliebe. */
+  #app,
+  .chrome-bar,
+  .chrome-footer-bar {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+.orientation-lock__icon {
+  width: min(22vw, 140px);
+  height: min(22vw, 140px);
+  color: #ffffff;
+  animation: orientation-lock-rotate 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes orientation-lock-rotate {
+  0%,
+  15% {
+    transform: rotate(0deg);
+  }
+  50%,
+  65% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+
+.orientation-lock__text {
+  margin: 0;
+  max-width: 90vw;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.1rem, 5.5vw, 1.9rem);
+  line-height: 1.35;
+}
+
+.orientation-lock__text span {
+  display: block;
+  margin-top: 1.2vh;
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: clamp(0.85rem, 3.6vw, 1.15rem);
+  color: rgba(255, 255, 255, 0.75);
+}
+
 /* ---------- Scrollbalken dezent (Touch-Kiosk braucht keine breiten Balken) ---------- */
 
 ::-webkit-scrollbar {
@@ -2044,7 +2126,7 @@ button {
 
 .seq-row {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: clamp(48px, 9vw, 84px) 1fr;
   align-items: stretch;
   gap: 6px;
   height: var(--seq-row-height, 24px);
@@ -2179,8 +2261,8 @@ button {
 
 .shutter-btn {
   appearance: none;
-  width: 148px;
-  height: 148px;
+  width: clamp(96px, 14vw, 160px);
+  height: clamp(96px, 14vw, 160px);
   border-radius: 50%;
   border: 6px solid #ffffff;
   background: linear-gradient(180deg, #ff6b57, var(--danger));
@@ -2197,8 +2279,8 @@ button {
 }
 
 .shutter-btn svg {
-  width: 64px;
-  height: 64px;
+  width: 43%;
+  height: 43%;
 }
 
 /* ---------- Berlin-Mini-Karte (Verbindungssuche) ---------- */
@@ -2690,8 +2772,8 @@ button {
    ausdruecklichen Wunsch ca. verdoppelt (war 30px). */
 .mm-clock {
   position: relative;
-  width: 58px;
-  height: 58px;
+  width: clamp(40px, 6vw, 66px);
+  height: clamp(40px, 6vw, 66px);
   flex-shrink: 0;
 }
 
@@ -2716,10 +2798,10 @@ button {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 3px;
-  height: 20px;
-  margin-left: -1.5px;
-  margin-top: -20px;
+  width: 5%;
+  height: 34%;
+  margin-left: -2.5%;
+  margin-top: -34%;
   background: var(--text);
   border-radius: 1px;
   transform-origin: 50% 100%;
@@ -2731,10 +2813,10 @@ button {
 
 .mm-clock__badge {
   position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 26px;
-  height: 26px;
+  right: -10%;
+  bottom: -10%;
+  width: 45%;
+  height: 45%;
   border-radius: 50%;
   background: var(--panel);
   color: var(--accent-dark);
@@ -2759,8 +2841,8 @@ button {
 }
 
 .mm-speed-btn {
-  width: 34px;
-  height: 34px;
+  width: clamp(30px, 4.4vw, 42px);
+  height: clamp(30px, 4.4vw, 42px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border);
   background: var(--panel);
@@ -2772,8 +2854,8 @@ button {
 }
 
 .mm-speed-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 55%;
+  height: 55%;
 }
 
 .mm-speed-btn--active {
@@ -2897,8 +2979,8 @@ button {
 }
 
 .mm-line-circle {
-  width: 34px;
-  height: 34px;
+  width: clamp(30px, 4.4vw, 42px);
+  height: clamp(30px, 4.4vw, 42px);
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.25);
   background: var(--mm-line-color, var(--primary));
@@ -2936,8 +3018,8 @@ button {
 }
 
 .mm-week-modal__badge {
-  width: 54px;
-  height: 54px;
+  width: clamp(42px, 8vw, 60px);
+  height: clamp(42px, 8vw, 60px);
   margin: 0 auto 6px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
@@ -2949,8 +3031,8 @@ button {
 }
 
 .mm-week-modal__badge svg {
-  width: 30px;
-  height: 30px;
+  width: 55%;
+  height: 55%;
 }
 
 /* Hoehere Spezifitaet (zwei Klassen) noetig, um ".modal-panel h2"/".modal-panel p"
@@ -3020,8 +3102,8 @@ button {
 }
 
 .mm-week-modal__btn svg {
-  width: 30px;
-  height: 30px;
+  width: clamp(24px, 4.5vw, 34px);
+  height: clamp(24px, 4.5vw, 34px);
   color: #6fc6ff;
 }
 

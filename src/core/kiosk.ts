@@ -95,6 +95,26 @@ export async function enterFullscreen(): Promise<void> {
       // das im Rahmen eines Touch-/Klick-Handlers aufrufen.
     }
   }
+  await lockLandscapeOrientation();
+}
+
+/**
+ * Best-effort Versuch, die Bildschirmausrichtung per Screen Orientation API
+ * fest auf Querformat zu stellen -- nur in wenigen Browsern (v.a. Chrome auf
+ * Android) und meist nur im Vollbild ueberhaupt verfuegbar/erlaubt. Die
+ * eigentliche, zuverlaessige Absicherung ist die rein CSS-basierte
+ * .orientation-lock-Sperre (siehe style.css), das hier ist nur ein
+ * zusaetzliches Bonbon, falls die Plattform es unterstuetzt.
+ */
+async function lockLandscapeOrientation(): Promise<void> {
+  const orientation = screen.orientation as ScreenOrientation & {
+    lock?: (o: string) => Promise<void>;
+  };
+  try {
+    await orientation?.lock?.("landscape");
+  } catch {
+    // Nicht unterstuetzt/verweigert -- kein Problem, siehe Kommentar oben.
+  }
 }
 
 export async function exitFullscreen(): Promise<void> {

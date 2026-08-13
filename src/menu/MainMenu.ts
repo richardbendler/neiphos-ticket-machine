@@ -49,7 +49,16 @@ const PORTRAIT_MAX_COLS = 3;
 // Kachelbreite, bei der Schrift/Icon in style.css ihre "normale" Groesse
 // (1.08rem/0.76rem/46px) haben -- der Skalierungsfaktor ist relativ dazu.
 const REFERENCE_TILE_WIDTH = 280;
-const MIN_SCALE = 0.5;
+// War 0.5 -- auf sehr kleinen/flachen Bildschirmen (z.B. 800x480, ein
+// gaengiges 5"-Kiosk-Display) konnten die Kacheln durch viele Spiele/
+// Cluster so schmal werden, dass die per 0.5 nach unten gedeckelte Schrift
+// nicht mehr in die Kachel passte -- Titel liefen oben/unten über den
+// eigenen (overflow:hidden) Rahmen hinaus (gemeldeter/beobachteter Bug).
+// Die Schrift MUSS proportional zur tatsaechlichen Kachelbreite bleiben,
+// damit sie auf JEDER Bildschirmgroesse in die Kachel passt -- ein
+// zusaetzlicher fixer Deckel widerspricht dem. Der neue, deutlich
+// niedrigere Wert ist nur noch eine Notbremse gegen Schriftgroesse 0.
+const MIN_SCALE = 0.22;
 // War 2.2 -- passend zur neuen MAX_TILE_WIDTH (840 = 280 * 3.0) angehoben,
 // damit Schrift/Icon auf sehr grossen Bildschirmen weiter mitwachsen statt
 // vorzeitig einzufrieren, waehrend die Kachel selbst noch breiter wird.

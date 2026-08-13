@@ -1546,6 +1546,19 @@ button {
 @media (max-width: 960px) {
   .modal-scrim:has(.modal-panel--keyboard) {
     padding: 0;
+    /* War auf den Bereich ZWISCHEN Kopf-/Fusszeile begrenzt (siehe
+       .modal-scrim-Kommentar oben, top/bottom-Reserve) -- auf ausdruecklichen
+       Wunsch darf die Tastatur auf Handybildschirmgroesse jetzt den
+       KOMPLETTEN Bildschirm einnehmen, Kopf-/Fusszeile mit eingeschlossen,
+       damit die Tasten selbst spuerbar hoeher werden koennen (vorher gemeldet:
+       "die sind grad ziemlich flach"). z-index hoeher als Kopf-/Fusszeile
+       (1100, siehe .chrome-bar/.chrome-footer-bar), damit die Tastatur
+       sichtbar DARUEBER liegt statt dahinter zu verschwinden -- genau dieser
+       Fall (Tastatur ueberdeckt alles) ist hier ausdruecklich erwuenscht,
+       anders als beim generischen .modal-scrim sonst. */
+    top: 0;
+    bottom: 0;
+    z-index: 1200;
   }
 
   .modal-panel--keyboard {

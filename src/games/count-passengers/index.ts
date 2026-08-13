@@ -505,16 +505,27 @@ function createCountPassengersGame(): MinigameModule {
         // Warten, bis der Anleitungs-Dialog bestaetigt bzw. eine
         // Geschwindigkeit gewaehlt wurde.
       } else if (phase === "countdown") {
+        // Schriftgroessen UND Y-Positionen waren hier frueher feste px-Werte
+        // (18/15/86px, trackY-170/-135/-40) -- auf einem sehr kurzen Canvas
+        // (kleiner Bildschirm) rutschte "trackY-170" dadurch ins Negative
+        // (ausserhalb des sichtbaren Canvas nach oben), der Text wirkte
+        // "abgeschnitten" (gemeldeter/per Screenshot belegter Bug). Jetzt
+        // relativ zur tatsaechlichen Canvas-Hoehe (mit Mindest-/Hoechstwert,
+        // damit die Schrift auf einem winzigen Canvas nicht unlesbar klein
+        // bzw. auf einem riesigen nicht absurd gross wird).
+        const titleFont = Math.max(11, Math.min(24, size.height * 0.05));
+        const subFont = Math.max(9, Math.min(20, size.height * 0.042));
+        const countdownFont = Math.max(36, Math.min(110, size.height * 0.2));
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
-        ctx.font = `700 18px ${theme.fontDisplay}`;
-        ctx.fillText("Zähle, wie viele Hüpftiere mit dem Zug fahren!", size.width / 2, trackY - 170);
-        ctx.font = `600 15px ${theme.font}`;
+        ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;
+        ctx.fillText("Zähle, wie viele Hüpftiere mit dem Zug fahren!", size.width / 2, size.height * 0.2);
+        ctx.font = `600 ${subFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Der Zug kommt gleich...", size.width / 2, trackY - 135);
-        ctx.font = `800 86px ${theme.fontDisplay}`;
+        ctx.fillText("Der Zug kommt gleich...", size.width / 2, size.height * 0.3);
+        ctx.font = `800 ${countdownFont}px ${theme.fontDisplay}`;
         ctx.fillStyle = theme.accent;
-        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, trackY - 40);
+        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, size.height * 0.47);
       } else if (phase === "running") {
         drawTrain(ctx, trainOffsetX, trackY);
         if (trainOffsetX > size.width) {

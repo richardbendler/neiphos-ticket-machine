@@ -87,9 +87,18 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   card.style.justifyContent = "center";
   card.style.padding = "clamp(6px, 1.8vh, 16px) clamp(16px, 3vw, 32px)";
   card.style.boxSizing = "border-box";
+  // Auf sehr kurzen Bildschirmen ist die feste Untergrenze der Schriften
+  // darunter (siehe roundInfo/startValue/... unten) manchmal trotzdem noch
+  // zu gross fuer die feste 20%-Zone (siehe .connection-puzzle-start-target-
+  // zone) -- overflow:hidden als Sicherheitsnetz, damit der Inhalt im
+  // Zweifel sauber abgeschnitten wird statt sichtbar in die Streckenkarten-
+  // Zone darueber bzw. die Linienauswahl darunter hineinzuragen (gemeldeter/
+  // per Screenshot belegter Bug: die Runden-/Versuchszeile ueberlagerte den
+  // gestreiften Kartenrand).
+  card.style.overflow = "hidden";
 
   const roundInfo = document.createElement("div");
-  roundInfo.style.fontSize = "clamp(0.85rem, calc(var(--game-area-h) * 0.032), 1.6rem)";
+  roundInfo.style.fontSize = "clamp(0.4rem, calc(var(--game-area-h) * 0.032), 1.6rem)";
   roundInfo.style.fontWeight = "700";
   roundInfo.style.color = "var(--paper-text)";
   roundInfo.style.letterSpacing = "0.06em";
@@ -113,7 +122,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   startCol.style.flex = "1";
   startCol.style.minWidth = "0";
   const startLabel = document.createElement("div");
-  startLabel.style.fontSize = "clamp(0.62rem, calc(var(--game-area-h) * 0.018), 1.1rem)";
+  startLabel.style.fontSize = "clamp(0.32rem, calc(var(--game-area-h) * 0.018), 1.1rem)";
   startLabel.style.color = "var(--paper-muted)";
   startLabel.style.letterSpacing = "0.1em";
   startLabel.style.textTransform = "uppercase";
@@ -122,7 +131,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   const startValue = document.createElement("div");
   startValue.style.fontFamily = "var(--font-display)";
   startValue.style.fontWeight = "800";
-  startValue.style.fontSize = "clamp(0.95rem, calc(var(--game-area-h) * 0.075), 3rem)";
+  startValue.style.fontSize = "clamp(0.5rem, calc(var(--game-area-h) * 0.075), 3rem)";
   startValue.style.overflow = "hidden";
   startValue.style.textOverflow = "ellipsis";
   startValue.style.whiteSpace = "nowrap";
@@ -132,7 +141,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
 
   const arrow = document.createElement("div");
   arrow.style.color = "var(--accent-dark)";
-  arrow.style.fontSize = "clamp(1.1rem, calc(var(--game-area-h) * 0.06), 2.4rem)";
+  arrow.style.fontSize = "clamp(0.55rem, calc(var(--game-area-h) * 0.06), 2.4rem)";
   arrow.style.flexShrink = "0";
   arrow.textContent = "→";
   row.appendChild(arrow);
@@ -141,7 +150,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   targetCol.style.flex = "1";
   targetCol.style.minWidth = "0";
   const targetLabel = document.createElement("div");
-  targetLabel.style.fontSize = "clamp(0.62rem, calc(var(--game-area-h) * 0.018), 1.1rem)";
+  targetLabel.style.fontSize = "clamp(0.32rem, calc(var(--game-area-h) * 0.018), 1.1rem)";
   targetLabel.style.color = "var(--paper-muted)";
   targetLabel.style.letterSpacing = "0.1em";
   targetLabel.style.textTransform = "uppercase";
@@ -150,7 +159,7 @@ function renderStartTarget(container: HTMLElement, state: ScreenState): void {
   const targetValue = document.createElement("div");
   targetValue.style.fontFamily = "var(--font-display)";
   targetValue.style.fontWeight = "800";
-  targetValue.style.fontSize = "clamp(0.95rem, calc(var(--game-area-h) * 0.075), 3rem)";
+  targetValue.style.fontSize = "clamp(0.5rem, calc(var(--game-area-h) * 0.075), 3rem)";
   targetValue.style.overflow = "hidden";
   targetValue.style.textOverflow = "ellipsis";
   targetValue.style.whiteSpace = "nowrap";
@@ -246,7 +255,7 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
   const resetBtn = document.createElement("button");
   resetBtn.type = "button";
   resetBtn.className = "btn btn--ghost";
-  resetBtn.style.fontSize = "clamp(0.9rem, 2.2vh, 1.25rem)";
+  resetBtn.style.fontSize = "clamp(0.55rem, 2.2vh, 1.25rem)";
   resetBtn.style.padding = "clamp(10px, 1.8vh, 18px) clamp(16px, 3vw, 28px)";
   resetBtn.textContent = "Auswahl leeren";
   resetBtn.disabled = state.selectedLines.length === 0;
@@ -256,7 +265,7 @@ function renderBreadcrumb(container: HTMLElement, state: ScreenState, actions: S
   const submitBtn = document.createElement("button");
   submitBtn.type = "button";
   submitBtn.className = "btn btn--accent";
-  submitBtn.style.fontSize = "clamp(0.9rem, 2.2vh, 1.25rem)";
+  submitBtn.style.fontSize = "clamp(0.55rem, 2.2vh, 1.25rem)";
   submitBtn.style.padding = "clamp(10px, 1.8vh, 18px) clamp(16px, 3vw, 28px)";
   submitBtn.textContent = "Fertig, prüfen";
   submitBtn.disabled = state.selectedLines.length === 0;
@@ -313,7 +322,7 @@ export function renderScreen(headerContainer: HTMLElement, container: HTMLElemen
     msg.style.textAlign = "center";
     msg.style.color = fb.success ? "var(--success)" : "var(--text)";
     msg.style.fontWeight = "700";
-    msg.style.fontSize = "clamp(0.95rem, calc(var(--game-area-h) * 0.032), 1.7rem)";
+    msg.style.fontSize = "clamp(0.5rem, calc(var(--game-area-h) * 0.032), 1.7rem)";
     msg.style.margin = "10px 0 4px";
     msg.textContent = fb.message;
     container.appendChild(msg);
@@ -324,7 +333,7 @@ export function renderScreen(headerContainer: HTMLElement, container: HTMLElemen
       score.style.color = "var(--accent)";
       score.style.fontFamily = "var(--font-display)";
       score.style.fontWeight = "700";
-      score.style.fontSize = "clamp(1.1rem, calc(var(--game-area-h) * 0.045), 2.2rem)";
+      score.style.fontSize = "clamp(0.6rem, calc(var(--game-area-h) * 0.045), 2.2rem)";
       score.textContent = `+${fb.scoreGained} Punkte`;
       container.appendChild(score);
     }
@@ -393,7 +402,7 @@ export function renderScreen(headerContainer: HTMLElement, container: HTMLElemen
     const score = document.createElement("p");
     score.style.textAlign = "center";
     score.style.fontFamily = "var(--font-display)";
-    score.style.fontSize = "clamp(1.6rem, calc(var(--game-area-h) * 0.07), 3.4rem)";
+    score.style.fontSize = "clamp(0.8rem, calc(var(--game-area-h) * 0.07), 3.4rem)";
     score.style.fontWeight = "800";
     score.style.color = "var(--accent)";
     score.style.margin = "10px 0 4px";

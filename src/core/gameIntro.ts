@@ -29,7 +29,7 @@ export function showGameIntro(opts: { title: string; description: string[]; star
     startBtn.type = "button";
     startBtn.className = "btn btn--accent";
     startBtn.style.width = "100%";
-    startBtn.style.marginTop = "12px";
+    startBtn.style.marginTop = "clamp(4px, 1.6vh, 12px)";
     startBtn.textContent = opts.startLabel ?? "Los geht's";
     startBtn.addEventListener("click", () => {
       close();

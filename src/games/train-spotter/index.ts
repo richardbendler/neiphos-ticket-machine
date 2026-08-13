@@ -331,15 +331,20 @@ export function createTrainSpotterGame(): MinigameModule {
 
       const wrap = document.createElement("div");
       wrap.className = "stage-center-panel";
-      // Extra Abstand oben (136px statt der Basis-30px aus .stage-center-panel),
-      // damit das Raster nicht unter die fix positionierte Highscore-Banner-
-      // Pille rutscht. Unten dieselbe zusaetzliche Luft (136-86=50px ueber die
-      // Kopfleiste hinaus, hier ebenso 50px ueber die Fussleiste hinaus) --
-      // sonst waere der Kasten wieder asymmetrisch und die Themen-/
-      // Fertig-Ansicht (die diese Reserve gar nicht braucht, sich den Kasten
-      // aber mit dem Raster teilt) sichtbar zu tief zentriert (gemeldeter Bug).
-      wrap.style.top = "calc(var(--header-h) + 136px + var(--safe-top))";
-      wrap.style.bottom = "calc(var(--footer-h) + 50px + var(--safe-bottom))";
+      // Extra Abstand oben, damit das Raster nicht unter die Highscore-
+      // Banner-Pille + den auf dem Canvas gezeichneten Timer/Hinweistext
+      // rutscht (siehe render(), timerY/instructionFont dort). War ein
+      // fixer 136px-Zuschlag -- kollidierte auf kleinen Bildschirmen, weil
+      // Banner/Timer/Hinweistext inzwischen selbst prozentual (vh-basiert)
+      // positioniert sind, ein fixer px-Zuschlag hier aber nicht mitwuchs/
+      // -schrumpfte (gemeldeter/per Screenshot belegter Bug). Jetzt ebenfalls
+      // vh-basiert, etwas grosszuegiger als die tatsaechliche Textposition
+      // (siehe render()) als Sicherheitsabstand. Unten proportional dazu
+      // etwas mehr Luft als der .stage-center-panel-Standard, damit der
+      // Kasten fuer die Themen-/Fertig-Ansicht (teilt sich denselben Wrap,
+      // braucht diese Reserve aber nicht) nicht sichtbar zu tief wirkt.
+      wrap.style.top = "calc(var(--header-h) + 30vh + var(--safe-top))";
+      wrap.style.bottom = "calc(var(--footer-h) + 6vh + var(--safe-bottom))";
       wrap.appendChild(gridHost);
       wrap.appendChild(doneOverlay);
       wrap.appendChild(themeOverlay);
@@ -376,22 +381,30 @@ export function createTrainSpotterGame(): MinigameModule {
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
 
+      // Schriftgroesse UND Y-Position waren hier frueher feste px-Werte
+      // (40/15px, y=175/208) -- auf einem kurzen Canvas (kleiner Bildschirm)
+      // war die Highscore-Banner-Pille (sitzt jetzt selbst prozentual knapp
+      // unter dem Header) an einer anderen Stelle als hier fest angenommen,
+      // wodurch Timer/Hinweistext sichtbar mit dem darunter liegenden
+      // Kachelraster kollidierten (gemeldeter/per Screenshot belegter Bug).
+      // Jetzt relativ zur tatsaechlichen Canvas-Hoehe -- muss zum
+      // TILE_GRID_TOP_RESERVE in initTileGrid (Startposition des Rasters
+      // darunter) passen.
+      const timerFont = Math.max(22, Math.min(48, size.height * 0.058));
+      const timerY = size.height * 0.22;
       if (phase === "playing" || phase === "done") {
         ctx.textAlign = "center";
         ctx.fillStyle = phase === "playing" ? theme.accent : theme.textFaint;
-        ctx.font = `700 40px ${theme.fontDisplay}`;
-        // y=175 statt 140: bei aktivem Highscore-Banner (sitzt fix knapp
-        // unter dem Header) ragte die groessere Schrift sonst in die
-        // Banner-Pille hinein.
-        ctx.fillText(formatTime(elapsed), size.width / 2, 175);
+        ctx.font = `700 ${timerFont}px ${theme.fontDisplay}`;
+        ctx.fillText(formatTime(elapsed), size.width / 2, timerY);
       }
 
       if (phase === "playing") {
-        // Vorher 11px -- auf ausdruecklichen Wunsch groesser, war kaum lesbar.
-        ctx.font = `700 15px ${theme.font}`;
+        const instructionFont = Math.max(11, Math.min(18, size.height * 0.022));
+        ctx.font = `700 ${instructionFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
         const label = contentTheme === "trains" ? "Tippe Züge und Bahnen an" : "Tippe alle Hüpftiere an";
-        ctx.fillText(`${label}${remainingTargets > 0 ? ` (noch ${remainingTargets})` : ""}`, size.width / 2, 208);
+        ctx.fillText(`${label}${remainingTargets > 0 ? ` (noch ${remainingTargets})` : ""}`, size.width / 2, timerY + size.height * 0.055);
       }
     },
 

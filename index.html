@@ -43,12 +43,13 @@
   </head>
   <body>
     <div id="app"></div>
-    <div id="orientation-lock" class="orientation-lock" aria-hidden="true">
+    <div id="orientation-lock" class="orientation-lock">
       <svg class="orientation-lock__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <rect x="5" y="2" width="14" height="20" rx="2.4" />
         <path d="M9.5 19h1" />
       </svg>
-      <p class="orientation-lock__text">Bitte Gerät drehen<br /><span>Dieser Fahrkartenautomat ist nur im Querformat nutzbar.</span></p>
+      <p class="orientation-lock__text">Am besten im Querformat<br /><span>Dieser Fahrkartenautomat funktioniert im Querformat am besten.</span></p>
+      <button type="button" id="orientation-lock-dismiss" class="orientation-lock__dismiss">Trotzdem im Hochformat weiter</button>
     </div>
     <script type="module" src="./src/main.ts"></script>
   </body>

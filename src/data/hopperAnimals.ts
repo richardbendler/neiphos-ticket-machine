@@ -32,6 +32,17 @@
  * ueberall in der App weissen/hellen Hintergrund praktisch unsichtbar
  * (gemeldet).
  *
+ * "unicorn-white", "rabbit-cream" und "caterpillar-mint" wurden aus
+ * demselben Grund wie "cow-white" oben ENTFERNT, aber mit einem zusaetzlichen
+ * Defekt: der Flood-Fill (siehe Kommentar unten) lief beim Freistellen vom
+ * Bildrand ausgehend ungehindert INS TIER hinein, weil deren Koerper fast
+ * genauso hell/weiss wie der Studio-Hintergrund war -- der komplette Koerper
+ * wurde dadurch transparent, uebrig blieben nur einzelne farbige Details
+ * (Maehne/Halstuch/Punkte), der Rest nur noch eine duenne Kontur (gemeldeter
+ * Bug: "Teile des Huepftiers entfernt"). Ohne die urspruenglichen,
+ * unbearbeiteten Fotos liess sich das nicht reparieren -- ersatzlos entfernt
+ * statt kaputt angezeigt.
+ *
  * Alle Bilder liegen als transparente PNGs vor (per Flood-Fill vom Bildrand
  * freigestellt, siehe scratch-Skript der Bearbeitungs-Session -- die
  * urspruenglichen Fotos hatten einen fast-weissen/-grauen Studio-Hintergrund
@@ -42,7 +53,6 @@
  */
 import dogTealUrl from "../assets/images/hoppers/hopper-dog-teal.png";
 import caterpillarGreenUrl from "../assets/images/hoppers/hopper-caterpillar-green.png";
-import caterpillarMintUrl from "../assets/images/hoppers/hopper-caterpillar-mint.png";
 import horseBlueUrl from "../assets/images/hoppers/hopper-horse-blue.png";
 import horseBrownUrl from "../assets/images/hoppers/hopper-horse-brown.png";
 import horseChestnutUrl from "../assets/images/hoppers/hopper-horse-chestnut.png";
@@ -61,10 +71,8 @@ import giraffeYellowUrl from "../assets/images/hoppers/hopper-giraffe-yellow.png
 import giraffeBrownUrl from "../assets/images/hoppers/hopper-giraffe-brown.png";
 import cowPinkUrl from "../assets/images/hoppers/hopper-cow-pink.png";
 import cowGreenUrl from "../assets/images/hoppers/hopper-cow-green.png";
-import rabbitCreamUrl from "../assets/images/hoppers/hopper-rabbit-cream.png";
 import elephantGrayUrl from "../assets/images/hoppers/hopper-elephant-gray.png";
 import horseRedUrl from "../assets/images/hoppers/hopper-horse-red.png";
-import unicornWhiteUrl from "../assets/images/hoppers/hopper-unicorn-white.png";
 import foxOrangeUrl from "../assets/images/hoppers/hopper-fox-orange.png";
 import llamaBrownUrl from "../assets/images/hoppers/hopper-llama-brown.png";
 import beeYellowUrl from "../assets/images/hoppers/hopper-bee-yellow.png";
@@ -81,7 +89,6 @@ export interface HopperAnimalCard {
 export const hopperAnimalCards: HopperAnimalCard[] = [
   { id: "dog-teal", name: "Hüpftier-Hund (türkis)", image: dogTealUrl },
   { id: "caterpillar-green", name: "Hüpftier-Raupe (grün)", image: caterpillarGreenUrl },
-  { id: "caterpillar-mint", name: "Hüpftier-Raupe (mint)", image: caterpillarMintUrl },
   { id: "horse-blue", name: "Hüpftier-Pferd (blau)", image: horseBlueUrl },
   { id: "horse-brown", name: "Hüpftier-Pferd (braun)", image: horseBrownUrl },
   { id: "horse-chestnut", name: "Hüpftier-Pferd (kastanienbraun)", image: horseChestnutUrl },
@@ -100,10 +107,8 @@ export const hopperAnimalCards: HopperAnimalCard[] = [
   { id: "giraffe-brown", name: "Hüpftier-Giraffe (braun)", image: giraffeBrownUrl },
   { id: "cow-pink", name: "Hüpftier-Kuh (pink)", image: cowPinkUrl },
   { id: "cow-green", name: "Hüpftier-Kuh (grün)", image: cowGreenUrl },
-  { id: "rabbit-cream", name: "Hüpftier-Hase (creme)", image: rabbitCreamUrl },
   { id: "elephant-gray", name: "Hüpftier-Elefant (grau)", image: elephantGrayUrl },
   { id: "horse-red", name: "Hüpftier-Pferd (rot)", image: horseRedUrl },
-  { id: "unicorn-white", name: "Hüpftier-Einhorn (weiß)", image: unicornWhiteUrl },
   { id: "fox-orange", name: "Hüpftier-Fuchs (orange)", image: foxOrangeUrl },
   { id: "llama-brown", name: "Hüpftier-Lama (braun)", image: llamaBrownUrl },
   { id: "bee-yellow", name: "Hüpftier-Biene (gelb)", image: beeYellowUrl },

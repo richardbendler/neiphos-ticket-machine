@@ -418,16 +418,56 @@ export class OnScreenKeyboard {
     const rows = 5;
     const rowGap = 6;
     const colGap = 6;
+    // Vertikaler Abstand ZWISCHEN den Reihen kommt aus dem "gap" der
+    // ".osk"-Flex-Spalte selbst (siehe style.css) -- ein eigener, fixer
+    // Wert, unabhaengig von --osk-row-gap (das steuert nur den
+    // HORIZONTALEN Abstand zwischen Tasten INNERHALB einer Reihe).
+    const rowGapVertical = 8;
     const width = this.el.clientWidth;
     if (width <= 0) return;
     const widthBasedSize = (width - colGap * (cols - 1)) / cols;
-    // Zusaetzlich an der Fensterhoehe orientieren, sonst kann die (nur
-    // breitenbasiert berechnete) Tastatur auf kurzen/breiten Bildschirmen
-    // zusammen hoeher werden als der Bildschirm selbst und unten
-    // rausragen, statt zu schrumpfen.
-    const heightBasedSize = (window.innerHeight * 0.4 - rowGap * (rows - 1)) / rows;
+    // Zusaetzlich an der tatsaechlich verfuegbaren Hoehe orientieren, sonst
+    // kann die (nur breitenbasiert berechnete) Tastatur auf kurzen/breiten
+    // Bildschirmen zusammen hoeher werden als der Bildschirm selbst und
+    // unten rausragen, statt zu schrumpfen. War lange nur "40% der
+    // Fensterhoehe" geschaetzt -- passte nicht, sobald ueber der Tastatur
+    // (z.B. Frage + "Anzahl"-Anzeigefeld, siehe games/count-passengers)
+    // schon selbst nennenswert Platz verbraucht war, die Tasten ragten dann
+    // trotzdem unten heraus (gemeldeter/per Screenshot belegter Bug). Jetzt
+    // ECHT gemessen: von der Unterkante des Anzeigefelds (this.display, auch
+    // ein Kind von this.el -- NICHT this.el selbst, das war der eigentliche
+    // Fehler in einer ersten Fassung: this.el.top liegt VOR dem Anzeigefeld,
+    // dessen Hoehe fehlte dadurch komplett im Budget) bis zum unteren Rand
+    // des naechsten scrollbaren Vorfahren (z.B. .stage-center-panel/
+    // .stage-sheet) -- NICHT bis zur Fussleiste, deren eigener CSS-
+    // "bottom"-Versatz nicht zwangslaeufig mit dem des tatsaechlichen
+    // Panel-Containers uebereinstimmt.
+    const contentTop = this.display.getBoundingClientRect().bottom;
+    let scrollAncestor: HTMLElement | null = this.el.parentElement;
+    while (scrollAncestor && scrollAncestor !== document.body) {
+      const overflowY = getComputedStyle(scrollAncestor).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") break;
+      scrollAncestor = scrollAncestor.parentElement;
+    }
+    const limitBottom =
+      scrollAncestor && scrollAncestor !== document.body
+        ? scrollAncestor.getBoundingClientRect().bottom
+        : (document.querySelector(".chrome-footer-bar")?.getBoundingClientRect().top ?? window.innerHeight);
+    // "- 18" statt "- 8": zusaetzlich zum Sicherheitsabstand faellt zwischen
+    // Anzeigefeld und Tastenblock noch dessen eigener marginBottom (10px)
+    // UND der Flex-"gap" von ".osk" (8px) an -- beides zusammen 18px, die
+    // sonst im Budget fehlten und die Tastatur trotz "echter" Messung noch
+    // ein Stueck zu gross werden liessen.
+    const availableHeight = Math.max(0, limitBottom - contentTop - 18);
+    const heightBasedSize = (availableHeight - rowGapVertical * (rows - 1)) / rows;
     const size = Math.floor(Math.min(widthBasedSize, heightBasedSize));
-    const clamped = Math.max(50, Math.min(110, size));
+    // War Math.max(50, ...) -- auf einem sehr kurzen Bildschirm liess dieser
+    // Komfort-Sockel die Tastatur trotz obiger Messung nicht mehr genug
+    // schrumpfen und ragte weiterhin ueber den Bildschirmrand (gleiches
+    // Bug-Muster wie an anderer Stelle in der App, siehe style.css-
+    // Kommentar am Dateianfang) -- jetzt nur noch eine kleine technische
+    // Notbremse.
+    const clamped = Math.max(14, Math.min(110, size));
     this.el.style.setProperty("--osk-key-size", `${clamped}px`);
     this.el.style.setProperty("--osk-row-gap", `${rowGap}px`);
   }

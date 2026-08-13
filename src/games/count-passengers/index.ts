@@ -6,7 +6,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { buildMenuButton } from "../../core/menuButton";
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
-import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
+import { mountHighscoreBanner, measurePlayAreaTop, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 import { startTrainChug, stopTrainChug, preloadTrainChug } from "../../core/sound";
 import { registerGame } from "../registry";
@@ -105,6 +105,11 @@ function createCountPassengersGame(): MinigameModule {
   let countdown = COUNTDOWN_START;
   let started = false;
   let selectedLevel: SpeedLevel | null = null;
+  // Echt gemessen (siehe core/highscoreBanner.ts#measurePlayAreaTop), damit
+  // der auf dem Canvas gezeichnete Countdown-Text (siehe render()) nie unter
+  // die tatsaechliche Hoehe des Highscore-Banners rutscht -- Startwert 60 nur
+  // ein Platzhalter bis zum ersten selectSpeed()-Aufruf.
+  let cachedPlayAreaTop = 60;
 
   let speedPanel: HTMLDivElement;
   let panel: HTMLDivElement;
@@ -121,17 +126,22 @@ function createCountPassengersGame(): MinigameModule {
     speedPanel.innerHTML = "";
     speedPanel.style.display = phase === "speed-select" ? "flex" : "none";
     if (phase !== "speed-select") return;
+    // Echt gemessen statt der CSS-Standardposition von .stage-center-panel
+    // ueberlassen -- die kollidiert (unabhaengig von der Bildschirmgroesse)
+    // strukturell mit dem Highscore-Banner, siehe core/highscoreBanner.ts#
+    // measurePlayAreaTop (gleiches Muster wie games/memory, games/train-quartet).
+    speedPanel.style.top = `${measurePlayAreaTop() + 8}px`;
 
     const title = document.createElement("div");
     title.className = "stage-sheet__title";
-    title.style.fontSize = "1rem";
+    title.style.fontSize = "clamp(0.6rem, 2.6vh, 1.1rem)";
     title.style.color = "var(--text)";
     title.textContent = "Wie schnell soll der Zug fahren?";
     speedPanel.appendChild(title);
 
     const desc = document.createElement("p");
     desc.style.color = "var(--text-muted)";
-    desc.style.fontSize = "0.85rem";
+    desc.style.fontSize = "clamp(0.5rem, 2.1vh, 0.9rem)";
     desc.style.margin = "0 0 4px";
     desc.textContent = "Je höher die Stufe, desto schwerer lässt sich die Anzahl der Hüpftiere noch erfassen.";
     speedPanel.appendChild(desc);
@@ -160,6 +170,7 @@ function createCountPassengersGame(): MinigameModule {
   function selectSpeed(level: SpeedLevel): void {
     selectedLevel = level;
     highscoreBanner.update(getHighscoreBoard(GAME_ID, level.key));
+    cachedPlayAreaTop = measurePlayAreaTop();
     resetRound();
   }
 
@@ -228,13 +239,17 @@ function createCountPassengersGame(): MinigameModule {
       return;
     }
     panel.style.display = "flex";
+    // Echt gemessen statt der CSS-Standardposition -- siehe
+    // renderSpeedPanel()-Kommentar.
+    panel.style.top = `${measurePlayAreaTop() + 8}px`;
 
     if (phase === "input") {
       promptEl = document.createElement("div");
       promptEl.className = "stage-sheet__title";
       // Deutlich groesser als der Standard-Titel (0.85-1rem) -- das ist die
       // zentrale Frage der Eingabephase, soll auf Anhieb ins Auge fallen.
-      promptEl.style.fontSize = "1.35rem";
+      // War fix 1.35rem -- skaliert jetzt mit, siehe .btn-Kommentar in style.css.
+      promptEl.style.fontSize = "clamp(0.65rem, 3.6vh, 1.5rem)";
       promptEl.style.fontWeight = "800";
       promptEl.textContent = "Wie viele Hüpftiere hast du gezählt?";
       panel.appendChild(promptEl);
@@ -516,16 +531,22 @@ function createCountPassengersGame(): MinigameModule {
         const titleFont = Math.max(11, Math.min(24, size.height * 0.05));
         const subFont = Math.max(9, Math.min(20, size.height * 0.042));
         const countdownFont = Math.max(36, Math.min(110, size.height * 0.2));
+        // Math.max mit cachedPlayAreaTop (echt gemessen, siehe selectSpeed())
+        // -- reine Bruchteile von size.height reichten nicht, sobald der
+        // Highscore-Banner tatsaechlich sichtbar ist: auf manchen
+        // Bildschirmgroessen/-verhaeltnissen lag "size.height*0.2" trotzdem
+        // noch UNTER dem Banner-Ende (gemeldeter/per Screenshot belegter Bug).
+        const titleY = Math.max(size.height * 0.2, cachedPlayAreaTop + 22);
         ctx.fillStyle = theme.text;
         ctx.textAlign = "center";
         ctx.font = `700 ${titleFont}px ${theme.fontDisplay}`;
-        ctx.fillText("Zähle, wie viele Hüpftiere mit dem Zug fahren!", size.width / 2, size.height * 0.2);
+        ctx.fillText("Zähle, wie viele Hüpftiere mit dem Zug fahren!", size.width / 2, titleY);
         ctx.font = `600 ${subFont}px ${theme.font}`;
         ctx.fillStyle = theme.textMuted;
-        ctx.fillText("Der Zug kommt gleich...", size.width / 2, size.height * 0.3);
+        ctx.fillText("Der Zug kommt gleich...", size.width / 2, titleY + size.height * 0.1);
         ctx.font = `800 ${countdownFont}px ${theme.fontDisplay}`;
         ctx.fillStyle = theme.accent;
-        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, size.height * 0.47);
+        ctx.fillText(`${Math.max(1, Math.ceil(countdown))}`, size.width / 2, titleY + size.height * 0.27);
       } else if (phase === "running") {
         drawTrain(ctx, trainOffsetX, trackY);
         if (trainOffsetX > size.width) {

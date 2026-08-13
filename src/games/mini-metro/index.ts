@@ -544,12 +544,19 @@ export function createMiniMetroGame(): MinigameModule {
     const pivot = getCameraPivot(size);
     const left = pivot.x - w / 2;
     const top = pivot.y - h / 2;
+    // clusterRadius (siehe INITIAL_CLUSTER_RADIUS) ist ein fixer Wert --
+    // auf einem kleinen Bildschirm konnte der sichtbare Weltbereich (w/h,
+    // beide jetzt selbst prozentual) kleiner sein als dieser Radius, die
+    // drei Start-Haltestellen "poppten" dadurch teilweise ausserhalb des
+    // sichtbaren Bereichs auf (gemeldeter/per Screenshot belegter Bug).
+    // Hier zusaetzlich an den tatsaechlich verfuegbaren Platz gedeckelt.
+    const boundedClusterRadius = clusterRadius !== undefined ? Math.min(clusterRadius, (Math.min(w, h) / 2) * 0.85) : undefined;
     for (let attempt = 0; attempt < 30; attempt++) {
       let x: number;
       let y: number;
-      if (clusterRadius !== undefined) {
+      if (boundedClusterRadius !== undefined) {
         const angle = Math.random() * Math.PI * 2;
-        const r = Math.random() * clusterRadius;
+        const r = Math.random() * boundedClusterRadius;
         x = pivot.x + Math.cos(angle) * r;
         y = pivot.y + Math.sin(angle) * r;
       } else {

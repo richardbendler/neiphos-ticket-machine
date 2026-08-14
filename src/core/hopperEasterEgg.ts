@@ -21,6 +21,10 @@ const WALK_DURATION_S = 9;
 // schon relativ klein sein, ein Fuenftel so hoch wie der Header".
 const HOPPER_SIZE_RATIO = 0.2;
 const MIN_HOPPER_SIZE_PX = 14;
+// Auf ausdruecklichen Wunsch ("noch ein kleines bisschen groesser") ist die
+// klickbare Flaeche groesser als das sichtbare Bild -- das Tier bleibt
+// optisch gleich gross, der Button drumherum hat unsichtbaren Rand.
+const HIT_PADDING_PX = 10;
 
 function measureHopperSize(): number {
   const header = document.querySelector(".chrome-bar");
@@ -118,18 +122,21 @@ function spawnHopper(): void {
   const card = hopperAnimalCards[Math.floor(Math.random() * hopperAnimalCards.length)];
   const leftToRight = Math.random() < 0.5;
 
+  const hitSize = hopperSize + HIT_PADDING_PX * 2;
   const el = document.createElement("button");
   el.type = "button";
   el.className = `hopper-easter-egg ${leftToRight ? "hopper-easter-egg--ltr" : "hopper-easter-egg--rtl"}`;
-  el.style.top = `${Math.round(choice.centerY - hopperSize / 2)}px`;
-  el.style.width = `${hopperSize}px`;
-  el.style.height = `${hopperSize}px`;
+  el.style.top = `${Math.round(choice.centerY - hitSize / 2)}px`;
+  el.style.width = `${hitSize}px`;
+  el.style.height = `${hitSize}px`;
   el.style.setProperty("--hopper-duration", `${WALK_DURATION_S}s`);
   el.setAttribute("aria-label", "Verstecktes Hüpftier");
 
   const img = document.createElement("img");
   img.src = card.image;
   img.alt = "";
+  img.style.width = `${hopperSize}px`;
+  img.style.height = `${hopperSize}px`;
   el.appendChild(img);
 
   const catchHopper = (): void => {

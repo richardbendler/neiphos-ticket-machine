@@ -3233,7 +3233,12 @@ button {
   z-index: 1150;
   /* Breite/Hoehe kommen als Inline-Style von hopperEasterEgg.ts
      (measureHopperSize) -- prozentual zur echten Kopfleisten-Hoehe statt
-     eines festen Pixelwerts, siehe dortigen Kommentar. */
+     eines festen Pixelwerts, siehe dortigen Kommentar. Die klickbare Flaeche
+     (hitSize) ist dabei bewusst groesser als das sichtbare Bild (siehe
+     HIT_PADDING_PX) -- deshalb hier per Flex zentriert statt img auf 100%. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: none;
   background: transparent;
@@ -3246,8 +3251,8 @@ button {
 
 .hopper-easter-egg img {
   display: block;
-  width: 100%;
-  height: 100%;
+  /* Breite/Hoehe kommen als Inline-Style von hopperEasterEgg.ts (sichtbare
+     Groesse, kleiner als die klickbare Flaeche des Buttons drumherum). */
   object-fit: contain;
   animation: hopper-easter-egg-bounce 0.5s ease-in-out infinite;
 }

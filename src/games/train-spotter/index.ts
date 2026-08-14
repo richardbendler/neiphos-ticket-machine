@@ -90,6 +90,10 @@ export function createTrainSpotterGame(): MinigameModule {
   // Echt gemessen (siehe core/highscoreBanner.ts#measurePlayAreaTop) --
   // gleiches Muster wie games/count-passengers.
   let cachedPlayAreaTop = 60;
+  // Fuer den vh-proportionalen Reserve-Abstand in beginRound() -- muss exakt
+  // zur Timer-/Hinweistext-Position in render() passen (dort ueber size.height
+  // berechnet), siehe dortigen Kommentar.
+  let cachedCanvasHeight = 800;
 
   let gridHost: HTMLDivElement;
   let gridWrap: HTMLDivElement;
@@ -307,8 +311,17 @@ export function createTrainSpotterGame(): MinigameModule {
     cachedPlayAreaTop = measurePlayAreaTop();
     // Ersetzt den anfaenglichen vh-Schaetzwert (siehe init()) durch die jetzt
     // bekannte echte Banner-Position + Reserve fuer Timer/Hinweistext (siehe
-    // render(), timerY dort) -- praeziser als eine reine vh-Vermutung.
-    gridWrap.style.top = `${cachedPlayAreaTop + 26 + 55}px`;
+    // render(), timerY/instructionY dort) -- praeziser als eine reine
+    // vh-Vermutung. Beide Summanden sind bewusst proportional zur
+    // Canvas-Hoehe (nicht mehr feste px-Werte) und rechnen exakt dieselbe
+    // Formel wie render() nach -- vorher fixe "+26+55"-Zuschlaege, die auf
+    // hohen Bildschirmen (grosser timerFont/instructionFont, siehe render())
+    // nicht mehr reichten: Raster ueberdeckte dann sichtbar Timer UND
+    // Hinweistext darunter (gemeldeter Bug).
+    const timerY = Math.max(cachedCanvasHeight * 0.22, cachedPlayAreaTop + 26);
+    const instructionFont = Math.max(11, Math.min(18, cachedCanvasHeight * 0.022));
+    const instructionY = timerY + cachedCanvasHeight * 0.055;
+    gridWrap.style.top = `${Math.round(instructionY + instructionFont * 1.3)}px`;
     cells = buildGrid(contentTheme);
     remainingTargets = cells.filter((c) => c.isTarget).length;
     elapsed = 0;
@@ -342,6 +355,7 @@ export function createTrainSpotterGame(): MinigameModule {
 
     init(env: GameEnv) {
       exitGame = env.exit;
+      cachedCanvasHeight = env.size.height;
       gridHost = document.createElement("div");
       gridHost.className = "tile-grid";
 
@@ -415,6 +429,7 @@ export function createTrainSpotterGame(): MinigameModule {
       const { ctx, size } = env;
       ctx.fillStyle = theme.bg;
       ctx.fillRect(0, 0, size.width, size.height);
+      cachedCanvasHeight = size.height;
 
       // Schriftgroesse UND Y-Position waren hier frueher feste px-Werte
       // (40/15px, y=175/208) -- auf einem kurzen Canvas (kleiner Bildschirm)
@@ -422,9 +437,8 @@ export function createTrainSpotterGame(): MinigameModule {
       // unter dem Header) an einer anderen Stelle als hier fest angenommen,
       // wodurch Timer/Hinweistext sichtbar mit dem darunter liegenden
       // Kachelraster kollidierten (gemeldeter/per Screenshot belegter Bug).
-      // Jetzt relativ zur tatsaechlichen Canvas-Hoehe -- muss zum
-      // TILE_GRID_TOP_RESERVE in initTileGrid (Startposition des Rasters
-      // darunter) passen.
+      // Jetzt relativ zur tatsaechlichen Canvas-Hoehe -- muss zur Formel in
+      // beginRound() (Startposition des Kachelrasters darunter) passen.
       const timerFont = Math.max(22, Math.min(48, size.height * 0.058));
       // Math.max mit measurePlayAreaTop() -- jeden Frame frisch gemessen
       // (nicht der bei beginRound() zwischengespeicherte Wert), siehe

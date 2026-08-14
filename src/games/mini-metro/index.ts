@@ -7,7 +7,7 @@ import { getHighscoreBoard, getHighscoreOutcome, recordHighscore } from "../../c
 import { promptHighscoreName } from "../../core/highscorePrompt";
 import { mountHighscoreBanner, type HighscoreBannerHandle } from "../../core/highscoreBanner";
 import { buildMenuButton } from "../../core/menuButton";
-import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound, playRandomStationAnnouncement } from "../../core/sound";
+import { startTrainChug, stopTrainChug, playHighscoreOpenSound, playStationPopSound, playRandomStationAnnouncement, stopStationAnnouncements } from "../../core/sound";
 import { checkTicketEligibility, isTicketEligible, describeTicketReason, primaryTicketReason, recordDailyBestIfApplicable } from "../../core/ticketMethods";
 import { hopperAnimalCards } from "../../data/hopperAnimals";
 
@@ -2822,6 +2822,14 @@ export function createMiniMetroGame(): MinigameModule {
 
     cleanup() {
       stopTrainChug();
+      // Sonst kann eine bis zu ~22s lange Bahnhofsansage nach dem Verlassen
+      // des Spiels ueber das Hauptmenue hinweg weiterlaufen (auf ausdrueck-
+      // lichen Wunsch: die Geraeuschkulisse soll beim Zurueckgehen ins Menue
+      // sofort verstummen und danach standardmaessig aus bleiben, bis man sie
+      // in der naechsten Runde wieder manuell anschaltet -- Letzteres ist
+      // schon dadurch gegeben, dass announcementsEnabled hier als lokale
+      // Closure-Variable bei jedem frischen Spielstart neu mit false beginnt).
+      stopStationAnnouncements();
       cancelActiveResourceDrag?.();
       if (highscoreTimer) clearTimeout(highscoreTimer);
       highscoreTimer = null;

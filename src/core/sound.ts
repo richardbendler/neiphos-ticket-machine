@@ -310,6 +310,12 @@ let lastAnnouncementIndex = -1;
 // Ein uebersprungener Zeitpunkt (weil noch "busy") wird einfach ausgelassen,
 // der naechste kommt regulaer 7-13s spaeter.
 let stationAnnouncementBusy = false;
+// Laeuft gerade eine Ansage (bis zu ca. 22s lang, siehe Kommentar oben), wird
+// sie hier gehalten -- damit stopStationAnnouncements() sie beim Verlassen
+// der Huepftier-Metro sofort abwuergen kann, statt ueber den Hauptmenue-
+// Bildschirm hinweg weiterzulaufen (gemeldeter Bug: "Geraeuschkulisse laeuft
+// nach Rueckkehr ins Menue weiter").
+let activeAnnouncementSource: AudioBufferSourceNode | null = null;
 
 export function playRandomStationAnnouncement(): void {
   if (stationAnnouncementBusy) return;
@@ -330,11 +336,30 @@ export function playRandomStationAnnouncement(): void {
       source.connect(gain).connect(ctx.destination);
       source.onended = () => {
         stationAnnouncementBusy = false;
+        if (activeAnnouncementSource === source) activeAnnouncementSource = null;
       };
+      activeAnnouncementSource = source;
       source.start();
     },
     () => {
       stationAnnouncementBusy = false; // Ladefehler soll die Kulisse nicht dauerhaft blockieren
     },
   );
+}
+
+/**
+ * Bricht eine gerade laufende Bahnhofsansage sofort ab -- beim Verlassen der
+ * Huepftier-Metro aufzurufen (siehe games/mini-metro/index.ts#cleanup), damit
+ * eine lange Ansage nicht ueber den Hauptmenue-Bildschirm hinweg weiterlaeuft.
+ */
+export function stopStationAnnouncements(): void {
+  if (activeAnnouncementSource) {
+    try {
+      activeAnnouncementSource.stop();
+    } catch {
+      // Kann schon von selbst zu Ende gelaufen sein -- kein Problem.
+    }
+    activeAnnouncementSource = null;
+  }
+  stationAnnouncementBusy = false;
 }

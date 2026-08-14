@@ -525,15 +525,31 @@ function createTrainPhotoGame(): MinigameModule {
     // Pixelwerts, bleibt dadurch auf JEDER Bildschirmgroesse ein spuerbares
     // Stueck vom echten Rand entfernt.
     const shortSide = Math.min(size.width, size.height);
-    const inset = shortSide * 0.07;
+    const xInset = shortSide * 0.07;
+    // Das Canvas liegt HINTER Kopf-/Fussleiste (siehe .game-stage/.game-stage
+    // canvas in style.css -- beide position:fixed/inset:0, Chrome-Leisten mit
+    // hoeherem z-index obendrauf), oben/unten reicht der reine
+    // shortSide-Anteil deshalb allein nicht: auf schmalen (Hochformat-)
+    // Bildschirmen ist shortSide die Breite, die Kopf-/Fussleisten-Hoehe aber
+    // an der Bildschirm-HOEHE bemessen -- die obere/untere Ecke sass dadurch
+    // teils sichtbar unter der Kopf- bzw. Fussleiste (gemeldeter Bug). Echt
+    // gemessen statt geschaetzt, gleiches Muster wie
+    // core/highscoreBanner.ts#measurePlayAreaTop.
+    const header = document.querySelector(".chrome-bar");
+    const footer = document.querySelector(".chrome-footer-bar");
+    const headerH = header ? header.getBoundingClientRect().height : size.height * 0.095;
+    const footerH = footer ? footer.getBoundingClientRect().height : size.height * 0.08;
+    const clearance = size.height * 0.025;
+    const topInset = Math.max(xInset, headerH + clearance);
+    const bottomInset = Math.max(xInset, footerH + clearance);
     const armLen = shortSide * 0.1;
     ctx.strokeStyle = "rgba(255,255,255,0.55)";
     ctx.lineWidth = 3;
     const corners: Array<[number, number, number, number]> = [
-      [inset, inset, 1, 1],
-      [size.width - inset, inset, -1, 1],
-      [inset, size.height - inset, 1, -1],
-      [size.width - inset, size.height - inset, -1, -1],
+      [xInset, topInset, 1, 1],
+      [size.width - xInset, topInset, -1, 1],
+      [xInset, size.height - bottomInset, 1, -1],
+      [size.width - xInset, size.height - bottomInset, -1, -1],
     ];
     for (const [ccx, ccy, dx, dy] of corners) {
       ctx.beginPath();

@@ -1462,9 +1462,31 @@ function openWifiNetworksModal(
 ): void {
   openModal((panel, close) => {
     addCloseCorner(panel, close);
+
+    // Auf ausdruecklichen Wunsch: neu suchen OHNE das Fenster erst schliessen
+    // und ueber den Scan-Button im Admin-Bereich dahinter neu oeffnen zu
+    // muessen -- gerade beim Festival-Szenario (Handy-Hotspot etc.) will man
+    // oft mehrfach direkt hintereinander neu scannen.
+    const titleRow = document.createElement("div");
+    titleRow.style.display = "flex";
+    titleRow.style.alignItems = "center";
+    titleRow.style.justifyContent = "space-between";
+    titleRow.style.gap = "8px";
+
     const h2 = document.createElement("h2");
+    h2.style.margin = "0";
     h2.textContent = "WLAN-Netzwerke";
-    panel.appendChild(h2);
+    titleRow.appendChild(h2);
+
+    const refreshBtn = document.createElement("button");
+    refreshBtn.type = "button";
+    refreshBtn.className = "btn btn--ghost";
+    refreshBtn.style.fontSize = "0.76rem";
+    refreshBtn.style.padding = "4px 10px";
+    refreshBtn.textContent = "Aktualisieren";
+    titleRow.appendChild(refreshBtn);
+
+    panel.appendChild(titleRow);
 
     const modalStatus = document.createElement("p");
     modalStatus.style.fontSize = "0.82rem";
@@ -1479,47 +1501,75 @@ function openWifiNetworksModal(
     list.style.overflowY = "auto";
     panel.appendChild(list);
 
-    if (networks.length === 0) {
-      const empty = document.createElement("p");
-      empty.style.fontSize = "0.78rem";
-      empty.style.color = "var(--text-faint)";
-      empty.textContent = "Keine Netzwerke gefunden.";
-      list.appendChild(empty);
+    function renderList(nets: Array<{ ssid: string; signal: number; secured: boolean; inUse: boolean; known: boolean }>): void {
+      list.innerHTML = "";
+      if (nets.length === 0) {
+        const empty = document.createElement("p");
+        empty.style.fontSize = "0.78rem";
+        empty.style.color = "var(--text-faint)";
+        empty.textContent = "Keine Netzwerke gefunden.";
+        list.appendChild(empty);
+      }
+      for (const net of nets) {
+        const netBtn = document.createElement("button");
+        netBtn.type = "button";
+        netBtn.className = "btn btn--ghost";
+        netBtn.style.width = "100%";
+        netBtn.style.justifyContent = "space-between";
+        netBtn.style.fontSize = "0.82rem";
+        const lock = net.secured ? "🔒 " : "";
+        const marker = net.inUse ? " (aktuell)" : net.known ? " (bekannt)" : "";
+        netBtn.textContent = `${lock}${net.ssid}${marker} — ${net.signal}%`;
+        guardedClick(netBtn, () => {
+          if (net.inUse) return;
+          if (net.secured && !net.known) {
+            promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, modalStatus, onConnected));
+            return;
+          }
+          // Bekanntes Netzwerk: nmcli hat bereits ein gespeichertes Profil
+          // mit Zugangsdaten -- ohne Passwort verbinden aktiviert dieses
+          // automatisch (siehe server/serve.js#getKnownWifiSsids). Klappt
+          // das bei einem gesicherten Netzwerk ausnahmsweise nicht (z. B.
+          // Passwort beim Access Point zwischenzeitlich geaendert), als
+          // Fallback ganz normal danach fragen statt nur eine
+          // Fehlermeldung anzuzeigen. Bei offenen Netzwerken gibt es kein
+          // sinnvolles Fallback -- dort wie gehabt die Fehlermeldung zeigen.
+          connectWifi(
+            net.ssid,
+            "",
+            modalStatus,
+            onConnected,
+            net.secured ? () => promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, modalStatus, onConnected)) : undefined,
+          );
+        });
+        list.appendChild(netBtn);
+      }
     }
-    for (const net of networks) {
-      const netBtn = document.createElement("button");
-      netBtn.type = "button";
-      netBtn.className = "btn btn--ghost";
-      netBtn.style.width = "100%";
-      netBtn.style.justifyContent = "space-between";
-      netBtn.style.fontSize = "0.82rem";
-      const lock = net.secured ? "🔒 " : "";
-      const marker = net.inUse ? " (aktuell)" : net.known ? " (bekannt)" : "";
-      netBtn.textContent = `${lock}${net.ssid}${marker} — ${net.signal}%`;
-      guardedClick(netBtn, () => {
-        if (net.inUse) return;
-        if (net.secured && !net.known) {
-          promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, modalStatus, onConnected));
-          return;
-        }
-        // Bekanntes Netzwerk: nmcli hat bereits ein gespeichertes Profil
-        // mit Zugangsdaten -- ohne Passwort verbinden aktiviert dieses
-        // automatisch (siehe server/serve.js#getKnownWifiSsids). Klappt
-        // das bei einem gesicherten Netzwerk ausnahmsweise nicht (z. B.
-        // Passwort beim Access Point zwischenzeitlich geaendert), als
-        // Fallback ganz normal danach fragen statt nur eine
-        // Fehlermeldung anzuzeigen. Bei offenen Netzwerken gibt es kein
-        // sinnvolles Fallback -- dort wie gehabt die Fehlermeldung zeigen.
-        connectWifi(
-          net.ssid,
-          "",
-          modalStatus,
-          onConnected,
-          net.secured ? () => promptWifiPassword(net.ssid, (password) => connectWifi(net.ssid, password, modalStatus, onConnected)) : undefined,
-        );
-      });
-      list.appendChild(netBtn);
-    }
+
+    renderList(networks);
+
+    // guardedClick statt addEventListener("click", ...): derselbe Grund wie
+    // beim Scan-Button im Admin-Bereich dahinter (siehe renderWifiControl)
+    // -- ein WLAN-Scan stoesst serverseitig einen "nmcli ... --rescan yes"-
+    // Aufruf an (bis zu 15s Timeout), mehrfaches Spam-Klicken soll nicht
+    // mehrere gleichzeitig laufende Scans anstossen.
+    guardedClick(refreshBtn, () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = "Suche läuft …";
+      modalStatus.textContent = "";
+      fetch("./api/system/wifi/scan", { headers: systemAdminHeaders() })
+        .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+        .then((data: { networks: Array<{ ssid: string; signal: number; secured: boolean; inUse: boolean; known: boolean }> }) => {
+          renderList(data.networks);
+        })
+        .catch(() => {
+          modalStatus.textContent = "❌ Netzwerksuche fehlgeschlagen.";
+        })
+        .finally(() => {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Aktualisieren";
+        });
+    });
 
     const backBtn = document.createElement("button");
     backBtn.type = "button";

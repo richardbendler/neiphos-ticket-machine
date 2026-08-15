@@ -122,6 +122,25 @@ export async function resetHighscoresOnServer(): Promise<boolean> {
   }
 }
 
+/**
+ * Entfernt EINEN einzelnen Highscore-Eintrag auch auf dem Server (siehe
+ * core/storage.ts#removeHighscoreEntry fuer die lokale Seite) -- fuer den
+ * Admin-Bereich, "bestimmte Highscores loeschen" (z. B. anstoessiger Name).
+ * Gibt wie resetHighscoresOnServer zurueck, ob es wirklich geklappt hat.
+ */
+export async function deleteHighscoreEntryOnServer(gameId: string, board: string, entry: HighscoreEntry): Promise<boolean> {
+  try {
+    const res = await fetch("./api/highscores/delete-entry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...adminHeaders() },
+      body: JSON.stringify({ gameId, board, ...entry }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ------------------------------------------------------------------ Statistik
 
 export function pushStatsSession(session: PlaySession): void {

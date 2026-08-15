@@ -2,10 +2,17 @@ import { openModal } from "../core/modal";
 import { OnScreenKeyboard } from "../core/OnScreenKeyboard";
 import { enterFullscreen, exitFullscreen, isFullscreenActive, exitKioskBrowser } from "../core/kiosk";
 import { summarizeSessions, filterSessionsForGame, getAllSessions, clearAllStats, type GameSummary, type PlaySession } from "../core/stats";
-import { clearHighscoreBoard, isGameEnabled, setGameEnabled } from "../core/storage";
+import { clearHighscoreBoard, removeHighscoreEntry, getHighscoreBoard, isGameEnabled, setGameEnabled, type HighscoreEntry } from "../core/storage";
 import { fetchFeedback, markFeedbackRead, deleteFeedback, deleteAllFeedback, countUnread, type FeedbackEntry } from "../core/feedback";
 import { setAdminSession, clearAdminSession, getAdminSession } from "../core/adminSession";
-import { pullSettingsFromServer, pullStatsFromServer, resetHighscoresOnServer, resetStatsOnServer, checkServerSyncStatus } from "../core/sync";
+import {
+  pullSettingsFromServer,
+  pullStatsFromServer,
+  resetHighscoresOnServer,
+  deleteHighscoreEntryOnServer,
+  resetStatsOnServer,
+  checkServerSyncStatus,
+} from "../core/sync";
 import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
@@ -1450,6 +1457,141 @@ function connectWifi(ssid: string, password: string, status: HTMLElement, onDone
 }
 
 /**
+ * Fenster zum gezielten Loeschen EINZELNER Highscore-Eintraege (z. B.
+ * anstoessiger Name), auf ausdruecklichen Wunsch aehnlich aufgebaut wie das
+ * Highscore-Board im Hauptmenue (menu/HighscoreBoard.ts) -- hier bewusst
+ * simpler (einfache Liste statt dessen Mehrspalten-Layout-Loeser), weil das
+ * ein reines Admin-Werkzeug ist, keine praesentable Bildschirmanzeige.
+ * Zeigt JEDES Spiel mit mindestens einem Eintrag auf irgendeinem seiner
+ * Boards, pro Eintrag ein "Entfernen"-Button.
+ */
+function openDeleteHighscoresModal(): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "Bestimmte Highscores löschen";
+    panel.appendChild(h2);
+
+    const hint = paragraph("Entfernt genau diesen einen Namenseintrag (z. B. bei einem anstößigen Namen) -- der Rest des jeweiligen Boards bleibt erhalten.");
+    hint.style.fontSize = "0.78rem";
+    hint.style.color = "var(--text-muted)";
+    panel.appendChild(hint);
+
+    // Eigene, von der Liste unabhaengige Status-Zeile fuer Server-Fehler --
+    // die Liste selbst wird bei jedem Loeschen per render() komplett neu
+    // aufgebaut (siehe unten), ein an einer Zeilen-Schaltflaeche verankerter
+    // Fehlerhinweis (showServerActionError) waere dabei sofort mit
+    // verschwunden, noch bevor er sichtbar werden konnte.
+    const modalStatus = document.createElement("p");
+    modalStatus.style.fontSize = "0.78rem";
+    modalStatus.style.minHeight = "1.2em";
+    panel.appendChild(modalStatus);
+
+    const list = document.createElement("div");
+    list.style.display = "flex";
+    list.style.flexDirection = "column";
+    list.style.gap = "14px";
+    list.style.maxHeight = "55vh";
+    list.style.overflowY = "auto";
+    panel.appendChild(list);
+
+    function render(): void {
+      list.innerHTML = "";
+      let anyEntry = false;
+
+      for (const game of gameRegistry) {
+        for (const category of game.highscoreCategories ?? []) {
+          const board = getHighscoreBoard(game.id, category.board);
+          if (!board || board.entries.length === 0) continue;
+          anyEntry = true;
+
+          const section = document.createElement("div");
+          const sectionTitle = document.createElement("p");
+          sectionTitle.style.fontWeight = "700";
+          sectionTitle.style.fontSize = "0.85rem";
+          sectionTitle.style.margin = "0 0 6px";
+          sectionTitle.textContent = `${game.title}${category.label && category.board !== "default" ? ` — ${category.label}` : ""}`;
+          section.appendChild(sectionTitle);
+
+          for (const entry of board.entries) {
+            section.appendChild(buildHighscoreEntryRow(game.id, category.board, entry, category.formatValue, render, modalStatus));
+          }
+          list.appendChild(section);
+        }
+      }
+
+      if (!anyEntry) {
+        const empty = document.createElement("p");
+        empty.style.fontSize = "0.82rem";
+        empty.style.color = "var(--text-faint)";
+        empty.textContent = "Aktuell keine Highscores vorhanden.";
+        list.appendChild(empty);
+      }
+    }
+    render();
+
+    const backBtn = document.createElement("button");
+    backBtn.type = "button";
+    backBtn.className = "btn btn--accent";
+    backBtn.style.width = "100%";
+    backBtn.style.marginTop = "14px";
+    backBtn.textContent = "Zurück";
+    backBtn.addEventListener("click", close);
+    panel.appendChild(backBtn);
+  });
+}
+
+function buildHighscoreEntryRow(
+  gameId: string,
+  board: string,
+  entry: HighscoreEntry,
+  formatValue: (value: number) => string,
+  onDeleted: () => void,
+  statusEl: HTMLElement,
+): HTMLDivElement {
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.justifyContent = "space-between";
+  row.style.gap = "8px";
+  row.style.padding = "6px 0";
+  row.style.borderBottom = "1px solid var(--panel-border)";
+
+  const label = document.createElement("span");
+  label.style.fontSize = "0.82rem";
+  label.style.overflow = "hidden";
+  label.style.textOverflow = "ellipsis";
+  label.style.whiteSpace = "nowrap";
+  label.textContent = `${entry.name} — ${formatValue(entry.value)} (${formatDateTime(entry.achievedAt)})`;
+  row.appendChild(label);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "btn btn--ghost";
+  deleteBtn.style.fontSize = "0.72rem";
+  deleteBtn.style.padding = "3px 9px";
+  deleteBtn.style.flexShrink = "0";
+  deleteBtn.textContent = "Entfernen";
+  deleteBtn.addEventListener("click", () => {
+    confirmSimple(`„${entry.name}“ (${formatValue(entry.value)}) aus diesem Highscore-Board entfernen?`, "Ja, entfernen", () => {
+      removeHighscoreEntry(gameId, board, entry);
+      statusEl.textContent = "";
+      onDeleted();
+      void deleteHighscoreEntryOnServer(gameId, board, entry).then((ok) => {
+        if (!ok) {
+          statusEl.textContent =
+            "❌ Auf dem Server konnte dieser Eintrag nicht gelöscht werden (z. B. abgelaufene Admin-Sitzung) -- lokal ist er trotzdem entfernt. Bitte Admin-Bereich neu öffnen und erneut versuchen.";
+          statusEl.style.color = "var(--danger)";
+        }
+      });
+    });
+  });
+  row.appendChild(deleteBtn);
+
+  return row;
+}
+
+/**
  * Eigenes Unterfenster fuer die Scan-Ergebnisse -- vorher wuchs die Liste
  * direkt im Admin-Bereich nach unten mit, was den ohnehin schon vollen
  * Bildschirm bei vielen gefundenen Netzwerken regelrecht sprengte
@@ -1813,6 +1955,18 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
     );
   });
   panel.appendChild(highscoreResetBtn);
+
+  // Auf ausdruecklichen Wunsch: gezielt EINEN Highscore-Eintrag entfernen
+  // koennen (z. B. anstoessiger Name), ohne gleich das ganze Board wie oben
+  // zuruecksetzen zu muessen.
+  const highscoreDeleteOneBtn = document.createElement("button");
+  highscoreDeleteOneBtn.type = "button";
+  highscoreDeleteOneBtn.className = "btn btn--ghost";
+  highscoreDeleteOneBtn.style.fontSize = "0.8rem";
+  highscoreDeleteOneBtn.style.marginLeft = "8px";
+  highscoreDeleteOneBtn.textContent = "Bestimmte Highscores löschen";
+  highscoreDeleteOneBtn.addEventListener("click", () => openDeleteHighscoresModal());
+  panel.appendChild(highscoreDeleteOneBtn);
 
   // --- Ticket-Verdienstwege ---------------------------------------------
   panel.appendChild(renderTicketMethodsControl());

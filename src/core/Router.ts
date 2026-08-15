@@ -224,6 +224,8 @@ export class Router {
       <span class="chrome-footer-credit__line chrome-footer-credit__line--sub">Freitag 22:30 Uhr - Trashfloor</span>
       <span class="chrome-footer-credit__line chrome-footer-credit__line--wrap">Du willst im Camp oder in Berlin weiterspielen? Das kannst du auf neiphos.blankiball.de tun</span>
     `;
+    // versionLabel (siehe unten) wird erst NACH diesem innerHTML-Aufruf per
+    // appendChild angehaengt -- sonst wuerde innerHTML es wieder entfernen.
 
     // Kleiner, oeffentlich sichtbarer Hinweis auf ungelesenes Feedback --
     // extra schmaler, eigener Endpunkt OHNE Admin-Login (nur die Anzahl,
@@ -325,13 +327,19 @@ export class Router {
     // Kleine, unaufdringliche Versionsanzeige -- auf ausdruecklichen Wunsch,
     // damit auf einen Blick erkennbar ist, welcher Stand gerade laeuft (fuer
     // Debugging/um zu pruefen, ob ein Deploy wirklich angekommen ist). Ganz
-    // klein/gedaempft gehalten (eigene, kleinere Fussleisten-Schriftgroesse),
-    // bewusst unten LINKS (siehe notifyCol unten) statt z.B. neben dem Logo,
-    // wo es zu sehr auffallen wuerde. __APP_BUILD__/__APP_BUILD_TIME__ werden
-    // erst beim Bauen eingesetzt, siehe vite.config.ts.
+    // gedaempft gehalten (eigene, kleinere Fussleisten-Schriftgroesse). Stand
+    // vorher unten LINKS in notifyCol -- auf ausdruecklichen Wunsch jetzt
+    // stattdessen als vierte Zeile UNTER dem Credit-Block (siehe credit
+    // unten), zusaetzlich doppelt so gross wie zuvor (siehe .chrome-footer-
+    // version in style.css). __APP_BUILD__/__APP_BUILD_TIME__ werden erst
+    // beim Bauen eingesetzt, siehe vite.config.ts.
     const versionLabel = document.createElement("span");
-    versionLabel.className = "chrome-footer-version";
+    versionLabel.className = "chrome-footer-credit__line chrome-footer-version";
     versionLabel.textContent = `Build ${__APP_BUILD__} · ${__APP_BUILD_TIME__}`;
+    // Als vierte Zeile ans Ende des Credit-Blocks (siehe credit oben) --
+    // appendChild statt Teil des innerHTML-Templates dort, weil versionLabel
+    // erst hier (nach __APP_BUILD__/__APP_BUILD_TIME__) entsteht.
+    credit.appendChild(versionLabel);
 
     const notifyCol = document.createElement("div");
     notifyCol.style.display = "flex";
@@ -342,7 +350,7 @@ export class Router {
     // der Text natuerlich am selben Rand wie die Fussleiste beginnt.
     notifyCol.style.alignItems = "flex-start";
     notifyCol.style.gap = "3px";
-    notifyCol.append(paperWarn, cooldownBadge, unreadBadge, versionLabel);
+    notifyCol.append(paperWarn, cooldownBadge, unreadBadge);
 
     // Auf ausdruecklichen Wunsch Seiten getauscht (war Feedback-Button
     // links/Meldungen rechts) -- angelehnt an die VBB-Vorlage, wo der

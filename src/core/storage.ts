@@ -96,6 +96,27 @@ export function clearHighscoreBoard(gameId: string, board = "default"): void {
 }
 
 /**
+ * Entfernt EINEN einzelnen Namenseintrag aus einem Highscore-Board (z. B.
+ * ein anstoessiger Name) -- im Unterschied zu clearHighscoreBoard bleiben
+ * alle anderen Eintraege (bei Gleichstand mehrere Namen auf demselben Board,
+ * siehe HighscoreBoard-Kommentar oben) erhalten. name+value+achievedAt
+ * identifizieren den Eintrag (dieselbe Vergleichslogik wie beim
+ * Duplikat-Check in mergeHighscoreEntry). Wird das Board dadurch leer,
+ * verschwindet es komplett wie bei clearHighscoreBoard.
+ */
+export function removeHighscoreEntry(gameId: string, board: string, entry: HighscoreEntry): void {
+  const current = getHighscoreBoard(gameId, board);
+  if (!current) return;
+  const nextEntries = current.entries.filter((e) => !(e.name === entry.name && e.value === entry.value && e.achievedAt === entry.achievedAt));
+  if (nextEntries.length === current.entries.length) return; // nichts gefunden/entfernt
+  if (nextEntries.length === 0) {
+    removeKey(["highscore", gameId, board]);
+  } else {
+    saveJSON(["highscore", gameId, board], { value: current.value, entries: nextEntries });
+  }
+}
+
+/**
  * Ersetzt (NICHT mergt) den lokalen Cache eines Boards durch einen vom
  * Server erhaltenen Stand -- fuer core/sync.ts#pullHighscoresFromServer,
  * wenn Synchronisation aktiv ist. Anders als mergeHighscoreEntry (haengt nur

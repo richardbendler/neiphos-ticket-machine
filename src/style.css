@@ -605,16 +605,18 @@ button {
 }
 
 /* Versionsanzeige (Build-Nummer + Datum/Uhrzeit, siehe core/Router.ts#
-   buildChromeFooterBar) -- auf ausdruecklichen Wunsch bewusst deutlich
-   kleiner/unauffaelliger als die uebrigen Fussleisten-Hinweise oben (reine
-   Debug-/Kontrollinfo, nicht fuer den normalen Blick gedacht), dazu gedaempft
-   statt in einer Akzentfarbe. */
+   buildChromeFooterBar) -- bewusst gedaempft statt in einer Akzentfarbe
+   (reine Debug-/Kontrollinfo, nicht fuer den normalen Blick gedacht). Steht
+   jetzt als vierte Zeile UNTER dem Credit-Block (siehe .chrome-footer-credit
+   unten) statt separat unten links -- Schriftgroesse auf ausdruecklichen
+   Wunsch verdoppelt (war min(1.3vw, ...*0.08)). */
 .chrome-footer-version {
   color: var(--text-muted);
   opacity: 0.6;
   font-weight: 400;
-  font-size: min(1.3vw, calc(var(--footer-h) * 0.08));
+  font-size: min(2.6vw, calc(var(--footer-h) * 0.16));
   white-space: nowrap;
+  margin-top: 2px;
 }
 
 .chrome-footer-credit {
@@ -628,9 +630,14 @@ button {
      positioniert braucht der Block jetzt selbst genug Sicherheitsabstand zu
      den Seiten, damit er auf schmalen Bildschirmen nicht mit Feedback-Button
      oder rechter Spalte kollidiert (responsiv). */
+  /* top: calc(50% - 4px) statt vorher "+ 3px" -- seit die Versionsanzeige
+     (siehe .chrome-footer-version) als vierte Zeile hier mit reinhaengt, ist
+     der ganze Block hoeher geworden; auf ausdruecklichen Wunsch ("insgesamt
+     alle vier Zeilen noch ein, zwei Millimeter nach oben schieben") den
+     Mittelpunkt entsprechend etwas nach oben verschoben. */
   position: absolute;
   left: 50%;
-  top: calc(50% + 3px);
+  top: calc(50% - 4px);
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;

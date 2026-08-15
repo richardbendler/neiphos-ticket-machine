@@ -889,6 +889,41 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // Entfernt EINEN einzelnen Namenseintrag aus einem Board (siehe
+    // core/sync.ts#deleteHighscoreEntryOnServer, admin/AdminPanel.ts,
+    // "Bestimmte Highscores löschen") -- z. B. ein anstoessiger Name, ohne
+    // gleich das ganze Board zurueckzusetzen. Spiegelt core/storage.ts#
+    // removeHighscoreEntry: name+value+achievedAt identifizieren den Eintrag.
+    if (url.pathname === "/api/highscores/delete-entry" && req.method === "POST") {
+      if (!requireAdmin(req, res)) return;
+      const raw = await readBody(req);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        sendJson(res, 400, { error: "invalid_json" });
+        return;
+      }
+      const { gameId, board, name, value, achievedAt } = parsed;
+      if (typeof gameId !== "string" || !isSafeId(gameId) || typeof board !== "string" || !isSafeId(board)) {
+        sendJson(res, 400, { error: "invalid_id" });
+        return;
+      }
+      const existing = readHighscoreBoard(gameId, board);
+      if (!existing) {
+        sendJson(res, 200, { ok: true }); // nichts zu tun -- Board gibt es serverseitig ohnehin nicht (mehr)
+        return;
+      }
+      const nextEntries = existing.entries.filter((e) => !(e.name === name && e.value === value && e.achievedAt === achievedAt));
+      if (nextEntries.length === 0) {
+        fs.unlinkSync(highscoreFilePath(gameId, board));
+      } else if (nextEntries.length !== existing.entries.length) {
+        fs.writeFileSync(highscoreFilePath(gameId, board), JSON.stringify({ value: existing.value, entries: nextEntries }, null, 2));
+      }
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
     if (url.pathname === "/api/stats" && req.method === "GET") {
       if (!requireAdmin(req, res)) return;
       sendJson(res, 200, readAllStatsSessions());

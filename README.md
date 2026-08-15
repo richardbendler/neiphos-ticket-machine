@@ -1082,6 +1082,43 @@ liegen: `xinput_calibrator` bzw. die Kalibrierungsroutine des jeweiligen
 Touch-Controllers verwenden. Die App selbst reagiert responsiv auf jede
 Auflösung/Seitenverhältnis (siehe `core/Canvas.ts`, DPR-bewusstes Skalieren).
 
+### 6b. Deployment vor Ort (Festival, ohne festes WLAN)
+
+Der Pi braucht während der eigentlichen Vorbereitung/eines Updates vor Ort
+irgendein gemeinsames Netzwerk mit dem Entwicklungsrechner (für Schritt 7
+unten). Ohne Festival-WLAN bietet sich dafür der **Mobile Hotspot eines
+Handys** an, oder – zuverlässiger, siehe unten – ein kleiner
+**batteriebetriebener Reise-Router** (braucht selbst kein Internet, nur ein
+gemeinsames lokales Netz für Pi und Laptop).
+
+**Wichtig beim Handy-Hotspot: unbedingt das 2,4-GHz-Band aktiv lassen.**
+Das WLAN-Modul des Raspberry Pi 3 (BCM43438) empfängt **ausschließlich
+2,4 GHz** – kein 5 GHz, unabhängig von Software-/Regulierungsdomain-
+Einstellungen (das WLAN-Land ist bereits korrekt auf `DE` gesetzt, siehe
+`iw reg get` bei Bedarf zur Kontrolle). Viele aktuelle Android-Handys
+(u. a. Samsung) stellen den Mobile Hotspot standardmäßig auf **„5 GHz"**
+oder **„Automatisch"** – dann sieht der Pi das Netz überhaupt nicht, egal
+wie oft neu gescannt wird (kein Cache-/Boot-Problem, ein WLAN-Scan im
+Admin-Bereich stößt bei jedem Klick auf „Netzwerke suchen"/„Aktualisieren"
+serverseitig einen echten `nmcli ... --rescan yes` an, siehe
+`server/serve.js`).
+
+Konkret getestet (Samsung Galaxy S24, Mobiler Hotspot → Konfigurieren →
+Band):
+
+- ✅ **„2,4 GHz und 5 GHz"** (beide Bänder gleichzeitig) – funktioniert, der
+  Pi findet und verbindet sich zuverlässig.
+- ❌ **„Nur 5 GHz"** – der Pi sieht das Netz gar nicht erst in der
+  Scan-Liste.
+
+Im Admin-Bereich (WLAN → „Netzwerke suchen") lässt sich das Ergebnis direkt
+per **„Aktualisieren"**-Button im sich öffnenden Netzwerke-Fenster erneut
+prüfen, ohne das Fenster dafür schließen zu müssen.
+
+Für den eigentlichen Dateitransfer (Build hochladen) siehe Schritt 7 (per
+Netzwerk) bzw. Schritt 8 (per USB-Stick, falls doch kein gemeinsames Netz
+zustande kommt).
+
 ### 7. Updates auf einem bereits eingerichteten Pi einspielen
 
 **Nur relevant, wenn Schritte 1–6 oben schon einmal erledigt sind** (Pi

@@ -25,6 +25,10 @@ const MIN_HOPPER_SIZE_PX = 14;
 // klickbare Flaeche groesser als das sichtbare Bild -- das Tier bleibt
 // optisch gleich gross, der Button drumherum hat unsichtbaren Rand.
 const HIT_PADDING_PX = 10;
+// Auf ausdruecklichen Wunsch soll sich der GESAMTE Fangradius (halbe
+// sichtbare Bildgroesse + HIT_PADDING_PX oben) verdoppeln -- siehe
+// spawnHopper, wo beides zu diesem Faktor zusammengefuehrt wird.
+const HIT_RADIUS_MULTIPLIER = 2;
 
 function measureHopperSize(): number {
   const header = document.querySelector(".chrome-bar");
@@ -122,7 +126,8 @@ function spawnHopper(): void {
   const card = hopperAnimalCards[Math.floor(Math.random() * hopperAnimalCards.length)];
   const leftToRight = Math.random() < 0.5;
 
-  const hitSize = hopperSize + HIT_PADDING_PX * 2;
+  const baseHitRadius = hopperSize / 2 + HIT_PADDING_PX;
+  const hitSize = baseHitRadius * HIT_RADIUS_MULTIPLIER * 2;
   const el = document.createElement("button");
   el.type = "button";
   el.className = `hopper-easter-egg ${leftToRight ? "hopper-easter-egg--ltr" : "hopper-easter-egg--rtl"}`;

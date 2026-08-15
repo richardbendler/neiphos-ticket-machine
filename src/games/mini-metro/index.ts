@@ -53,17 +53,34 @@ const GAME_ID = "mini-metro";
 type StationShape = string;
 const SHAPES: StationShape[] = ["circle", "square", "triangle"];
 
-// Sondersymbol-Haltestellen (auf ausdruecklichen Wunsch: ein Pool von rund
-// 20 verschiedenen geometrischen Formen, jedes zehnte Symbol, das spawnt,
-// ist eins davon, siehe SPECIAL_STATION_INTERVAL/spawnStation) -- generisch
-// aus regelmaessigen Vielecken/Sternen erzeugt statt 20 einzeln von Hand
-// gezeichneter Icons: bleibt dadurch beliebig erweiterbar und jede Form ist
-// allein durch ihre Ecken-/Zackenzahl klar von allen anderen (auch den drei
-// normalen Formen) unterscheidbar.
+// Sondersymbol-Haltestellen (auf ausdruecklichen Wunsch: ein Pool
+// verschiedener geometrischer Formen, jedes zehnte Symbol, das spawnt, ist
+// eins davon, siehe SPECIAL_STATION_INTERVAL/spawnStation) -- generisch aus
+// regelmaessigen Vielecken/Sternen erzeugt statt einzeln von Hand
+// gezeichneter Icons: bleibt dadurch beliebig erweiterbar.
+//
+// Enthielt urspruenglich auch regelmaessige Vielecke (n bis 14) -- bei den
+// tatsaechlichen Render-Groessen (Haltestelle: 15px Radius, das noch
+// winzigere Passagier-Zielsymbol/"Badge": nur 4.8px Radius, siehe
+// SHAPE_BADGE_RADIUS) weicht ein n-Eck mit wachsendem n aber IMMER schneller
+// unsichtbar wenig von einem echten Kreis ab (Eck-Einbuchtung ~ r*(1-cos(
+// pi/n)) -- bei n=14 und r=4.8px sind das rechnerisch ~0.13px, per
+// Vergleichs-Screenshot bestaetigt komplett von einem echten Kreis
+// ununterscheidbar, selbst ein 5-Eck war am winzigen Badge kaum noch als
+// solches erkennbar). Ein Fahrgast mit z. B. "poly14" als Ziel sah an seinem
+// winzigen Zielsymbol optisch schlicht wie ein Kreis aus -- gemeldeter Bug:
+// an einer echten Kreis-Haltestelle abgesetzte "Kreis"-Fahrgaeste (eigentlich
+// poly-mit-vielen-Ecken) wurden dort NICHT ausgeliefert (die Ablade-Logik
+// selbst vergleicht korrekt exakt per Formen-Gleichheit, siehe
+// arriveAtStation), sondern blieben sichtbar als Wartende stehen, bis ein
+// anderer Zug sie abholte -- fuer die spielende Person ohne erkennbaren
+// Grund. Vielecke deshalb komplett entfernt, nur noch Sterne: ihre
+// Einbuchtungen sind IMMER 55% des Aussenradius tief, UNABHAENGIG von der
+// Zackenzahl (siehe drawSpecialShapePath), dadurch bei jeder Groesse und
+// jeder Zackenzahl zuverlaessig klar vom Kreis unterscheidbar.
 type SpecialShapeDef = { kind: "polygon"; n: number } | { kind: "star"; n: number };
 const SPECIAL_SHAPE_DEFS: Record<string, SpecialShapeDef> = {};
-for (const n of [5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) SPECIAL_SHAPE_DEFS[`poly${n}`] = { kind: "polygon", n };
-for (const n of [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) SPECIAL_SHAPE_DEFS[`star${n}`] = { kind: "star", n };
+for (const n of [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) SPECIAL_SHAPE_DEFS[`star${n}`] = { kind: "star", n };
 const SPECIAL_SHAPES: StationShape[] = Object.keys(SPECIAL_SHAPE_DEFS);
 
 function isSpecialShape(shape: StationShape): boolean {

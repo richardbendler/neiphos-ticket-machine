@@ -518,12 +518,22 @@ function createMemoryGame(): MinigameModule {
         cards[a].matched = true;
         cards[b].matched = true;
         flipped = [];
+        const justFinished = cards.every((c) => c.matched);
         if (mode === "duo") {
           playerScores[currentPlayer - 1] += 1;
           updatePlayerPanels();
+          // Analog zum "Kein Paar"-Hinweis bei einem Fehlgriff (siehe unten)
+          // -- auf ausdruecklichen Wunsch auch bei einem TREFFER ein Hinweis
+          // oben, nicht nur die stille Punktestand-Aktualisierung im
+          // Spieler-Panel. Nicht mehr anzeigen, wenn die Runde mit genau
+          // diesem Treffer endet -- ueberlappte sonst sichtbar mit dem
+          // direkt danach erscheinenden Fertig-Panel (siehe finish()).
+          if (!justFinished) {
+            showTurnToast(`Paar! — Spieler ${currentPlayer} ist noch mal dran.`);
+          }
         }
         syncGridVisuals();
-        if (cards.every((c) => c.matched)) finish();
+        if (justFinished) finish();
         // Bei einem Treffer im 1-vs-1-Modus bleibt derselbe Spieler dran --
         // klassische Memory-Regel.
       } else {

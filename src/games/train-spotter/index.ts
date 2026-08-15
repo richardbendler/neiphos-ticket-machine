@@ -276,7 +276,11 @@ export function createTrainSpotterGame(): MinigameModule {
     row.style.flexDirection = "column";
     row.style.gap = "10px";
     row.style.width = "100%";
-    row.style.maxWidth = "min(92%, 420px)";
+    // Gleiche Breite wie die identischen Auswahl-Buttons im Zug-Memory
+    // (siehe games/memory/index.ts) -- war hier schmaler (420px statt
+    // 480px), wodurch "Hüpftiere" samt Icon nicht mehr in eine Zeile passte
+    // und umbrach (gemeldeter Bug).
+    row.style.maxWidth = "min(92%, 480px)";
     row.style.marginTop = "12px";
 
     const trainsBtn = document.createElement("button");

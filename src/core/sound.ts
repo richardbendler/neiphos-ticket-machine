@@ -46,6 +46,41 @@ import bahnansageKurzUrl from "../assets/sounds/bahnansage-kurz.mp3";
 // weiterhin den bisherigen zurueckbleiben.mp3-Clip unveraendert -- die beiden
 // Stellen sind bewusst unabhaengig (siehe dortiger Kommentar).
 import zurueckbleibenRuhigUrl from "../assets/sounds/zurueckbleiben-ruhig.ogg";
+// Auf ausdruecklichen Wunsch ("noch mal wirklich so zwanzig neue Dinge")
+// nochmals deutlich erweitert: 13 weitere echte Sample-Clips, diesmal gezielt
+// nach konkreten deutschen Verkehrsbetrieben/Staedten recherchiert (BVG
+// Berlin, Dresden, Rostock, "DB"/"Zugbetrieb" allgemein) statt generischer
+// Suchbegriffe -- dadurch eindeutiger deutschen Ursprungs als z. B. ein
+// schlicht "Gong" oder "U-Bahn" benannter Clip unbekannter Herkunft (genau
+// solche wurden bewusst NICHT aufgenommen). Quellen (jeweils Instant-Sound-
+// Button auf myinstants.com):
+//  - bvgStandardgong: myinstants.com/en/instant/bvg-standardgong-39783
+//                     (der klassische BVG-Tuerschliess-Gong)
+//  - bvgInfogong:     myinstants.com/en/instant/bvg-infogong-29302
+//  - bvgSondergong:   myinstants.com/en/instant/bvg-sondergong-5090
+//  - bvgAlexanderplatz: myinstants.com/en/instant/bvg-alexanderplatz-68341
+//  - bvgEndhaltestelle: myinstants.com/en/instant/bvg-endhaltestelle-76312
+//  - dresdenHauptbahnhofS1: myinstants.com/en/instant/dresden-hauptbahnhof-s1-61233
+//  - bahnhofsszene:   myinstants.com/en/instant/bahnhofsszene-80547
+//  - bahnhofsatmo:    myinstants.com/en/instant/bahnhof-54632
+//  - dbGongNeu:       myinstants.com/en/instant/db-gong-neu-29978
+//  - achtungZugbetrieb: myinstants.com/en/instant/achtung-zugbetrieb-2674
+//  - rostockLinie25Ostseestadion: myinstants.com/en/instant/rostock-25-hauptbahnhof-sud-ostseestadion-98998
+//  - rostockLinie25Schwimmhalle: myinstants.com/en/instant/rostock-25-hauptbahnhof-sud-schwimmhalle-52049
+//  - sbahnAmbiente:   myinstants.com/en/instant/s-bahn-90921
+import bvgStandardgongUrl from "../assets/sounds/bvg-standardgong.mp3";
+import bvgInfogongUrl from "../assets/sounds/bvg-infogong.mp3";
+import bvgSondergongUrl from "../assets/sounds/bvg-sondergong.mp3";
+import bvgAlexanderplatzUrl from "../assets/sounds/bvg-alexanderplatz.mp3";
+import bvgEndhaltestelleUrl from "../assets/sounds/bvg-endhaltestelle.mp3";
+import dresdenHauptbahnhofS1Url from "../assets/sounds/dresden-hauptbahnhof-s1.mp3";
+import bahnhofsszeneUrl from "../assets/sounds/bahnhofsszene.mp3";
+import bahnhofsatmoUrl from "../assets/sounds/bahnhofsatmo.mp3";
+import dbGongNeuUrl from "../assets/sounds/db-gong-neu.mp3";
+import achtungZugbetriebUrl from "../assets/sounds/achtung-zugbetrieb.mp3";
+import rostockLinie25OstseestadionUrl from "../assets/sounds/rostock-linie25-ostseestadion.mp3";
+import rostockLinie25SchwimmhalleUrl from "../assets/sounds/rostock-linie25-schwimmhalle.mp3";
+import sbahnAmbienteUrl from "../assets/sounds/sbahn-ambiente.mp3";
 
 let audioCtx: AudioContext | null = null;
 
@@ -274,31 +309,65 @@ export function playStationPopSound(): void {
 /**
  * Optionale Bahnhofs-Geraeuschkulisse (an/aus per Button, siehe
  * games/mini-metro/index.ts) -- spielt in unregelmaessigen Abstaenden eine
- * zufaellige, typische Bahnansage/-Gong aus dem bereits vorhandenen Sample-
- * Set (dieselben Clips wie im DJ-Mischer, siehe games/dj-mixer/sounds.ts
- * fuer Quellenangaben/Lizenzhinweis). Bewusst eine kleine, feste Auswahl statt
- * eines einzelnen Clips, damit es sich nach ein paar Ansagen nicht repetitiv
- * anfuehlt.
+ * zufaellige, typische Bahnansage/-Gong. Zwei Arten von Eintraegen:
+ * "sample" sind echte, kurze Bahn-/Bahnhofs-Clips (teils dieselben wie im
+ * DJ-Mischer, siehe games/dj-mixer/sounds.ts fuer Quellenangaben/
+ * Lizenzhinweis, teils nur hier verwendet, siehe Quellenangaben beim
+ * jeweiligen Import oben). "phrase" sind stattdessen per Web Speech API
+ * (SpeechSynthesis, siehe speakStationPhrase unten) gesprochene, an echten
+ * deutschen Bahn-/Nahverkehrsansagen orientierte Saetze -- auf ausdruecklichen
+ * Wunsch ergaenzt, KEIN Lizenzrisiko (keine Audiodatei, nur Text), und laesst
+ * sich beliebig erweitern, ohne erst eine passende Aufnahme finden zu muessen.
  */
-const STATION_ANNOUNCEMENT_CLIPS: Array<{ url: string; volume: number }> = [
-  { url: ansageDbUrl, volume: 0.6 },
-  { url: dbAnkuendigungUrl, volume: 0.6 },
-  { url: einsteigenBitteUrl, volume: 0.6 },
-  { url: haltestellengongUrl, volume: 0.6 },
-  { url: zurueckbleibenRuhigUrl, volume: 0.6 },
-  { url: zughornKurzUrl, volume: 0.5 },
-  { url: ansageChimeUrl, volume: 0.6 },
-  { url: zielanzeigeKlapperUrl, volume: 0.6 },
-  { url: tuerenSchliessenUrl, volume: 0.6 },
-  { url: bahnhofsglockeUrl, volume: 0.6 },
-  { url: naechsterHaltUrl, volume: 0.6 },
-  { url: bahnansageKurzUrl, volume: 0.6 },
+type StationAnnouncementClip = { kind: "sample"; url: string; volume: number } | { kind: "phrase"; text: string };
+
+const STATION_ANNOUNCEMENT_CLIPS: StationAnnouncementClip[] = [
+  { kind: "sample", url: ansageDbUrl, volume: 0.6 },
+  { kind: "sample", url: dbAnkuendigungUrl, volume: 0.6 },
+  { kind: "sample", url: einsteigenBitteUrl, volume: 0.6 },
+  { kind: "sample", url: haltestellengongUrl, volume: 0.6 },
+  { kind: "sample", url: zurueckbleibenRuhigUrl, volume: 0.6 },
+  { kind: "sample", url: zughornKurzUrl, volume: 0.5 },
+  { kind: "sample", url: ansageChimeUrl, volume: 0.6 },
+  { kind: "sample", url: zielanzeigeKlapperUrl, volume: 0.6 },
+  { kind: "sample", url: tuerenSchliessenUrl, volume: 0.6 },
+  { kind: "sample", url: bahnhofsglockeUrl, volume: 0.6 },
+  { kind: "sample", url: naechsterHaltUrl, volume: 0.6 },
+  { kind: "sample", url: bahnansageKurzUrl, volume: 0.6 },
+  // 13 weitere echte Clips, siehe Quellenangaben bei den Imports oben --
+  // gezielt nach konkreten deutschen Verkehrsbetrieben/Staedten recherchiert.
+  { kind: "sample", url: bvgStandardgongUrl, volume: 0.6 },
+  { kind: "sample", url: bvgInfogongUrl, volume: 0.6 },
+  { kind: "sample", url: bvgSondergongUrl, volume: 0.6 },
+  { kind: "sample", url: bvgAlexanderplatzUrl, volume: 0.55 },
+  { kind: "sample", url: bvgEndhaltestelleUrl, volume: 0.6 },
+  { kind: "sample", url: dresdenHauptbahnhofS1Url, volume: 0.55 },
+  { kind: "sample", url: bahnhofsszeneUrl, volume: 0.5 },
+  { kind: "sample", url: bahnhofsatmoUrl, volume: 0.5 },
+  { kind: "sample", url: dbGongNeuUrl, volume: 0.6 },
+  { kind: "sample", url: achtungZugbetriebUrl, volume: 0.55 },
+  { kind: "sample", url: rostockLinie25OstseestadionUrl, volume: 0.55 },
+  { kind: "sample", url: rostockLinie25SchwimmhalleUrl, volume: 0.55 },
+  { kind: "sample", url: sbahnAmbienteUrl, volume: 0.5 },
+  // 10 gesprochene Ansagen (siehe Typkommentar oben) -- an typischen echten
+  // Ansagen von DB/S-Bahn Berlin/BVG orientiert, u. a. mit den auf
+  // ausdruecklichen Wunsch genannten Beispielen "S1" und "Ringbahn".
+  { kind: "phrase", text: "Bitte einsteigen und die Türen selbstständig schließen." },
+  { kind: "phrase", text: "Wir bitten um Ihr Verständnis." },
+  { kind: "phrase", text: "Dieser Zug endet hier. Bitte alle aussteigen." },
+  { kind: "phrase", text: "Vorsicht bei der Einfahrt des Zuges." },
+  { kind: "phrase", text: "Bitte beachten Sie den Abstand zwischen Zug und Bahnsteigkante." },
+  { kind: "phrase", text: "Wegen einer Signalstörung kommt es zu Verspätungen im S-Bahn-Verkehr." },
+  { kind: "phrase", text: "Diese S-Bahn verkehrt als Ringbahn in Richtung Südkreuz." },
+  { kind: "phrase", text: "Die S1 nach Wannsee fährt in Kürze auf Gleis 2 ein." },
+  { kind: "phrase", text: "Fahrausweise bitte bereithalten, es finden Kontrollen statt." },
+  { kind: "phrase", text: "Meine Damen und Herren, wir erreichen in Kürze den Hauptbahnhof." },
 ];
 
 // Merkt sich den zuletzt gespielten Clip-Index, damit nicht zweimal
 // hintereinander genau derselbe Sound laeuft (auf ausdruecklichen Wunsch) --
-// bei zufaelliger Auswahl aus jetzt 12 Clips waere eine Wiederholung selten,
-// aber eben nicht ausgeschlossen.
+// bei zufaelliger Auswahl aus jetzt weit ueber 30 Eintraegen waere eine
+// Wiederholung ohnehin schon selten, aber eben nicht ausgeschlossen.
 let lastAnnouncementIndex = -1;
 
 // Manche der recherchierten Clips sind echte, laengere Ansagen (bis zu ca.
@@ -308,14 +377,63 @@ let lastAnnouncementIndex = -1;
 // laeuft -- zwei gleichzeitige Ansagen uebereinander waeren genau die Art
 // von aufdringlichem Krach, die hier ausdruecklich vermieden werden soll.
 // Ein uebersprungener Zeitpunkt (weil noch "busy") wird einfach ausgelassen,
-// der naechste kommt regulaer 7-13s spaeter.
+// der naechste kommt regulaer 7-13s spaeter. Gilt fuer beide Clip-Arten
+// (Sample UND gesprochene Phrase).
 let stationAnnouncementBusy = false;
-// Laeuft gerade eine Ansage (bis zu ca. 22s lang, siehe Kommentar oben), wird
-// sie hier gehalten -- damit stopStationAnnouncements() sie beim Verlassen
-// der Huepftier-Metro sofort abwuergen kann, statt ueber den Hauptmenue-
-// Bildschirm hinweg weiterzulaufen (gemeldeter Bug: "Geraeuschkulisse laeuft
-// nach Rueckkehr ins Menue weiter").
+// Laeuft gerade eine Sample-Ansage, wird sie hier gehalten -- damit
+// stopStationAnnouncements() sie beim Verlassen der Huepftier-Metro sofort
+// abwuergen kann, statt ueber den Hauptmenue-Bildschirm hinweg
+// weiterzulaufen (gemeldeter Bug: "Geraeuschkulisse laeuft nach Rueckkehr
+// ins Menue weiter"). activeAnnouncementUtterance ist das Pendant fuer eine
+// gerade gesprochene Phrase.
 let activeAnnouncementSource: AudioBufferSourceNode | null = null;
+let activeAnnouncementUtterance: SpeechSynthesisUtterance | null = null;
+
+// Eigene, bewusst von games/dj-mixer/sounds.ts#getGermanVoice unabhaengige
+// Kopie (core/ soll nicht von games/ abhaengen) -- identisches, kleines
+// Muster: Chrome laedt Stimmen teils asynchron nach, der erste getVoices()-
+// Aufruf kommt oft mit leerer Liste zurueck.
+let cachedGermanVoice: SpeechSynthesisVoice | null | undefined;
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  window.speechSynthesis.addEventListener(
+    "voiceschanged",
+    () => {
+      cachedGermanVoice = undefined;
+    },
+    { once: true },
+  );
+}
+function getGermanVoice(): SpeechSynthesisVoice | null {
+  if (cachedGermanVoice !== undefined) return cachedGermanVoice;
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    cachedGermanVoice = null;
+    return null;
+  }
+  const voices = window.speechSynthesis.getVoices();
+  cachedGermanVoice = voices.find((v) => v.lang.toLowerCase().startsWith("de")) ?? voices[0] ?? null;
+  return cachedGermanVoice;
+}
+
+function speakStationPhrase(text: string): void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    stationAnnouncementBusy = false; // keine Sprachausgabe verfuegbar -- Kulisse nicht dauerhaft blockieren
+    return;
+  }
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "de-DE";
+  const voice = getGermanVoice();
+  if (voice) utterance.voice = voice;
+  utterance.rate = 0.95; // etwas ruhiger als die DJ-Mischer-Ansage (1.05) -- soll nach durchsagender Bahnansage klingen, nicht gehetzt
+  utterance.volume = 0.8;
+  const clearIfCurrent = () => {
+    stationAnnouncementBusy = false;
+    if (activeAnnouncementUtterance === utterance) activeAnnouncementUtterance = null;
+  };
+  utterance.onend = clearIfCurrent;
+  utterance.onerror = clearIfCurrent;
+  activeAnnouncementUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+}
 
 export function playRandomStationAnnouncement(): void {
   if (stationAnnouncementBusy) return;
@@ -325,8 +443,14 @@ export function playRandomStationAnnouncement(): void {
   }
   lastAnnouncementIndex = index;
   const clip = STATION_ANNOUNCEMENT_CLIPS[index];
-  const ctx = getAudioContext();
   stationAnnouncementBusy = true;
+
+  if (clip.kind === "phrase") {
+    speakStationPhrase(clip.text);
+    return;
+  }
+
+  const ctx = getAudioContext();
   void loadSampleBuffer(ctx, clip.url).then(
     (buffer) => {
       const gain = ctx.createGain();
@@ -351,6 +475,7 @@ export function playRandomStationAnnouncement(): void {
  * Bricht eine gerade laufende Bahnhofsansage sofort ab -- beim Verlassen der
  * Huepftier-Metro aufzurufen (siehe games/mini-metro/index.ts#cleanup), damit
  * eine lange Ansage nicht ueber den Hauptmenue-Bildschirm hinweg weiterlaeuft.
+ * Deckt beide Clip-Arten ab (Sample-Wiedergabe UND Sprachausgabe).
  */
 export function stopStationAnnouncements(): void {
   if (activeAnnouncementSource) {
@@ -360,6 +485,10 @@ export function stopStationAnnouncements(): void {
       // Kann schon von selbst zu Ende gelaufen sein -- kein Problem.
     }
     activeAnnouncementSource = null;
+  }
+  if (activeAnnouncementUtterance && typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    activeAnnouncementUtterance = null;
   }
   stationAnnouncementBusy = false;
 }

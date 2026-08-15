@@ -98,13 +98,17 @@ const PASSENGER_SPAWN_INTERVAL_S = 15;
 
 // Ab dieser Wartenden-Zahl faengt der Ueberlastungs-Ring an, sich um die
 // Haltestelle zu fuellen (statt wie zuvor ein hartes Sofort-Game-Over) --
-// auf ausdruecklichen Wunsch: ca. 20 Sekunden Zeit, bevor eine dauerhaft
+// auf ausdruecklichen Wunsch 15 Sekunden Zeit (war 20), bevor eine dauerhaft
 // ueberfuellte Haltestelle wirklich zum Spielende fuehrt. Sinkt die Anzahl
 // wieder auf OVERLOAD_TRIGGER-1 oder weniger, laeuft der Ring in
 // OVERLOAD_DRAIN_S wieder leer (bewusst schneller als er sich fuellt --
 // fuehlt sich reaktionsfreudiger an, sobald man das Problem behoben hat).
+// Zusaetzlich zum Ring auf ausdruecklichen Wunsch ein gut sichtbarer gelber
+// Warnpfeil samt Restzeit direkt an der Haltestelle, siehe drawOverloadWarning
+// -- der reine Ring war offenbar nicht auffaellig genug (gemeldet: "hat man
+// ja mehr Zeit, aber es soll auch angezeigt werden").
 const OVERLOAD_TRIGGER = 6;
-const OVERLOAD_FILL_S = 20;
+const OVERLOAD_FILL_S = 15;
 const OVERLOAD_DRAIN_S = 10;
 const OVERLOAD_RING_RADIUS = STATION_RADIUS + 10;
 
@@ -1839,9 +1843,42 @@ export function createMiniMetroGame(): MinigameModule {
     }
   }
 
+  /**
+   * Gelber Warnpfeil UNTERHALB der Haltestelle (zeigt nach oben auf sie),
+   * samt Restzeit bis zum Game-Over -- auf ausdruecklichen Wunsch zusaetzlich
+   * zum (weniger auffaelligen) Ueberlastungs-Ring, siehe OVERLOAD_FILL_S.
+   * Unterhalb statt oberhalb platziert, damit er nicht mit der dort bereits
+   * gezeichneten Reihe wartender Passagier-Sprites kollidiert (siehe
+   * drawStations). Gleicher Pfeil-Stil wie der Tutorial-Hinweis
+   * (drawTutorialArrow), hier aber an der Haltestelle selbst statt fest auf
+   * dem Bildschirm -- liegt deshalb bewusst INNERHALB des Welt-Zooms (siehe
+   * render(), drawStations wird vor ctx.restore() aufgerufen), skaliert also
+   * automatisch mit rein/raus.
+   */
+  function drawOverloadWarning(ctx: CanvasRenderingContext2D, s: Station): void {
+    if (s.overloadT <= 0) return;
+    const tipY = s.y + OVERLOAD_RING_RADIUS + 8;
+    const arrowW = 7;
+    const arrowH = 10;
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.moveTo(s.x, tipY);
+    ctx.lineTo(s.x - arrowW, tipY + arrowH);
+    ctx.lineTo(s.x + arrowW, tipY + arrowH);
+    ctx.closePath();
+    ctx.fill();
+
+    const remainingS = Math.max(0, Math.ceil((1 - s.overloadT) * OVERLOAD_FILL_S));
+    ctx.font = `800 11px ${theme.fontDisplay}`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = theme.accent;
+    ctx.fillText(`Überfüllt! Noch ${remainingS}s`, s.x, tipY + arrowH + 12);
+  }
+
   function drawStations(ctx: CanvasRenderingContext2D): void {
     for (const s of stations) {
       drawOverloadRing(ctx, s);
+      drawOverloadWarning(ctx, s);
 
       ctx.fillStyle = theme.panel;
       ctx.strokeStyle = theme.text;

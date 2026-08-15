@@ -681,15 +681,17 @@ button {
    Komfort-Sockel schrumpfenden, siehe --footer-h-Kommentar) Fussleiste
    herausragte (gemeldeter/per Screenshot belegter Bug). */
 .chrome-footer-credit__line--main {
-  font-size: min(2.5vw, calc(var(--footer-h) * 0.15));
+  /* Auf ausdruecklichen Wunsch 20% groesser (war min(2.5vw, ...*0.15)). */
+  font-size: min(3vw, calc(var(--footer-h) * 0.18));
 }
 
 .chrome-footer-credit__line--sub {
   font-style: italic;
   /* Deutlich kleiner als die Namenszeile (vorher nur 0.94em davon, kaum
      wahrnehmbar kleiner -- gemeldet). Ueber min() an --footer-h gekoppelt,
-     siehe .chrome-footer-credit__line--main-Kommentar. */
-  font-size: min(1.85vw, calc(var(--footer-h) * 0.11));
+     siehe .chrome-footer-credit__line--main-Kommentar. Auf ausdruecklichen
+     Wunsch 20% groesser (war min(1.85vw, ...*0.11)). */
+  font-size: min(2.22vw, calc(var(--footer-h) * 0.132));
 }
 
 /* Einzige Fusszeilen-Zeile, die (im Unterschied zu den anderen) auf

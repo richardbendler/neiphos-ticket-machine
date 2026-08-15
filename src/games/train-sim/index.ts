@@ -30,6 +30,24 @@ const TRAVEL_ZOOM_BOOST = 1.35;
 // "Willkommen"-Abschluss kommt -- auf ausdruecklichen Wunsch simuliert
 // ("ein kleines Partyshuttle mit Musik am Ende").
 const SHUTTLE_DURATION_S = 2.6;
+// Auf ausdruecklichen Wunsch: die Fahrtziel-Liste soll bei vielen Optionen
+// (durch die 30 zusaetzlichen Stationen, siehe data/germanRailNetwork.ts,
+// haben manche Staedte inzwischen deutlich mehr Nachbar-Strecken) NIE
+// scrollen muessen, sondern sich stattdessen auf mehrere Spalten aufteilen,
+// so dass immer alles auf einmal sichtbar ist -- siehe layoutChoiceGrid.
+// Untergrenze fuer eine Spaltenbreite, unterhalb derer "→ Stadtname (xx km)"
+// nicht mehr gut lesbar waere/umbrechen wuerde -- der eigentliche Deckel fuer
+// die Spaltenzahl (siehe layoutChoiceGrid: maxColsForWidth).
+const CHOICE_GRID_MIN_COL_WIDTH = 170;
+// Rein als Notbremse gegen etwas absurd wie 15 hauchduenne Spalten auf einem
+// riesigen Bildschirm mit sehr vielen Optionen -- der eigentliche
+// Spaltendeckel ist CHOICE_GRID_MIN_COL_WIDTH. Auf ausdruecklichen Wunsch
+// hat "passt ohne Scrollen" klar Vorrang vor einer bestimmten Wunsch-
+// Spaltenzahl: eine anfangs gesetzte Obergrenze von 3 Spalten fuehrte bei
+// z. B. 11 Zielen und wenig Bildschirmhoehe dazu, dass trotz Grid-Layout
+// weiterhin gescrollt werden musste (gemeldeter Bug), weil 3 Spalten dafuer
+// schlicht nicht genug Zeilen sparten.
+const CHOICE_GRID_MAX_COLS = 6;
 
 type Phase = "choosing" | "traveling" | "shuttle" | "finished";
 
@@ -227,11 +245,23 @@ export function createTrainSimGame(): MinigameModule {
 
   function renderChoiceButtons(options: RailEdge[]): void {
     choiceHost.innerHTML = "";
+    // Sheet muss sichtbar (und damit layoutet) sein, BEVOR layoutChoiceGrid
+    // unten seine gerenderte Hoehe misst -- deshalb hier schon vorab statt
+    // wie zuvor erst am Ende der Funktion.
+    updateSheetVisibility();
     for (const edge of options) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn";
       btn.style.width = "100%";
+      // Feste einzeilige Buttonhoehe -- Voraussetzung fuer die Spaltenzahl-
+      // Berechnung in layoutChoiceGrid (die geht von gleich hohen Buttons
+      // aus). Ein sehr langer Stadtname+km-Kombo wird dadurch im Zweifel mit
+      // "…" abgeschnitten statt umzubrechen und die Zeilenhoehe aller
+      // Buttons durcheinanderzubringen.
+      btn.style.whiteSpace = "nowrap";
+      btn.style.overflow = "hidden";
+      btn.style.textOverflow = "ellipsis";
       const isFestivalStop = edge.to === FESTIVAL_CITY_ID;
       // Auf ausdruecklichen Wunsch klar als Umkehr-Option erkennbar (statt
       // wie jede andere Verbindung auszusehen) -- siehe beginChoice fuer den
@@ -247,12 +277,60 @@ export function createTrainSimGame(): MinigameModule {
       btn.addEventListener("click", () => startLeg(edge));
       choiceHost.appendChild(btn);
     }
-    updateSheetVisibility();
+    layoutChoiceGrid(options.length);
+  }
+
+  /**
+   * Verteilt die Fahrtziel-Buttons auf so viele Spalten wie noetig, damit sie
+   * IMMER ohne Scrollen in den fuer choiceHost verfuegbaren Bereich passen
+   * (auf ausdruecklichen Wunsch -- durch die 30 zusaetzlichen Stationen,
+   * siehe data/germanRailNetwork.ts, haben manche Staedte inzwischen deutlich
+   * mehr Nachbar-Strecken als vorher, eine einzelne Spalte musste dort
+   * innerhalb von .stage-sheet scrollen, siehe style.css). Rein hoehenbasiert:
+   * alle Buttons sind gleich hoch (siehe renderChoiceButtons,
+   * white-space:nowrap+ellipsis), die noetige Spaltenzahl ergibt sich direkt
+   * aus verfuegbarer Hoehe/Buttonhoehe. .stage-sheet bleibt trotzdem
+   * overflow-y:auto (siehe dortiger Kommentar) -- als Sicherheitsnetz, falls
+   * die Rechnung hier durch Rundung doch mal knapp eine Zeile zu wenig ergibt.
+   */
+  function layoutChoiceGrid(count: number): void {
+    choiceHost.style.display = "grid";
+    choiceHost.style.gridTemplateColumns = "1fr";
+    if (count === 0) return;
+    const firstButton = choiceHost.children[0] as HTMLElement | undefined;
+    const buttonHeight = firstButton?.getBoundingClientRect().height ?? 0;
+    if (buttonHeight <= 0) return;
+
+    const gap = 8; // muss zu choiceHost.style.gap (siehe init()) passen
+    // Wie viel Hoehe choiceHost VOR der Spaltenaufteilung (noch 1 Spalte,
+    // s.o.) fuer sich beansprucht, im Vergleich zum ganzen Sheet -- die
+    // Differenz ist der Platz, den Titel/aktueller Stationsname +
+    // Sheet-Padding schon brauchen.
+    const usedBySiblings = sheet.scrollHeight - choiceHost.scrollHeight;
+    const availableHeight = sheet.clientHeight - usedBySiblings;
+    const rowsThatFit = Math.max(1, Math.floor((availableHeight + gap) / (buttonHeight + gap)));
+
+    let cols = Math.max(1, Math.min(CHOICE_GRID_MAX_COLS, Math.ceil(count / rowsThatFit)));
+
+    // Nicht schmaler als CHOICE_GRID_MIN_COL_WIDTH werden lassen, sonst
+    // lieber weniger Spalten (und dafuer innerhalb des Sheets scrollen,
+    // siehe Funktionskommentar) als unleserlich schmale Buttons.
+    const availableWidth = choiceHost.clientWidth;
+    const maxColsForWidth = Math.max(1, Math.floor((availableWidth + gap) / (CHOICE_GRID_MIN_COL_WIDTH + gap)));
+    cols = Math.min(cols, maxColsForWidth);
+
+    choiceHost.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   }
 
   function updateSheetVisibility(): void {
     sheet.style.display = phase === "choosing" || phase === "finished" ? "flex" : "none";
     currentCityLabel.style.display = phase === "choosing" ? "block" : "none";
+    // "flex" ist hier nur ein Platzhalter fuer den sichtbaren Fall --
+    // renderChoiceButtons ruft direkt danach IMMER layoutChoiceGrid auf, das
+    // auf "grid" umschaltet und die Spaltenzahl setzt. Der einzige Fall, in
+    // dem choiceHost sichtbar wird (phase === "choosing"), laeuft immer ueber
+    // renderChoiceButtons -- kein Pfad zeigt choiceHost mit diesem
+    // "flex"-Platzhalter tatsaechlich an.
     choiceHost.style.display = phase === "choosing" ? "flex" : "none";
     finishHost.style.display = phase === "finished" ? "flex" : "none";
     centerBtn.style.display = phase === "choosing" ? "block" : "none";

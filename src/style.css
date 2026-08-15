@@ -799,32 +799,32 @@ button {
   width: 100%;
   flex: 1;
   min-height: 0;
-  /* Auf ausdruecklichen Wunsch NIE scrollbar -- MainMenu.ts#applyLayout
-     skaliert Kachelbreite/-hoehe so, dass alle Saeulen immer ohne Scrollen
-     in die verfuegbare Hoehe passen, ein Scrollbalken sollte also nie noetig
-     werden. overflow bleibt trotzdem hidden statt visible, als Absicherung
-     falls ein extremer Seitenverhaeltnis-/MIN_TILE_WIDTH-Randfall die
-     Berechnung doch mal knapp verfehlt. */
-  overflow: hidden;
-}
-
-/* Auf Handybildschirmgroesse (siehe MainMenu.ts#PHONE_BREAKPOINT) wird das
-   Menue zweispaltig UND auf ausdruecklichen Wunsch DOCH scrollbar -- die
-   Kacheln bekommen dort eine angenehme, an der Breite orientierte Groesse
-   (siehe solveTileHeight#allowScroll) statt auf eine ggf. sehr kleine Hoehe
-   zusammengestaucht zu werden, nur damit alles ohne Scrollen passt. Ab
-   Tablet-Breite aufwaerts bleibt es beim bisherigen "nie scrollbar". */
-@media (max-width: 960px) {
-  .menu-grid {
-    overflow-y: auto;
-    touch-action: pan-y;
-    /* Aeltere iOS-Safari-Versionen aktivierten natives Momentum-Touch-
-       Scrollen bei overflow:auto nur mit diesem (heute sonst ueberfluessigen)
-       Praefix -- kostet auf modernen Browsern nichts, ist aber ein billiges
-       zusaetzliches Sicherheitsnetz fuer den gemeldeten "kann auf dem Handy
-       nicht scrollen"-Bug. */
-    -webkit-overflow-scrolling: touch;
-  }
+  /* Auf ausdruecklichen Wunsch NIE scrollbar auf Tablet/Desktop --
+     MainMenu.ts#applyLayout skaliert Kachelbreite/-hoehe so, dass alle
+     Saeulen normalerweise ohne Scrollen in die verfuegbare Hoehe passen.
+     overflow-y:auto (statt hidden) bleibt trotzdem IMMER aktiv, nicht nur
+     unterhalb MainMenu.ts#PHONE_BREAKPOINT wie frueher -- die
+     Breite-basierte Handy-Erkennung dort verlaesst sich auf
+     window/clientWidth, und mindestens ein gemeldeter Fall (Microsoft Edge
+     fuer Android auf einem Handy, auf dem derselbe Bildschirm im Samsung-
+     Internet-Browser problemlos scrollte) meldete dabei eine deutlich zu
+     grosse Breite -- vermutlich ein Desktop-Site-/Viewport-Unterschied
+     dieses Browsers, nicht im Code beeinflussbar. Die Kacheln landeten
+     dadurch in der "passt immer ohne Scrollen"-Ecke, wurden bis zur
+     MIN_TILE_WIDTH/MIN_SCALE-Untergrenze zusammengestaucht und blieben
+     trotzdem teils zu gross fuer den Bildschirm -- OHNE dass overflow-y:auto
+     aktiv war, war der ueberschuessige Rest schlicht unerreichbar
+     (gemeldeter Bug: "kann im Hauptmenue nicht scrollen"). overflow-y:auto
+     ist im Normalfall (Inhalt passt wie vorgesehen exakt) folgenlos -- ohne
+     ueberschuessigen Inhalt gibt es nichts zu scrollen, es erscheint kein
+     Scrollbalken. Dient also nur noch als Sicherheitsnetz fuer genau diesen
+     Rand-/Browserfall statt einer echten Verhaltensaenderung im Normalfall. */
+  overflow-y: auto;
+  touch-action: pan-y;
+  /* Aeltere iOS-Safari-Versionen aktivierten natives Momentum-Touch-Scrollen
+     bei overflow:auto nur mit diesem (heute sonst ueberfluessigen) Praefix --
+     kostet auf modernen Browsern nichts. */
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Eine einzelne Saeule (siehe .menu-grid-Kommentar) -- staeckt die ihr
@@ -971,37 +971,26 @@ button {
 .highscore-board {
   flex: 1;
   min-height: 0;
-  /* Auf ausdruecklichen Wunsch NIE scrollbar -- HighscoreBoard.ts#applyLayout
-     verteilt die Spiele per Bin-Packing auf Saeulen (grosse Spiele wie
-     Zugfoto/Passagiere-zaehlen mit 10 Kategorien praktisch immer in einer
-     eigenen Saeule) und waehlt die Zeilengroesse (--hb-scale) so, dass alle
-     Saeulen immer ohne Scrollen in die verfuegbare Hoehe passen. overflow
-     bleibt trotzdem hidden statt visible, als Absicherung falls ein
-     extremer Seitenverhaeltnis-Randfall die Berechnung doch mal knapp
-     verfehlt (gleiches Vorgehen wie im Hauptmenue, siehe .menu-grid).
-     Breite/Abstand je Saeule sind reine JS-gesetzte Inline-Styles
-     (prozentuale Breite + px-Gap, siehe HighscoreBoard.ts), hier nur noch
-     das AEUSSERE Flex-Layout. */
+  /* Auf ausdruecklichen Wunsch NIE scrollbar auf Tablet/Desktop --
+     HighscoreBoard.ts#applyLayout verteilt die Spiele per Bin-Packing auf
+     Saeulen und waehlt die Zeilengroesse (--hb-scale) so, dass alle Saeulen
+     normalerweise ohne Scrollen in die verfuegbare Hoehe passen.
+     overflow-y:auto (statt hidden) bleibt trotzdem IMMER aktiv, nicht nur
+     unterhalb HighscoreBoard.ts' Handy-Breite wie frueher -- siehe
+     ausfuehrlicher Kommentar bei .menu-grid oben (gleicher Bug, gleiche
+     Ursache/Loesung: eine per Breite erkannte "Handy vs. Tablet"-Einstufung
+     kann durch abweichende Viewport-Angaben mancher Mobilbrowser danebenliegen,
+     overflow-y:auto ist im Normalfall folgenlos und dient nur als
+     Sicherheitsnetz). Breite/Abstand je Saeule sind reine JS-gesetzte
+     Inline-Styles (prozentuale Breite + px-Gap, siehe HighscoreBoard.ts),
+     hier nur noch das AEUSSERE Flex-Layout. */
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   justify-content: flex-start;
-  overflow: hidden;
-}
-
-/* Auf ausdruecklichen Wunsch NUR auf Handybildschirmgroesse (kleiner als
-   ein Tablet) doch scrollbar: bei sehr vielen Spielen/Kategorien auf einem
-   winzigen Bildschirm liesse sich sonst alles nur noch auf eine kaum noch
-   lesbare Mindestgroesse (--hb-scale) zusammenquetschen -- ab Tablet-
-   Breite aufwaerts bleibt es dagegen bei "nie scrollbar", siehe Kommentar
-   oben. */
-@media (max-width: 960px) {
-  .highscore-board {
-    overflow-y: auto;
-    touch-action: pan-y;
-    /* Siehe gleichlautender Kommentar bei .menu-grid oben. */
-    -webkit-overflow-scrolling: touch;
-  }
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .highscore-board__column {

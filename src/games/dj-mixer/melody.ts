@@ -12,19 +12,22 @@
  * Ton, sondern einfach nur so ein komischer Insta-Sound", gemeldet).
  *
  * Jetzt stattdessen drei echte, aber schlicht NORMALE Einzeltoene, wie man
- * sie auf einem echten DJ-/Sampler-Board erwarten wuerde (myinstants.com,
- * jeweils VOR der Aufnahme in dieses Board per Wellenform-/Pitch-Analyse
- * verifiziert: EIN klarer Attack, EINE stabile Tonhoehe -- keine Tonfolgen,
- * keine unpitched Effektsounds). Unter demselben bereits dokumentierten
- * Lizenzrisiko-Vorbehalt wie die uebrigen echten Sample-Clips im Projekt
- * (siehe sounds.ts, Datei-Kommentar dort): rein lokaler/privater Betrieb,
- * Rechte ausdruecklich zweitrangig.
+ * sie auf einem echten DJ-/Sampler-Board erwarten wuerde, jeweils VOR der
+ * Aufnahme in dieses Board per Wellenform-/Pitch-Analyse verifiziert: EIN
+ * klarer Attack, EINE stabile Tonhoehe -- keine Tonfolgen, keine unpitched
+ * Effektsounds. Unter demselben bereits dokumentierten Lizenzrisiko-
+ * Vorbehalt wie die uebrigen echten Sample-Clips im Projekt (siehe
+ * sounds.ts, Datei-Kommentar dort): rein lokaler/privater Betrieb, Rechte
+ * ausdruecklich zweitrangig.
  *  - piano-c5-note.mp3: myinstants.com/en/instant/c5-piano-note-38128
  *                       (echter Klavieranschlag, Ton C5)
  *  - bell-ding.mp3:     myinstants.com/en/instant/ding-sound-effect
  *                       (heller Glocken-/Ding-Ton)
- *  - 8bit-beep.mp3:     myinstants.com/en/instant/8-bit-beep-19641
- *                       (kurzer, klarer 8-Bit-Retro-Piepton)
+ *  - synth-pluck.mp3:   samplefocus.com/samples/synth-pluck-g (echter,
+ *                       kurzer Synth-Pluck-One-Shot, wie in echter Beat-
+ *                       Produktion verwendet -- ersetzt einen 8-Bit-
+ *                       Retro-Piepton, der als "auch wieder KI-generiert
+ *                       klingend" empfunden wurde, siehe Git-Historie)
  *
  * Anders als die perkussiven Bahn-Sounds in sounds.ts brauchen diese hier
  * eine frei waehlbare Tonhoehe (fuer den Piano-Roll) -- ein fertiger Sample-
@@ -41,7 +44,7 @@
  */
 import pianoC5Url from "../../assets/sounds/piano-c5-note.mp3";
 import bellDingUrl from "../../assets/sounds/bell-ding.mp3";
-import beep8bitUrl from "../../assets/sounds/8bit-beep.mp3";
+import synthPluckUrl from "../../assets/sounds/synth-pluck.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -114,12 +117,12 @@ export const MELODY_INSTRUMENTS: MelodyInstrument[] = [
     play: makeMelodySamplePlayFn(bellDingUrl, 1.3, 0.12, 0.85),
   },
   {
-    id: "beep8bit",
-    label: "8-Bit-Piepton",
-    hint: "Kurzer Retro-Piepton",
-    url: beep8bitUrl,
-    baseFreq: 743.5,
-    play: makeMelodySamplePlayFn(beep8bitUrl, 2.0, 0.07, 0.2),
+    id: "synthPluck",
+    label: "Synth-Pluck",
+    hint: "Kurzer Synth-Pluck (G4)",
+    url: synthPluckUrl,
+    baseFreq: 392.5,
+    play: makeMelodySamplePlayFn(synthPluckUrl, 0.55, 0, 0.35),
   },
 ];
 

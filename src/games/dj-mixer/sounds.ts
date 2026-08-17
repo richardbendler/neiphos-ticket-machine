@@ -17,17 +17,11 @@ export type SoundId =
   | "snare"
   | "hiHat"
   | "horn"
-  | "dbAnkuendigung"
   | "ansageDb"
   | "sBahnNeu"
   | "railroadBell"
-  | "steamBrake"
-  | "trainRumble"
   | "tramBell"
   | "hornParis"
-  | "hornChina"
-  | "hornJapan"
-  | "hornUk"
   | "steamWhistle"
   | "hopperSqueak"
   | "zurueckbleiben"
@@ -36,11 +30,8 @@ export type SoundId =
   | "bvgStandardgong"
   | "bvgInfogong"
   | "bvgSondergong"
-  | "bvgAlexanderplatz"
   | "bvgEndhaltestelle"
   | "dbGongNeu"
-  | "xWagenTuer"
-  | "achtungZugbetrieb"
   | "aufzugDing"
   | "bahnsteigPfiff";
 
@@ -201,20 +192,17 @@ const playHopperSqueak: PlayFn = (ctx, time, destination) => {
 // silencedetect ermittelte) Anfangsstille gekuerzt, damit sie im Sequencer
 // wirklich exakt auf dem Taktschlag einsetzen. Herkunft (jeweils
 // Instant-Sound-Button auf myinstants.com):
-//  - dbAnkuendigung: myinstants.com/en/instant/deutsche-bahn-ankundigung-45554
 //  - ansageDb:       myinstants.com/en/instant/ansage-db-72287
 //  - sBahnNeu:       myinstants.com/en/instant/s-bahn-neu-85653
 //  - horn:           myinstants.com/en/instant/train-horn (klingt eher nach
 //                     rhythmischem Tuckern als nach einem harten
 //                     Signalhorn, daher hier als "Choo-Choo" benannt)
 //  - railroadBell:   myinstants.com/en/instant/bells-railroad-crossing-18898
-//  - steamBrake:     myinstants.com/en/instant/steam-locomotive-brakes-screaming-67672
-//  - trainRumble:    myinstants.com/en/instant/anderes-zugsgerausch-7741
-//  - tramBell:       myinstants.com/en/instant/tram-bell-45667
+//  - tramBell:       myinstants.com/en/instant/tram-bell-45667 (startOffset
+//                     schneidet die anfaengliche Strassen-/Fahrgeraeusch-
+//                     Vorlaufzeit weg, siehe SOUND_DEFS -- auf ausdruecklichen
+//                     Wunsch, "die Luecke vorm eigentlichen Klingeln war zu doll")
 //  - hornParis:      myinstants.com/en/instant/paris-train-horn
-//  - hornChina:      myinstants.com/en/instant/chinese-diesel-locomotive-horn
-//  - hornJapan:      myinstants.com/en/instant/jr-e353-series-horn
-//  - hornUk:         myinstants.com/en/instant/british-class-141-horn-sound
 //  - steamWhistle:   myinstants.com/en/instant/nkp-765-whistle (Pfeife der
 //                     erhaltenen Dampflok Nickel Plate Road 765)
 //  - zurueckbleiben: myinstants.com/en/instant/zuruckbleiben-bitte-berlin-95485
@@ -229,53 +217,55 @@ const playHopperSqueak: PlayFn = (ctx, time, destination) => {
 // (v.a. Berlin, wo die App/das Festival verortet ist) wiedererkennbare
 // Bahn-/Nahverkehrs-Signaltoene ergaenzt -- bewusst mit Schwerpunkt auf
 // echten BVG-Toenen (Berlin), passend zum bereits vorhandenen
-// "zurueckbleiben"-Clip (klassische Berliner U-Bahn-Ansage). Dieselben
-// BVG-/DB-Clips werden teils auch in core/sound.ts fuer die
-// Huepftier-Metro-Bahnhofskulisse verwendet (dort mit eigenem Import,
-// siehe dortiger Quellenkommentar) -- wie bei dbAnkuendigung/ansageDb/
-// einsteigenBitte/haltestellengong oben ist das absichtlich dieselbe
-// Datei an zwei Stellen, kein Duplikat-Download. Quellen (jeweils
-// Instant-Sound-Button auf myinstants.com):
+// "zurueckbleiben"-Clip (klassische Berliner U-Bahn-Ansage). Nach einer
+// zweiten Durchsicht wieder auf 6 der 10 reduziert -- die anderen 4
+// (dbAnkuendigung, bvgAlexanderplatz, xWagenTuer, achtungZugbetrieb) klangen
+// entweder redundant zu einem bereits vorhandenen Sound oder schlicht
+// schlecht (siehe Git-Historie fuer die Details). Dieselben BVG-/DB-Clips
+// werden teils auch in core/sound.ts fuer die Huepftier-Metro-
+// Bahnhofskulisse verwendet (dort mit eigenem Import, siehe dortiger
+// Quellenkommentar) -- wie bei ansageDb/einsteigenBitte/haltestellengong
+// oben ist das absichtlich dieselbe Datei an zwei Stellen, kein
+// Duplikat-Download. Quellen (jeweils Instant-Sound-Button auf myinstants.com):
 //  - bvgStandardgong: myinstants.com/en/instant/bvg-standardgong-39783
 //                     (der klassische BVG-U-Bahn-Tuerschliess-Gong, Berlin)
-//  - bvgInfogong:     myinstants.com/en/instant/bvg-infogong-29302
-//                     (kurzer Gong vor BVG-Lautsprecherdurchsagen, Berlin)
+//  - bvgInfogong:     myinstants.com/en/instant/bvg-infogong-29302 (kurzer
+//                     Gong vor BVG-Lautsprecherdurchsagen, Berlin --
+//                     maxDuration auf ausdruecklichen Wunsch von 1.8 auf ca.
+//                     1.1s gekuerzt, damit nur die ersten beiden Toene des
+//                     "Bing-Bong" zu hoeren sind statt noch ein dritter/
+//                     vierter Ton hinterher)
 //  - bvgSondergong:   myinstants.com/en/instant/bvg-sondergong-5090
 //                     (BVG-Gong fuer Sonderansagen/Stoerungshinweise, Berlin)
-//  - bvgAlexanderplatz: myinstants.com/en/instant/bvg-alexanderplatz-68341
-//                     (BVG-Ansagegong + Stationsname "Alexanderplatz", Berlin)
 //  - bvgEndhaltestelle: myinstants.com/en/instant/bvg-endhaltestelle-76312
-//                     (BVG-Ansagegong "Endstation, bitte alle aussteigen", Berlin)
+//                     (BVG-Ansagegong "Endstation, bitte alle aussteigen",
+//                     Berlin -- maxDuration auf ausdruecklichen Wunsch von
+//                     2.2 auf ca. 1.05s gekuerzt, damit nur noch Gong+
+//                     "Endstation" zu hoeren ist, nicht mehr der
+//                     nachfolgende Satzteil)
 //  - dbGongNeu:       myinstants.com/en/instant/db-gong-neu-29978 (neuerer
 //                     DB-Bahnhofsdurchsage-Gong, bundesweit an DB-Stationen
 //                     inkl. Berlin Hauptbahnhof zu hoeren)
-//  - xWagenTuer:      myinstants.com/en/instant/x-wagen-tur-72596
-//                     (Tuerschliess-Signal der Baureihe "X-Wagen", einer
-//                     echten deutschen U-Bahn-/Stadtbahn-Baureihe, u.a.
-//                     Nuernberg/NRW -- fuellt die bisherige Luecke im
-//                     Bestand an "hornDE"-artigen deutschen Zug-/Bahn-
-//                     Tuer-Signaltoenen)
-//  - achtungZugbetrieb: myinstants.com/en/instant/achtung-zugbetrieb-2674
-//                     (DB-Warnansage "Achtung, Zugbetrieb", bundesweit)
-//  - aufzugDing:      myinstants.com/en/instant/elevator-ding-5180 (generischer
-//                     Aufzug-Signalton -- steht hier fuer den Aufzug am
-//                     Bahnsteig, im weiteren Sinne Bahnhofsthematik)
+//  - aufzugDing:      myinstants.com/en/instant/elevator-ding-5180
+//                     (generischer Aufzug-Signalton -- steht hier fuer den
+//                     Aufzug am Bahnsteig, im weiteren Sinne
+//                     Bahnhofsthematik. War zunaechst FEHLERHAFT/unhoerbar:
+//                     das eigentliche "Ding" beginnt im Original-Clip erst
+//                     bei ca. 1.15s, maxDuration stoppte die Wiedergabe aber
+//                     schon nach 0.8s -- der Sound wurde also gestoppt,
+//                     BEVOR er ueberhaupt angefangen hatte (gemeldet: "da
+//                     hoer ich gar nichts"). Per startOffset auf den
+//                     tatsaechlichen Klangbeginn korrigiert.)
 //  - bahnsteigPfiff:  myinstants.com/en/instant/referee-whistle-70248
 //                     (generischer kurzer Pfiff -- steht hier fuer den
 //                     klassischen Abfahrts-/Zugabfertigungspfiff auf dem
 //                     Bahnsteig)
-import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
 import hornUrl from "../../assets/sounds/train-horn.mp3";
 import railroadBellUrl from "../../assets/sounds/railroad-bell.mp3";
-import steamBrakeUrl from "../../assets/sounds/steam-brake.mp3";
-import trainRumbleUrl from "../../assets/sounds/zugsgeraeusch.mp3";
 import tramBellUrl from "../../assets/sounds/tram-bell.mp3";
 import hornParisUrl from "../../assets/sounds/horn-paris.mp3";
-import hornChinaUrl from "../../assets/sounds/horn-china.mp3";
-import hornJapanUrl from "../../assets/sounds/horn-japan.mp3";
-import hornUkUrl from "../../assets/sounds/horn-uk.mp3";
 import steamWhistleUrl from "../../assets/sounds/steam-whistle.mp3";
 import zurueckbleibenUrl from "../../assets/sounds/zurueckbleiben.mp3";
 import einsteigenBitteUrl from "../../assets/sounds/einsteigen-bitte.mp3";
@@ -283,11 +273,8 @@ import haltestellengongUrl from "../../assets/sounds/haltestellengong.mp3";
 import bvgStandardgongUrl from "../../assets/sounds/bvg-standardgong.mp3";
 import bvgInfogongUrl from "../../assets/sounds/bvg-infogong.mp3";
 import bvgSondergongUrl from "../../assets/sounds/bvg-sondergong.mp3";
-import bvgAlexanderplatzUrl from "../../assets/sounds/bvg-alexanderplatz.mp3";
 import bvgEndhaltestelleUrl from "../../assets/sounds/bvg-endhaltestelle.mp3";
 import dbGongNeuUrl from "../../assets/sounds/db-gong-neu.mp3";
-import xWagenTuerUrl from "../../assets/sounds/u-bahn-x-wagen-tuer.mp3";
-import achtungZugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
 import aufzugDingUrl from "../../assets/sounds/aufzug-ding.mp3";
 import bahnsteigPfiffUrl from "../../assets/sounds/bahnsteig-pfiff.mp3";
 
@@ -363,18 +350,12 @@ function makeSamplePlayFn(url: string, gainBoost = 1, maxDuration?: number, star
 }
 
 const SAMPLE_URLS = [
-  dbAnkuendigungUrl,
   ansageDbUrl,
   sBahnNeuUrl,
   hornUrl,
   railroadBellUrl,
-  steamBrakeUrl,
-  trainRumbleUrl,
   tramBellUrl,
   hornParisUrl,
-  hornChinaUrl,
-  hornJapanUrl,
-  hornUkUrl,
   steamWhistleUrl,
   zurueckbleibenUrl,
   einsteigenBitteUrl,
@@ -382,11 +363,8 @@ const SAMPLE_URLS = [
   bvgStandardgongUrl,
   bvgInfogongUrl,
   bvgSondergongUrl,
-  bvgAlexanderplatzUrl,
   bvgEndhaltestelleUrl,
   dbGongNeuUrl,
-  xWagenTuerUrl,
-  achtungZugbetriebUrl,
   aufzugDingUrl,
   bahnsteigPfiffUrl,
 ];
@@ -405,7 +383,6 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
   { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
   { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 0.76, 1) },
-  { id: "dbAnkuendigung", label: "DB-Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(dbAnkuendigungUrl, 2.3) },
   // War vorher "Ansage 2" -- die dritte, kuenstlich klingende Ansage
   // ("announcement"/bahnhofsansage.mp3) klang identisch zu "DB-Ansage",
   // aber schlechter, und wurde deshalb entfernt; dieser Sound ruecky auf
@@ -423,31 +400,35 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "zurueckbleiben", label: "Zurückbleiben", hint: "„Zurückbleiben bitte“ (Sample-Clip)", play: makeSamplePlayFn(zurueckbleibenUrl, 0.5) },
   { id: "haltestellengong", label: "Halte-Gong", hint: "Haltestellengong Bus/Tram (Sample-Clip)", play: makeSamplePlayFn(haltestellengongUrl, 1.65) },
   { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 4.5, 1.1) },
-  { id: "steamBrake", label: "Dampf-Zischen", hint: "Dampflok-Bremse (Sample-Clip)", play: makeSamplePlayFn(steamBrakeUrl, 1.4, 0.8) },
-  { id: "trainRumble", label: "Zugrattern", hint: "Rattern auf der Schiene (Sample-Clip)", play: makeSamplePlayFn(trainRumbleUrl, 1.6, 1) },
-  // maxDuration von 0.8 auf 2.0: der Glockenklang klingt hoerbar nach, 0.8s
-  // schnitt ihn mitten im Ausklingen brutal ab (siehe gemeldeter Bug).
-  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 3.5, 2.0) },
+  // startOffset auf ausdruecklichen Wunsch ergaenzt (war 0/kein Offset): die
+  // ersten ca. 280ms sind im Original nur leises Strassen-/Fahrgeraeusch vor
+  // dem eigentlichen Klingeln, wirkte als zu lange/zu deutliche Luecke vorm
+  // Einsatz auf dem Sequencer-Takt (gemeldet).
+  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 3.5, 2.0, 0.28) },
   { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 0.55, 1.2) },
-  { id: "hornChina", label: "Horn China", hint: "Chinesisches Diesellok-Horn (Sample-Clip)", play: makeSamplePlayFn(hornChinaUrl, 0.25, 1.2) },
-  { id: "hornJapan", label: "Horn Japan", hint: "Japanisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornJapanUrl, 1.14, 1.2) },
-  // gainBoost vorher 1, dann 0.65 -- Lautstaerke-Messung zeigte, dass es
-  // trotz der vorherigen Reduktion immer noch eines der lautesten Elemente
-  // im ganzen Board war, daher nochmals deutlich abgesenkt.
-  { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 0.31, 1.2) },
   { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 0.98, 1.3) },
   { id: "hopperSqueak", label: "Hüpftier", hint: "Quietschendes Gummi-Hüpftier", play: playHopperSqueak },
-  // 10 weitere kurze Bahn-/Nahverkehrs-Signaltoene, Schwerpunkt Berlin/BVG
-  // (siehe Quellenkommentar oben bei den Imports).
+  // 6 weitere kurze Bahn-/Nahverkehrs-Signaltoene, Schwerpunkt Berlin/BVG
+  // (siehe Quellenkommentar oben bei den Imports; ursprünglich 10, 4 davon
+  // nach Durchsicht wieder entfernt).
   { id: "bvgStandardgong", label: "BVG-Gong", hint: "BVG-U-Bahn-Türschließ-Gong, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgStandardgongUrl, 1.7, 1.8) },
-  { id: "bvgInfogong", label: "BVG-Info", hint: "BVG-Infogong vor Durchsagen, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgInfogongUrl, 1.7, 1.8) },
+  // maxDuration von 1.8 auf 1.08 -- auf ausdruecklichen Wunsch nur noch die
+  // ersten beiden Toene des "Bing-Bong"-Gongs, der dritte/vierte Ton kurz
+  // danach wirkte wie ein unpassend angehaengter zweiter Sound (gemeldet).
+  { id: "bvgInfogong", label: "BVG-Info", hint: "BVG-Infogong vor Durchsagen, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgInfogongUrl, 1.7, 1.08) },
   { id: "bvgSondergong", label: "BVG-Sonder", hint: "BVG-Sondergong für Störungshinweise, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgSondergongUrl, 1.7, 1.8) },
-  { id: "bvgAlexanderplatz", label: "Alexanderplatz", hint: "BVG-Ansagegong „Alexanderplatz“, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgAlexanderplatzUrl, 1.5, 2.2) },
-  { id: "bvgEndhaltestelle", label: "Endstation", hint: "BVG-Ansagegong „Endstation“, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgEndhaltestelleUrl, 1.6, 2.2) },
+  // maxDuration von 2.2 auf 1.05 -- auf ausdruecklichen Wunsch nur noch
+  // "Endstation" selbst, der nachfolgende Satzteil ("bitte alle
+  // aussteigen") war noch hoerbar mit angeschnitten (gemeldet).
+  { id: "bvgEndhaltestelle", label: "Endstation", hint: "BVG-Ansagegong „Endstation“, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgEndhaltestelleUrl, 1.6, 1.05) },
   { id: "dbGongNeu", label: "DB-Gong", hint: "Neuer DB-Bahnhofsdurchsage-Gong (Sample-Clip)", play: makeSamplePlayFn(dbGongNeuUrl, 1.5, 1.8) },
-  { id: "xWagenTuer", label: "U-Bahn-Tür", hint: "Türschließ-Signal U-Bahn-Baureihe X-Wagen (Sample-Clip)", play: makeSamplePlayFn(xWagenTuerUrl, 1.0, 1.3) },
-  { id: "achtungZugbetrieb", label: "Achtung!", hint: "DB-Warnansage „Achtung, Zugbetrieb“ (Sample-Clip)", play: makeSamplePlayFn(achtungZugbetriebUrl, 1.4, 1.3) },
-  { id: "aufzugDing", label: "Aufzug-Ding", hint: "Aufzug-Signalton am Bahnhof (Sample-Clip)", play: makeSamplePlayFn(aufzugDingUrl, 1.8, 0.8) },
+  // War kaputt: maxDuration (0.8) stoppte die Wiedergabe, BEVOR das
+  // eigentliche "Ding" (beginnt im Original erst bei ca. 1.15s) ueberhaupt
+  // angefangen hatte -- der Sound war dadurch komplett unhoerbar (gemeldet:
+  // "da hoer ich gar nichts"). Per startOffset auf den echten Klangbeginn
+  // korrigiert; gainBoost von 1.8 auf 1.0 gesenkt, da der Originalpegel an
+  // dieser Stelle bereits sehr hoch ist (sonst Uebersteuerungsgefahr).
+  { id: "aufzugDing", label: "Aufzug-Ding", hint: "Aufzug-Signalton am Bahnhof (Sample-Clip)", play: makeSamplePlayFn(aufzugDingUrl, 1.0, 1.6, 1.1) },
   { id: "bahnsteigPfiff", label: "Pfiff", hint: "Abfahrtspfiff auf dem Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnsteigPfiffUrl, 0.9, 0.9) },
 ];
 

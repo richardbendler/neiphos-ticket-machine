@@ -21,8 +21,12 @@
  * ausdruecklich zweitrangig.
  *  - piano-c5-note.mp3: myinstants.com/en/instant/c5-piano-note-38128
  *                       (echter Klavieranschlag, Ton C5)
- *  - bell-ding.mp3:     myinstants.com/en/instant/ding-sound-effect
- *                       (heller Glocken-/Ding-Ton)
+ *  - sub-bass.mp3:      samplefocus.com/samples/sub-bass-one-shot-steady
+ *                       (gehaltener Sub-Bass-One-Shot, wie man ihn aus
+ *                       echter DJ-/Beat-Software kennt, um daraus
+ *                       Basslinien/Melodien zu bauen -- ersetzt einen
+ *                       hellen Glocken-Ton, der auf ausdruecklichen Wunsch
+ *                       einem typischen Bass-Sound weichen sollte)
  *  - synth-pluck.mp3:   samplefocus.com/samples/synth-pluck-g (echter,
  *                       kurzer Synth-Pluck-One-Shot, wie in echter Beat-
  *                       Produktion verwendet -- ersetzt einen 8-Bit-
@@ -43,7 +47,7 @@
  * die Klangfarbe und die tatsaechliche Frequenz aendern sich.
  */
 import pianoC5Url from "../../assets/sounds/piano-c5-note.mp3";
-import bellDingUrl from "../../assets/sounds/bell-ding.mp3";
+import subBassUrl from "../../assets/sounds/sub-bass.mp3";
 import synthPluckUrl from "../../assets/sounds/synth-pluck.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
@@ -109,12 +113,12 @@ export const MELODY_INSTRUMENTS: MelodyInstrument[] = [
     play: makeMelodySamplePlayFn(pianoC5Url, 2.2, 0, 0.9),
   },
   {
-    id: "bell",
-    label: "Glocke",
-    hint: "Heller Glockenton",
-    url: bellDingUrl,
-    baseFreq: 2643,
-    play: makeMelodySamplePlayFn(bellDingUrl, 1.3, 0.12, 0.85),
+    id: "subBass",
+    label: "Bass",
+    hint: "Gehaltener Sub-Bass (C3)",
+    url: subBassUrl,
+    baseFreq: 133.2,
+    play: makeMelodySamplePlayFn(subBassUrl, 1.4, 0, 0.9),
   },
   {
     id: "synthPluck",

@@ -18,6 +18,26 @@ import shinkansenN700 from "../assets/images/trains/shinkansen-n700.png";
 import eurostarE320 from "../assets/images/trains/eurostar-e320.jpg";
 import sbahn481 from "../assets/images/trains/sbahn-481.jpg";
 import bvgF from "../assets/images/trains/bvg-f.jpg";
+import sbbRe460 from "../assets/images/trains/sbb-re460.jpg";
+import rhbGe44iii from "../assets/images/trains/rhb-ge44iii.jpg";
+import etr1000 from "../assets/images/trains/etr1000.jpg";
+import fsE656 from "../assets/images/trains/fs-e656.jpg";
+import aveS103 from "../assets/images/trains/ave-s103.jpg";
+import cr400af from "../assets/images/trains/cr400af.jpg";
+import sapsan from "../assets/images/trains/sapsan.jpg";
+import p36 from "../assets/images/trains/p36.jpg";
+import acela from "../assets/images/trains/acela.jpg";
+import emdF7 from "../assets/images/trains/emd-f7.jpg";
+import sjX2000 from "../assets/images/trains/sj-x2000.jpg";
+import nsbEl17 from "../assets/images/trains/nsb-el17.jpg";
+import oebb1216 from "../assets/images/trains/oebb-1216.jpg";
+import oebbNightjet from "../assets/images/trains/oebb-nightjet.jpg";
+import class800 from "../assets/images/trains/class-800.jpg";
+import tubeSStock from "../assets/images/trains/tube-s-stock.jpg";
+import nsSlt from "../assets/images/trains/ns-slt.jpg";
+import ratpMf01 from "../assets/images/trains/ratp-mf01.jpg";
+import cp2816 from "../assets/images/trains/cp-2816.jpg";
+import wap5 from "../assets/images/trains/wap-5.jpg";
 
 /**
  * Zug-Quartett-Datensatz. Recherchiert ueber die (meist deutsch- oder
@@ -239,5 +259,172 @@ export const trainCards: TrainCard[] = [
     category: "U-Bahn-Triebzug",
     image: bvgF,
     stats: { baujahr: 1973, hoechstgeschwindigkeitKmh: 72, leistungKw: 540, laengeM: 32.1, gewichtT: 38.1 },
+  },
+  {
+    id: "sbb-re460",
+    name: "SBB Re 460",
+    subtitle: 'Die "Lok 2000" im Schweizer Fernverkehr',
+    category: "Elektrolokomotive",
+    image: sbbRe460,
+    stats: { baujahr: 1992, hoechstgeschwindigkeitKmh: 200, leistungKw: 6100, laengeM: 18.5, gewichtT: 84 },
+  },
+  {
+    id: "rhb-ge44iii",
+    name: "RhB Ge 4/4 III",
+    subtitle: "Schmalspur-Zugpferd von Glacier Express und Bernina",
+    category: "Elektrolokomotive",
+    image: rhbGe44iii,
+    stats: { baujahr: 1993, hoechstgeschwindigkeitKmh: 100, leistungKw: 2400, laengeM: 16.0, gewichtT: 62 },
+  },
+  {
+    id: "etr1000",
+    name: "Frecciarossa 1000",
+    subtitle: "Italiens schnellster Hochgeschwindigkeitszug",
+    category: "Hochgeschwindigkeitszug",
+    image: etr1000,
+    stats: { baujahr: 2014, hoechstgeschwindigkeitKmh: 300, leistungKw: 9800, laengeM: 202, gewichtT: 500 },
+  },
+  {
+    id: "fs-e656",
+    name: 'FS-Baureihe E.656 "Caimano"',
+    subtitle: 'Der "Kaiman" im italienischen Fernverkehr',
+    category: "Elektrolokomotive",
+    image: fsE656,
+    stats: { baujahr: 1975, hoechstgeschwindigkeitKmh: 150, leistungKw: 4200, laengeM: 18.3, gewichtT: 120 },
+  },
+  {
+    id: "ave-s103",
+    name: "RENFE AVE S-103",
+    subtitle: "Deutsche Velaro-Technik unter spanischer Sonne",
+    category: "Hochgeschwindigkeitszug",
+    image: aveS103,
+    stats: { baujahr: 2007, hoechstgeschwindigkeitKmh: 310, leistungKw: 8800, laengeM: 200, gewichtT: 425 },
+  },
+  {
+    id: "cr400af",
+    name: 'China Railway CR400AF "Fuxing"',
+    subtitle: "Chinas eigenentwickelter 350-km/h-Standardzug",
+    category: "Hochgeschwindigkeitszug",
+    image: cr400af,
+    stats: { baujahr: 2016, hoechstgeschwindigkeitKmh: 350, leistungKw: 13000, laengeM: 209, gewichtT: 500 },
+  },
+  {
+    id: "sapsan",
+    name: "RZD Sapsan",
+    subtitle: "Russlands Schnellzug zwischen Moskau und St. Petersburg",
+    category: "Hochgeschwindigkeitszug",
+    image: sapsan,
+    stats: { baujahr: 2009, hoechstgeschwindigkeitKmh: 250, leistungKw: 8000, laengeM: 250, gewichtT: 667 },
+  },
+  {
+    id: "p36",
+    name: 'Sowjetische Baureihe П36 "Pobeda"',
+    subtitle: "Die letzte sowjetische Neubau-Schnellzugdampflok",
+    category: "Dampflokomotive",
+    image: p36,
+    stats: { baujahr: 1950, hoechstgeschwindigkeitKmh: 125, leistungKw: 2260, laengeM: 16.7, gewichtT: 133 },
+  },
+  {
+    id: "acela",
+    name: "Amtrak Acela Express",
+    subtitle: "Amerikas erster echter Hochgeschwindigkeitszug",
+    category: "Hochgeschwindigkeitszug",
+    image: acela,
+    stats: { baujahr: 2000, hoechstgeschwindigkeitKmh: 240, leistungKw: 4600, laengeM: 202.3, gewichtT: 565 },
+  },
+  {
+    id: "emd-f7",
+    name: "EMD F7",
+    subtitle: "Meistgebaute US-Diesellok des goldenen Eisenbahnzeitalters",
+    category: "Diesellokomotive",
+    image: emdF7,
+    stats: { baujahr: 1949, hoechstgeschwindigkeitKmh: 164, leistungKw: 1100, laengeM: 15.4, gewichtT: 112.2 },
+  },
+  {
+    id: "sj-x2000",
+    name: "SJ X2000",
+    subtitle: "Schwedischer Neigezug für Tempo auf alten Kurven",
+    category: "Hochgeschwindigkeitszug",
+    image: sjX2000,
+    stats: { baujahr: 1990, hoechstgeschwindigkeitKmh: 200, leistungKw: 3260, laengeM: 165, gewichtT: 365 },
+  },
+  {
+    id: "nsb-el17",
+    name: "NSB El 17",
+    subtitle: "Norwegische Ellok, bekannt von der Flåmsbana",
+    category: "Elektrolokomotive",
+    image: nsbEl17,
+    stats: { baujahr: 1982, hoechstgeschwindigkeitKmh: 150, leistungKw: 3000, laengeM: 16.3, gewichtT: 64 },
+  },
+  {
+    id: "oebb-1216",
+    name: 'ÖBB-Baureihe 1216 "Taurus 3"',
+    subtitle: "Weltrekord-Lok mit 357 km/h auf der Schiene",
+    category: "Elektrolokomotive",
+    image: oebb1216,
+    stats: { baujahr: 2006, hoechstgeschwindigkeitKmh: 230, leistungKw: 6400, laengeM: 19.58, gewichtT: 87 },
+  },
+  {
+    id: "oebb-nightjet",
+    name: "ÖBB Nightjet",
+    subtitle: "Europas modernes Nachtzug-Comeback",
+    category: "Nachtzug",
+    image: oebbNightjet,
+    stats: { baujahr: 2023, hoechstgeschwindigkeitKmh: 230, leistungKw: 6400, laengeM: 204, gewichtT: 409 },
+  },
+  {
+    id: "class-800",
+    name: "British Rail Class 800 (Azuma)",
+    subtitle: "Bimodaler Intercity zwischen Fahrdraht und Diesel",
+    category: "Hochgeschwindigkeitszug",
+    image: class800,
+    stats: { baujahr: 2017, hoechstgeschwindigkeitKmh: 200, leistungKw: 3750, laengeM: 129.7, gewichtT: 243 },
+  },
+  {
+    id: "tube-s-stock",
+    name: "London Underground S Stock",
+    subtitle: "Erste klimatisierte Zugflotte der Londoner U-Bahn",
+    category: "U-Bahn-Triebzug",
+    image: tubeSStock,
+    stats: { baujahr: 2010, hoechstgeschwindigkeitKmh: 100, leistungKw: 1800, laengeM: 117, gewichtT: 213.7 },
+  },
+  {
+    id: "ns-slt",
+    name: "NS Sprinter Lighttrain",
+    subtitle: "Niederländischer Nahverkehrs-Leichtbautriebzug",
+    category: "S-Bahn-Triebzug",
+    image: nsSlt,
+    stats: { baujahr: 2007, hoechstgeschwindigkeitKmh: 140, leistungKw: 1680, laengeM: 100.5, gewichtT: 176 },
+  },
+  {
+    id: "ratp-mf01",
+    name: "RATP MF 01",
+    subtitle: "Modernste Zuggeneration der Pariser Métro",
+    category: "U-Bahn-Triebzug",
+    image: ratpMf01,
+    // Zug steht links im Bild, rechts viel Gleis/Umgebung -- ohne Fokus
+    // wuerde ein zentrierter quadratischer Zuschnitt die Zugfront (links)
+    // anschneiden.
+    focus: "30% 55%",
+    stats: { baujahr: 2007, hoechstgeschwindigkeitKmh: 70, leistungKw: 1800, laengeM: 90, gewichtT: 185 },
+  },
+  {
+    id: "cp-2816",
+    name: 'Canadian Pacific 2816 "Empress"',
+    subtitle: "Kanadische Hudson-Dampflok, bis heute fahrtüchtig",
+    category: "Dampflokomotive",
+    image: cp2816,
+    stats: { baujahr: 1930, hoechstgeschwindigkeitKmh: 160, leistungKw: 3500, laengeM: 27.76, gewichtT: 291.7 },
+  },
+  {
+    id: "wap-5",
+    name: "Indian Railways WAP-5",
+    subtitle: "Schnelle indische Elektrolok für den Fernverkehr",
+    category: "Elektrolokomotive",
+    image: wap5,
+    // Lok steht rechts der Bildmitte -- ohne Fokus wuerde ein zentrierter
+    // quadratischer Zuschnitt die Zugspitze rechts anschneiden.
+    focus: "62% 55%",
+    stats: { baujahr: 1995, hoechstgeschwindigkeitKmh: 160, leistungKw: 4474, laengeM: 18.2, gewichtT: 78 },
   },
 ];

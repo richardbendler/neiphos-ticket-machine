@@ -112,13 +112,16 @@ export const MELODY_INSTRUMENTS: MelodyInstrument[] = [
     baseFreq: 524,
     play: makeMelodySamplePlayFn(pianoC5Url, 2.2, 0, 0.9),
   },
+  // maxDuration von 0.9 auf 0.32 -- auf ausdruecklichen Wunsch ("der
+  // Basston ist ein bisschen zu lang") ein kurzer, praegnanter Bass-Stab
+  // statt der vollen gehaltenen Original-Laenge.
   {
     id: "subBass",
     label: "Bass",
-    hint: "Gehaltener Sub-Bass (C3)",
+    hint: "Kurzer Sub-Bass-Stab (C3)",
     url: subBassUrl,
     baseFreq: 133.2,
-    play: makeMelodySamplePlayFn(subBassUrl, 1.4, 0, 0.9),
+    play: makeMelodySamplePlayFn(subBassUrl, 1.4, 0, 0.32),
   },
   {
     id: "synthPluck",

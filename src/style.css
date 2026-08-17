@@ -1503,6 +1503,17 @@ button {
   max-width: 720px;
 }
 
+/* "Hüpftier gefangen!"-Meldung (core/hopperEasterEgg.ts#showCaughtModal) --
+   auf ausdruecklichen Wunsch breiter als der generische Deckel (420px),
+   aber bewusst prozentual statt eines weiteren festen px-Werts wie bei
+   .modal-panel--wide: "darf gerne 60% der Bildschirmbreite einnehmen, wenn
+   sie's braucht", auf einem schmalen Bildschirm greift weiterhin width:100%
+   der Basisklasse. min(...) verhindert nur, dass es auf einem sehr breiten
+   Desktop-/Kiosk-Monitor unnoetig ausufert. */
+.hopper-caught-panel {
+  max-width: min(60vw, 900px);
+}
+
 /* "Dein Ticket wird gedruckt!"/Fehler-Dialog (core/highscorePrompt.ts#
    showTicketPrintResult) -- auf ausdruecklichen Wunsch deutlich breiter als
    der generische Deckel (420px), damit der (jetzt ebenfalls groessere)

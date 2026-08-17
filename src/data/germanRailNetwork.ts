@@ -64,22 +64,53 @@ export const RAIL_CITIES: RailCity[] = [
   { id: "augsburg", name: "Augsburg", lat: 48.37, lon: 10.9 },
   { id: "regensburg", name: "Regensburg", lat: 49.02, lon: 12.1 },
   { id: "wuerzburg", name: "Würzburg", lat: 49.79, lon: 9.93 },
-  // Kleine Startorte ("Kaffs") -- jeweils per kurzer Stichstrecke an eine
-  // der grossen Staedte angebunden (siehe RAIL_EDGES unten). Die eigentliche
+  // Kleine Startorte ("Kaffs") -- jeweils per kurzer Stichstrecke an genau
+  // eine groessere Stadt angebunden (siehe RAIL_EDGES unten). Die eigentliche
   // Fahrt startet IMMER an einem dieser Orte, nie direkt in einer Grossstadt
   // (siehe randomStartCity).
-  { id: "buchholz", name: "Buchholz i.d.N.", lat: 53.32, lon: 9.87, smallTown: true },
-  { id: "verden", name: "Verden (Aller)", lat: 52.92, lon: 9.23, smallTown: true },
-  { id: "lehrte", name: "Lehrte", lat: 52.38, lon: 9.98, smallTown: true },
+  //
+  // Auf ausdruecklichen Wunsch haengt jeder dieser 32 Startorte an einer
+  // Stadt, die selbst genau 4 Kanten (Zuege) von Breddin entfernt liegt --
+  // durch die zusaetzliche Stichstrecke ist damit JEDER Startort exakt 5
+  // Zuege von Breddin entfernt (der Startort ist ein reiner Blattknoten mit
+  // nur dieser einen Kante, es gibt also keinen kuerzeren Weg). Vorher
+  // variierte die optimale Zuganzahl je nach zufaelligem Startort stark
+  // (3 bis 8, z. B. Buchholz nahe Hamburg vs. Bruchsal ganz im Sueden) --
+  // Runden waren dadurch unterschiedlich schwer (gemeldet). Dazu wurden auf
+  // ausdruecklichen Wunsch 20 weitere Startorte ergaenzt (12 -> 32), damit
+  // man sich die moeglichen Startpunkte nicht einfach auswendig merken kann.
   { id: "unna", name: "Unna", lat: 51.54, lon: 7.69, smallTown: true },
   { id: "bruehl", name: "Brühl", lat: 50.83, lon: 6.91, smallTown: true },
-  { id: "badVilbel", name: "Bad Vilbel", lat: 50.18, lon: 8.74, smallTown: true },
-  { id: "bruchsal", name: "Bruchsal", lat: 49.12, lon: 8.6, smallTown: true },
-  { id: "waiblingen", name: "Waiblingen", lat: 48.83, lon: 9.32, smallTown: true },
-  { id: "fuerstenfeldbruck", name: "Fürstenfeldbruck", lat: 48.18, lon: 11.25, smallTown: true },
   { id: "schwabach", name: "Schwabach", lat: 49.33, lon: 10.99, smallTown: true },
-  { id: "markkleeberg", name: "Markkleeberg", lat: 51.28, lon: 12.37, smallTown: true },
-  { id: "radebeul", name: "Radebeul", lat: 51.1, lon: 13.66, smallTown: true },
+  { id: "badDoberan", name: "Bad Doberan", lat: 54.11, lon: 11.9, smallTown: true },
+  { id: "guestrow", name: "Güstrow", lat: 53.8, lon: 12.18, smallTown: true },
+  { id: "wolfenbuettel", name: "Wolfenbüttel", lat: 52.16, lon: 10.54, smallTown: true },
+  { id: "peine", name: "Peine", lat: 52.32, lon: 10.24, smallTown: true },
+  { id: "salzgitter", name: "Salzgitter", lat: 52.15, lon: 10.33, smallTown: true },
+  { id: "melle", name: "Melle", lat: 52.2, lon: 8.34, smallTown: true },
+  { id: "bramsche", name: "Bramsche", lat: 52.41, lon: 7.99, smallTown: true },
+  { id: "herford", name: "Herford", lat: 52.12, lon: 8.67, smallTown: true },
+  { id: "guetersloh", name: "Gütersloh", lat: 51.91, lon: 8.38, smallTown: true },
+  { id: "baunatal", name: "Baunatal", lat: 51.27, lon: 9.4, smallTown: true },
+  { id: "melsungen", name: "Melsungen", lat: 51.13, lon: 9.56, smallTown: true },
+  { id: "hofgeismar", name: "Hofgeismar", lat: 51.49, lon: 9.38, smallTown: true },
+  { id: "apolda", name: "Apolda", lat: 51.02, lon: 11.51, smallTown: true },
+  { id: "soemmerda", name: "Sömmerda", lat: 51.16, lon: 11.12, smallTown: true },
+  { id: "merseburg", name: "Merseburg", lat: 51.35, lon: 11.99, smallTown: true },
+  { id: "bitterfeld", name: "Bitterfeld", lat: 51.62, lon: 12.32, smallTown: true },
+  { id: "glauchau", name: "Glauchau", lat: 50.82, lon: 12.54, smallTown: true },
+  { id: "freiberg", name: "Freiberg", lat: 50.91, lon: 13.34, smallTown: true },
+  { id: "northeim", name: "Northeim", lat: 51.71, lon: 9.99, smallTown: true },
+  { id: "duderstadt", name: "Duderstadt", lat: 51.51, lon: 10.26, smallTown: true },
+  { id: "gifhorn", name: "Gifhorn", lat: 52.48, lon: 10.55, smallTown: true },
+  { id: "helmstedt", name: "Helmstedt", lat: 52.23, lon: 11.01, smallTown: true },
+  { id: "schleswig", name: "Schleswig", lat: 54.52, lon: 9.56, smallTown: true },
+  { id: "niebuell", name: "Niebüll", lat: 54.79, lon: 8.83, smallTown: true },
+  { id: "delmenhorst", name: "Delmenhorst", lat: 53.05, lon: 8.63, smallTown: true },
+  { id: "wilhelmshaven", name: "Wilhelmshaven", lat: 53.53, lon: 8.11, smallTown: true },
+  { id: "alfeld", name: "Alfeld (Leine)", lat: 51.98, lon: 9.83, smallTown: true },
+  { id: "sarstedt", name: "Sarstedt", lat: 52.23, lon: 9.86, smallTown: true },
+  { id: "elze", name: "Elze", lat: 52.12, lon: 9.75, smallTown: true },
   // 30 weitere Staedte, auf ausdruecklichen Wunsch ergaenzt -- noch dichteres
   // Netz mit noch mehr Routen-Varianz.
   { id: "wiesbaden", name: "Wiesbaden", lat: 50.08, lon: 8.24 },
@@ -181,19 +212,42 @@ export const RAIL_EDGES: RailEdge[] = [
   { from: "regensburg", to: "muenchen", km: 120 },
   { from: "frankfurt", to: "wuerzburg", km: 120 },
   { from: "wuerzburg", to: "nuernberg", km: 110 },
-  // Kurze Stichstrecken zu den kleinen Startorten.
-  { from: "hamburg", to: "buchholz", km: 30 },
-  { from: "bremen", to: "verden", km: 30 },
-  { from: "hannover", to: "lehrte", km: 15 },
+  // Kurze Stichstrecken zu den kleinen Startorten -- jede fuehrt zu einer
+  // Stadt, die selbst 4 Kanten von Breddin entfernt ist (siehe Kommentar bei
+  // den Kaff-Eintraegen oben), damit jeder Startort exakt 5 Zuege von
+  // Breddin entfernt ist.
   { from: "dortmund", to: "unna", km: 20 },
   { from: "koeln", to: "bruehl", km: 15 },
-  { from: "frankfurt", to: "badVilbel", km: 15 },
-  { from: "karlsruhe", to: "bruchsal", km: 20 },
-  { from: "stuttgart", to: "waiblingen", km: 15 },
-  { from: "muenchen", to: "fuerstenfeldbruck", km: 25 },
   { from: "nuernberg", to: "schwabach", km: 15 },
-  { from: "leipzig", to: "markkleeberg", km: 10 },
-  { from: "dresden", to: "radebeul", km: 10 },
+  { from: "rostock", to: "badDoberan", km: 20 },
+  { from: "rostock", to: "guestrow", km: 25 },
+  { from: "braunschweig", to: "wolfenbuettel", km: 15 },
+  { from: "braunschweig", to: "peine", km: 25 },
+  { from: "braunschweig", to: "salzgitter", km: 20 },
+  { from: "osnabrueck", to: "melle", km: 25 },
+  { from: "osnabrueck", to: "bramsche", km: 20 },
+  { from: "bielefeld", to: "herford", km: 15 },
+  { from: "bielefeld", to: "guetersloh", km: 20 },
+  { from: "kassel", to: "baunatal", km: 15 },
+  { from: "kassel", to: "melsungen", km: 25 },
+  { from: "kassel", to: "hofgeismar", km: 25 },
+  { from: "erfurt", to: "apolda", km: 30 },
+  { from: "erfurt", to: "soemmerda", km: 25 },
+  { from: "halle", to: "merseburg", km: 15 },
+  { from: "halle", to: "bitterfeld", km: 25 },
+  { from: "chemnitz", to: "glauchau", km: 30 },
+  { from: "chemnitz", to: "freiberg", km: 35 },
+  { from: "goettingen", to: "northeim", km: 20 },
+  { from: "goettingen", to: "duderstadt", km: 30 },
+  { from: "wolfsburg", to: "gifhorn", km: 20 },
+  { from: "wolfsburg", to: "helmstedt", km: 30 },
+  { from: "flensburg", to: "schleswig", km: 30 },
+  { from: "flensburg", to: "niebuell", km: 40 },
+  { from: "oldenburg", to: "delmenhorst", km: 25 },
+  { from: "oldenburg", to: "wilhelmshaven", km: 45 },
+  { from: "hildesheim", to: "alfeld", km: 30 },
+  { from: "hildesheim", to: "sarstedt", km: 15 },
+  { from: "hildesheim", to: "elze", km: 20 },
   // Strecken zu/zwischen den 30 neu ergaenzten Staedten.
   { from: "frankfurt", to: "wiesbaden", km: 40 },
   { from: "wiesbaden", to: "mainz", km: 15 },

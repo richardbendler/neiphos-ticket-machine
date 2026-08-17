@@ -125,14 +125,17 @@ function createTrainPhotoGame(): MinigameModule {
 
     const title = document.createElement("div");
     title.className = "stage-sheet__title";
-    title.style.fontSize = "clamp(0.6rem, 2.6vh, 1.1rem)";
+    // Auf ausdruecklichen Wunsch deutlich groesser als die generische
+    // .stage-sheet__title-Groesse (war clamp(0.6rem, 2.6vh, 1.1rem)).
+    title.style.fontSize = "clamp(0.8rem, 3.6vh, 1.5rem)";
     title.style.color = "var(--text)";
     title.textContent = "Wie schnell soll der Zug fahren?";
     speedPanel.appendChild(title);
 
     const desc = document.createElement("p");
     desc.style.color = "var(--text-muted)";
-    desc.style.fontSize = "clamp(0.5rem, 2.1vh, 0.9rem)";
+    // Auf ausdruecklichen Wunsch deutlich groesser (war clamp(0.5rem, 2.1vh, 0.9rem)).
+    desc.style.fontSize = "clamp(0.68rem, 2.9vh, 1.2rem)";
     desc.style.margin = "0 0 4px";
     desc.textContent = "Je höher die Stufe, desto schwerer lässt sich der richtige Moment zum Auslösen treffen.";
     speedPanel.appendChild(desc);

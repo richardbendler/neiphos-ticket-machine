@@ -109,40 +109,52 @@ interface InvestOption {
   describe: (units: number) => string;
 }
 
+// maxCredits war je Kategorie unterschiedlich (30/50/75/100/80) -- man
+// konnte das Maximum mancher Kategorien (z. B. Gluecksstufe bei nur 30
+// Credits) erreichen, ohne je die vollen 100 Credits investieren zu
+// koennen/muessen, der Rest des Budgets blieb dann zwangslaeufig fuer
+// andere Kategorien uebrig. Auf ausdruecklichen Wunsch jetzt bei JEDER
+// Kategorie maxCredits=100 (man koennte das GESAMTE Budget in eine
+// einzige Kategorie stecken) -- die maximale WIRKUNG (maxUnits = alter
+// maxCredits / alter costPerUnit) bleibt dabei exakt gleich, costPerUnit
+// wurde nur passend hochskaliert (100 / maxUnits), damit bis zum
+// unveraenderten Maximum jetzt mehr Zwischenschritte/Credit-Betraege
+// durchlaufen werden statt es schon bei einem Bruchteil des Budgets zu
+// erreichen.
 const INVEST_OPTIONS: InvestOption[] = [
   {
     id: "spins",
     label: "Mehr Drehs",
-    costPerUnit: 5,
+    costPerUnit: 5, // unveraendert -- war bereits maxCredits=100
     maxCredits: 100,
     describe: (u) => (u === 0 ? `${BASE_SPINS} Drehs` : `${BASE_SPINS + u} Drehs (+${u})`),
   },
   {
     id: "luck",
     label: "Glücksstufe",
-    costPerUnit: 3,
-    maxCredits: 30,
+    costPerUnit: 10, // war 3 (maxCredits 30) -- maxUnits weiterhin 10
+    maxCredits: 100,
     describe: (u) => (u === 0 ? "Seltene Tiere: normal häufig" : `Stufe ${u}/10 -- seltene Tiere häufiger`),
   },
   {
     id: "pair",
     label: "Trostgewinn",
-    costPerUnit: 10,
-    maxCredits: 50,
+    costPerUnit: 20, // war 10 (maxCredits 50) -- maxUnits weiterhin 5
+    maxCredits: 100,
     describe: (u) => `${PAIR_PAYOUT_BASE + u} Punkte bei zwei Gleichen`,
   },
   {
     id: "jackpot",
     label: "Jackpot-Bonus",
-    costPerUnit: 15,
-    maxCredits: 75,
+    costPerUnit: 20, // war 15 (maxCredits 75) -- maxUnits weiterhin 5
+    maxCredits: 100,
     describe: (u) => (u === 0 ? "Normale Jackpot-Gewinne" : `+${u * 20}% auf alle Drei-Gleiche-Gewinne`),
   },
   {
     id: "safety",
     label: "Sicherheitsnetz",
-    costPerUnit: 8,
-    maxCredits: 80,
+    costPerUnit: 10, // war 8 (maxCredits 80) -- maxUnits weiterhin 10
+    maxCredits: 100,
     describe: (u) => (u === 0 ? "Kein Trost bei einer Niete" : `${u}× „+1 Punkt“ bei einer Niete`),
   },
 ];

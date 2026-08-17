@@ -1,9 +1,14 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { SOUND_DEFS, speakPhrase, stopSpeech, preloadSamples } from "./sounds";
+import { MELODY_INSTRUMENTS, MELODY_NOTE_ROWS } from "./melody";
 import { showGameIntro } from "../../core/gameIntro";
 
 const GAME_ID = "dj-mixer";
+// Anzahl der Melodiespuren (Piano-Roll statt reiner Ein/Aus-Zeilen wie beim
+// Rhythmus-Raster, siehe MelodyTrackState/buildMelodyDom unten) -- auf
+// ausdruecklichen Wunsch drei Stueck.
+const MELODY_TRACK_COUNT = 3;
 // Ein "Takt" (im Sinn dieses Reglers) entspricht einer Gruppe von 4
 // Sechzehntel-Feldern -- der bisherige feste Standard von 16 Feldern
 // entsprach also 4 Takten.
@@ -46,6 +51,28 @@ function buildDefaultGrid(stepCount: number): boolean[][] {
   });
 }
 
+/**
+ * Eine Melodiespur: waehlbares Instrument (siehe melody.ts) + pro Taktschritt
+ * hoechstens EINE Note (Index in MELODY_NOTE_ROWS, oder null = keine Note --
+ * bewusst monophon, nicht mehrere Toene gleichzeitig pro Spur, das haelt den
+ * Piano-Roll einfach antippbar). "expanded" steuert, ob die Spur gerade als
+ * kompakte Kopfzeile oder als ausgeklappter Piano-Roll gezeichnet wird (siehe
+ * buildMelodyDom).
+ */
+interface MelodyTrackState {
+  instrumentIndex: number;
+  notes: (number | null)[];
+  expanded: boolean;
+}
+
+function buildEmptyMelodyTracks(stepCount: number): MelodyTrackState[] {
+  return Array.from({ length: MELODY_TRACK_COUNT }, (_, i) => ({
+    instrumentIndex: i % MELODY_INSTRUMENTS.length,
+    notes: new Array(stepCount).fill(null),
+    expanded: false,
+  }));
+}
+
 export function createDjMixerGame(): MinigameModule {
   let audioCtx: AudioContext | null = null;
   let closeIntro: (() => void) | null = null;
@@ -53,6 +80,7 @@ export function createDjMixerGame(): MinigameModule {
 
   let bars = DEFAULT_BARS;
   let grid: boolean[][] = buildDefaultGrid(bars * STEPS_PER_BAR);
+  let melodyTracks: MelodyTrackState[] = buildEmptyMelodyTracks(bars * STEPS_PER_BAR);
   let playing = false;
   let currentSchedulerStep = 0;
   let nextStepTime = 0;
@@ -64,11 +92,17 @@ export function createDjMixerGame(): MinigameModule {
 
   let panel: HTMLDivElement;
   let seqHost: HTMLDivElement;
+  let melodyHost: HTMLDivElement;
   let playBtn: HTMLButtonElement;
   let bpmLabel: HTMLSpanElement;
   let volumeLabel: HTMLSpanElement;
   let barsLabel: HTMLSpanElement;
   let cellEls: HTMLButtonElement[][] = [];
+  // Pro Melodiespur entweder die Piano-Roll-Zellen (Zeile x Schritt, nur wenn
+  // ausgeklappt) oder null (eingeklappt -- dann gibt es stattdessen nur die
+  // nicht antippbaren Vorschau-Striche in melodyPreviewEls).
+  let melodyCellEls: (HTMLButtonElement[][] | null)[] = [];
+  let melodyPreviewEls: HTMLDivElement[][] = [];
   let gridResizeObserver: ResizeObserver | null = null;
 
   function totalSteps(): number {
@@ -111,9 +145,19 @@ export function createDjMixerGame(): MinigameModule {
     }
   }
 
+  function triggerMelodyNote(trackIndex: number, rowIndex: number, time: number): void {
+    const ctx = audioCtx!;
+    const instrument = MELODY_INSTRUMENTS[melodyTracks[trackIndex].instrumentIndex];
+    instrument.play(ctx, time, masterGain!, MELODY_NOTE_ROWS[rowIndex].freq, secondsPerStep());
+  }
+
   function scheduleStep(step: number, time: number): void {
     grid.forEach((row, trackIndex) => {
       if (row[step]) triggerSound(trackIndex, time);
+    });
+    melodyTracks.forEach((track, trackIndex) => {
+      const rowIndex = track.notes[step];
+      if (rowIndex !== null) triggerMelodyNote(trackIndex, rowIndex, time);
     });
     stepQueue.push({ step, time });
   }
@@ -137,7 +181,9 @@ export function createDjMixerGame(): MinigameModule {
 
   function clearGrid(): void {
     grid = SOUND_DEFS.map(() => new Array(totalSteps()).fill(false));
+    melodyTracks.forEach((track) => track.notes.fill(null));
     syncCellVisuals();
+    syncMelodyVisuals();
   }
 
   function setBars(next: number): void {
@@ -156,7 +202,13 @@ export function createDjMixerGame(): MinigameModule {
       while (trimmed.length < newStepCount) trimmed.push(false);
       return trimmed;
     });
+    melodyTracks.forEach((track) => {
+      const trimmed = track.notes.slice(0, newStepCount);
+      while (trimmed.length < newStepCount) trimmed.push(null);
+      track.notes = trimmed;
+    });
     buildGridDom();
+    buildMelodyDom();
   }
 
   function toggleCell(row: number, step: number): void {
@@ -199,13 +251,184 @@ export function createDjMixerGame(): MinigameModule {
       for (let r = 0; r < cellEls.length; r++) {
         cellEls[r][lastPlayheadStep]?.classList.remove("seq-cell--playhead");
       }
+      melodyCellEls.forEach((rows) => rows?.forEach((row) => row[lastPlayheadStep]?.classList.remove("melody-cell--playhead")));
+      melodyPreviewEls.forEach((ticks) => ticks[lastPlayheadStep]?.classList.remove("melody-preview__tick--playhead"));
     }
     if (visualStep !== -1) {
       for (let r = 0; r < cellEls.length; r++) {
         cellEls[r][visualStep]?.classList.add("seq-cell--playhead");
       }
+      melodyCellEls.forEach((rows) => rows?.forEach((row) => row[visualStep]?.classList.add("melody-cell--playhead")));
+      melodyPreviewEls.forEach((ticks) => ticks[visualStep]?.classList.add("melody-preview__tick--playhead"));
     }
     lastPlayheadStep = visualStep;
+  }
+
+  /**
+   * Setzt (oder entfernt, wenn dieselbe Tonhoehe erneut angetippt wird) die
+   * Note einer Melodiespur an einem Taktschritt -- monophon, eine neue Note
+   * ersetzt automatisch eine bereits vorhandene an diesem Schritt. Aktualisiert
+   * gezielt nur die betroffene Spalte (gleiches Prinzip wie toggleCell).
+   */
+  function setMelodyNote(trackIndex: number, step: number, rowIndex: number): void {
+    const track = melodyTracks[trackIndex];
+    const isSame = track.notes[step] === rowIndex;
+    track.notes[step] = isSame ? null : rowIndex;
+    const rows = melodyCellEls[trackIndex];
+    if (rows) {
+      for (const row of rows) row[step]?.classList.remove("melody-cell--active");
+      if (!isSame) rows[rowIndex]?.[step]?.classList.add("melody-cell--active");
+    }
+    const preview = melodyPreviewEls[trackIndex];
+    if (preview) preview[step]?.classList.toggle("melody-preview__tick--active", !isSame);
+    if (!isSame) previewMelodyNote(trackIndex, rowIndex);
+  }
+
+  function clearMelodyTrack(trackIndex: number): void {
+    const track = melodyTracks[trackIndex];
+    track.notes.fill(null);
+    melodyCellEls[trackIndex]?.forEach((row) => row.forEach((cell) => cell.classList.remove("melody-cell--active")));
+    melodyPreviewEls[trackIndex]?.forEach((tick) => tick.classList.remove("melody-preview__tick--active"));
+  }
+
+  function syncMelodyVisuals(): void {
+    melodyTracks.forEach((track, trackIndex) => {
+      const rows = melodyCellEls[trackIndex];
+      if (rows) {
+        rows.forEach((row, r) => row.forEach((cell, s) => cell.classList.toggle("melody-cell--active", track.notes[s] === r)));
+      }
+      const preview = melodyPreviewEls[trackIndex];
+      if (preview) preview.forEach((tick, s) => tick.classList.toggle("melody-preview__tick--active", track.notes[s] !== null));
+    });
+  }
+
+  function previewMelodyNote(trackIndex: number, rowIndex: number): void {
+    const ctx = ensureAudio();
+    triggerMelodyNote(trackIndex, rowIndex, ctx.currentTime + 0.01);
+  }
+
+  /** Beim Instrumentenwechsel eine mittlere Note anspielen, damit man den neuen Klang sofort hoert (analog zu previewSound bei den Rhythmus-Zeilen). */
+  function previewMelodyInstrument(trackIndex: number): void {
+    previewMelodyNote(trackIndex, Math.floor(MELODY_NOTE_ROWS.length / 2));
+  }
+
+  function toggleMelodyExpanded(trackIndex: number): void {
+    melodyTracks[trackIndex].expanded = !melodyTracks[trackIndex].expanded;
+    buildMelodyDom();
+  }
+
+  /**
+   * Baut die drei Melodiespuren neu auf -- jede entweder als kompakte
+   * Kopfzeile mit nicht antippbarem Vorschau-Streifen (eingeklappt) oder als
+   * volle Piano-Roll mit MELODY_NOTE_ROWS.length antippbaren Tonhoehen-Zeilen
+   * (ausgeklappt, siehe toggleMelodyExpanded). melodyHost selbst ist per CSS
+   * hoehenbegrenzt und bei Bedarf eigenstaendig scrollbar (siehe .melody-tracks
+   * in style.css) -- das Rhythmus-Raster darueber behaelt dadurch sein
+   * bestehendes "passt immer ohne Scrollen"-Verhalten unveraendert bei.
+   */
+  function buildMelodyDom(): void {
+    melodyHost.innerHTML = "";
+    melodyCellEls = [];
+    melodyPreviewEls = [];
+
+    melodyTracks.forEach((track, trackIndex) => {
+      const trackEl = document.createElement("div");
+      trackEl.className = "melody-track" + (track.expanded ? " melody-track--expanded" : "");
+
+      const header = document.createElement("div");
+      header.className = "melody-track__header";
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "melody-track__toggle";
+      toggleBtn.textContent = track.expanded ? "▾" : "▸";
+      toggleBtn.setAttribute("aria-label", track.expanded ? "Melodiespur einklappen" : "Melodiespur ausklappen");
+      toggleBtn.addEventListener("click", () => toggleMelodyExpanded(trackIndex));
+      header.appendChild(toggleBtn);
+
+      const label = document.createElement("span");
+      label.className = "melody-track__label";
+      label.textContent = `Melodie ${trackIndex + 1}`;
+      header.appendChild(label);
+
+      const select = document.createElement("select");
+      select.className = "melody-track__instrument";
+      MELODY_INSTRUMENTS.forEach((inst, i) => {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = inst.label;
+        if (i === track.instrumentIndex) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.title = MELODY_INSTRUMENTS[track.instrumentIndex].hint;
+      select.addEventListener("change", () => {
+        track.instrumentIndex = Number(select.value);
+        select.title = MELODY_INSTRUMENTS[track.instrumentIndex].hint;
+        previewMelodyInstrument(trackIndex);
+      });
+      header.appendChild(select);
+
+      const clearTrackBtn = document.createElement("button");
+      clearTrackBtn.type = "button";
+      clearTrackBtn.className = "btn btn--ghost melody-track__clear";
+      clearTrackBtn.textContent = "Leeren";
+      clearTrackBtn.addEventListener("click", () => clearMelodyTrack(trackIndex));
+      header.appendChild(clearTrackBtn);
+
+      trackEl.appendChild(header);
+
+      if (track.expanded) {
+        const roll = document.createElement("div");
+        roll.className = "melody-roll";
+        const rowEls: HTMLButtonElement[][] = [];
+        MELODY_NOTE_ROWS.forEach((noteRow, rowIndex) => {
+          const rollRow = document.createElement("div");
+          rollRow.className = "melody-roll__row" + (noteRow.isBlackKey ? " melody-roll__row--black" : "");
+
+          const rowLabel = document.createElement("span");
+          rowLabel.className = "melody-roll__label";
+          rowLabel.textContent = noteRow.label;
+          rollRow.appendChild(rowLabel);
+
+          const cellsWrap = document.createElement("div");
+          cellsWrap.className = "melody-roll__cells";
+          cellsWrap.style.gridTemplateColumns = `repeat(${totalSteps()}, 1fr)`;
+          const rowCells: HTMLButtonElement[] = [];
+          for (let s = 0; s < totalSteps(); s++) {
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = "melody-cell" + (s % STEPS_PER_BAR === 0 ? " melody-cell--downbeat" : "");
+            if (track.notes[s] === rowIndex) cell.classList.add("melody-cell--active");
+            cell.addEventListener("click", () => setMelodyNote(trackIndex, s, rowIndex));
+            cellsWrap.appendChild(cell);
+            rowCells.push(cell);
+          }
+          rollRow.appendChild(cellsWrap);
+          roll.appendChild(rollRow);
+          rowEls.push(rowCells);
+        });
+        melodyCellEls.push(rowEls);
+        melodyPreviewEls.push([]);
+        trackEl.appendChild(roll);
+      } else {
+        const preview = document.createElement("div");
+        preview.className = "melody-preview";
+        preview.style.gridTemplateColumns = `repeat(${totalSteps()}, 1fr)`;
+        const previewTicks: HTMLDivElement[] = [];
+        for (let s = 0; s < totalSteps(); s++) {
+          const tick = document.createElement("div");
+          tick.className = "melody-preview__tick" + (s % STEPS_PER_BAR === 0 ? " melody-preview__tick--downbeat" : "");
+          if (track.notes[s] !== null) tick.classList.add("melody-preview__tick--active");
+          preview.appendChild(tick);
+          previewTicks.push(tick);
+        }
+        melodyCellEls.push(null);
+        melodyPreviewEls.push(previewTicks);
+        trackEl.appendChild(preview);
+      }
+
+      melodyHost.appendChild(trackEl);
+    });
   }
 
   function buildGridDom(): void {
@@ -392,6 +615,16 @@ export function createDjMixerGame(): MinigameModule {
       panel.appendChild(seqHost);
       buildGridDom();
 
+      // Melodiespuren unter dem Rhythmus-Raster -- eigener, hoehenbegrenzter
+      // und bei Bedarf selbst scrollbarer Bereich (siehe .melody-tracks in
+      // style.css), damit seqHost sein bestehendes "passt ohne Scrollen"-
+      // Verhalten unveraendert behaelt, egal ob/wie viele Melodiespuren
+      // gerade ausgeklappt sind.
+      melodyHost = document.createElement("div");
+      melodyHost.className = "melody-tracks";
+      panel.appendChild(melodyHost);
+      buildMelodyDom();
+
       env.overlay.appendChild(panel);
 
       gridResizeObserver = new ResizeObserver(() => fitGridToContainer());
@@ -404,6 +637,7 @@ export function createDjMixerGame(): MinigameModule {
           "Jede Spalte ist ein Taktschritt",
           "Tippe Felder an, um sie ein- oder auszuschalten",
           "„Abspielen” lässt dein Muster in Dauerschleife laufen",
+          "Unten warten drei Melodiespuren zum Ausklappen für eigene Melodien",
         ],
         onStart: () => {
           closeIntro = null;

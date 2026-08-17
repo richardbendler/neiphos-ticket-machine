@@ -412,10 +412,13 @@ export const SOUND_DEFS: SoundDef[] = [
   // (siehe Quellenkommentar oben bei den Imports; ursprünglich 10, 4 davon
   // nach Durchsicht wieder entfernt).
   { id: "bvgStandardgong", label: "BVG-Gong", hint: "BVG-U-Bahn-Türschließ-Gong, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgStandardgongUrl, 1.7, 1.8) },
-  // maxDuration von 1.8 auf 1.08 -- auf ausdruecklichen Wunsch nur noch die
-  // ersten beiden Toene des "Bing-Bong"-Gongs, der dritte/vierte Ton kurz
+  // maxDuration von 1.8 auf 1.08 (dann auf 1.14 nachjustiert, war erst zu
+  // knapp geschnitten -- die Wellenform zeigt den zweiten Ton bis ca. 1.14s
+  // ausklingend, direkt danach beginnt bei 1.15s bereits ein dritter Ton) --
+  // auf ausdruecklichen Wunsch nur noch die ersten beiden Toene des
+  // "Bing-Bong"-Gongs samt vollem Ausklingen, der dritte/vierte Ton kurz
   // danach wirkte wie ein unpassend angehaengter zweiter Sound (gemeldet).
-  { id: "bvgInfogong", label: "BVG-Info", hint: "BVG-Infogong vor Durchsagen, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgInfogongUrl, 1.7, 1.08) },
+  { id: "bvgInfogong", label: "BVG-Info", hint: "BVG-Infogong vor Durchsagen, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgInfogongUrl, 1.7, 1.14) },
   { id: "bvgSondergong", label: "BVG-Sonder", hint: "BVG-Sondergong für Störungshinweise, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgSondergongUrl, 1.7, 1.8) },
   // maxDuration von 2.2 auf 1.05 -- auf ausdruecklichen Wunsch nur noch
   // "Endstation" selbst, der nachfolgende Satzteil ("bitte alle

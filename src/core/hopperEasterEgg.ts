@@ -93,6 +93,11 @@ function pickPath(hopperSize: number): PathChoice | null {
 
 function showCaughtModal(): void {
   openModal((panel, close) => {
+    // Auf ausdruecklichen Wunsch breiter als der generische Modal-Deckel
+    // (420px), responsiv bis zu 60% der Bildschirmbreite -- siehe
+    // .hopper-caught-panel in style.css.
+    panel.classList.add("hopper-caught-panel");
+
     const iconWrap = document.createElement("div");
     iconWrap.style.fontSize = "clamp(20px, 6vh, 48px)";
     iconWrap.style.marginBottom = "clamp(2px, 1vh, 8px)";

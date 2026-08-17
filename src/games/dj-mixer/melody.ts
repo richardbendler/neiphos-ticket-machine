@@ -4,14 +4,27 @@
  *
  * Erste Version war komplett synthetisiert (Oszillatoren) -- auf
  * ausdruecklichen Wunsch verworfen ("klingen alle total gleich und super
- * KI-generiert"), stattdessen jetzt drei echte, sehr bekannte Sound-Clips
- * (myinstants.com), unter demselben bereits dokumentierten Lizenzrisiko-
- * Vorbehalt wie die uebrigen echten Sample-Clips im Projekt (siehe
- * sounds.ts, Datei-Kommentar dort): rein lokaler/privater Betrieb, Rechte
- * ausdruecklich zweitrangig.
- *  - mario-coin.mp3:            myinstants.com/en/instant/mario-coin-sound
- *  - minecraft-noteblock-pling.mp3: myinstants.com/en/instant/minecraft-note-block-sound-69344
- *  - vine-boom.mp3:              myinstants.com/en/instant/vine-boom-sound-70972
+ * KI-generiert"). Zweite Version nutzte drei bekannte Meme-Sounds (Mario-
+ * Muenze, Minecraft-Notenblock, Vine Boom) -- ebenfalls verworfen: der
+ * Minecraft-Clip war tatsaechlich eine kurze Tonfolge aus mehreren
+ * verschiedenen Toenen statt einem einzelnen, und Vine Boom ist gar kein
+ * musikalischer Ton, sondern ein reiner Bass-/Wummer-Meme-Effekt ("kein
+ * Ton, sondern einfach nur so ein komischer Insta-Sound", gemeldet).
+ *
+ * Jetzt stattdessen drei echte, aber schlicht NORMALE Einzeltoene, wie man
+ * sie auf einem echten DJ-/Sampler-Board erwarten wuerde (myinstants.com,
+ * jeweils VOR der Aufnahme in dieses Board per Wellenform-/Pitch-Analyse
+ * verifiziert: EIN klarer Attack, EINE stabile Tonhoehe -- keine Tonfolgen,
+ * keine unpitched Effektsounds). Unter demselben bereits dokumentierten
+ * Lizenzrisiko-Vorbehalt wie die uebrigen echten Sample-Clips im Projekt
+ * (siehe sounds.ts, Datei-Kommentar dort): rein lokaler/privater Betrieb,
+ * Rechte ausdruecklich zweitrangig.
+ *  - piano-c5-note.mp3: myinstants.com/en/instant/c5-piano-note-38128
+ *                       (echter Klavieranschlag, Ton C5)
+ *  - bell-ding.mp3:     myinstants.com/en/instant/ding-sound-effect
+ *                       (heller Glocken-/Ding-Ton)
+ *  - 8bit-beep.mp3:     myinstants.com/en/instant/8-bit-beep-19641
+ *                       (kurzer, klarer 8-Bit-Retro-Piepton)
  *
  * Anders als die perkussiven Bahn-Sounds in sounds.ts brauchen diese hier
  * eine frei waehlbare Tonhoehe (fuer den Piano-Roll) -- ein fertiger Sample-
@@ -26,9 +39,9 @@
  * Zeile= wie viele Halbtoene ueber/unter der Grundtonhoehe) erhalten, nur
  * die Klangfarbe und die tatsaechliche Frequenz aendern sich.
  */
-import marioCoinUrl from "../../assets/sounds/mario-coin.mp3";
-import minecraftNoteblockUrl from "../../assets/sounds/minecraft-noteblock-pling.mp3";
-import vineBoomUrl from "../../assets/sounds/vine-boom.mp3";
+import pianoC5Url from "../../assets/sounds/piano-c5-note.mp3";
+import bellDingUrl from "../../assets/sounds/bell-ding.mp3";
+import beep8bitUrl from "../../assets/sounds/8bit-beep.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -85,28 +98,28 @@ export interface MelodyInstrument {
 
 export const MELODY_INSTRUMENTS: MelodyInstrument[] = [
   {
-    id: "marioCoin",
-    label: "Mario-Münze",
-    hint: "Der Mario-Münzen-Ding",
-    url: marioCoinUrl,
-    baseFreq: 1316.5,
-    play: makeMelodySamplePlayFn(marioCoinUrl, 0.9, 0.3, 0.8),
+    id: "piano",
+    label: "Klavier",
+    hint: "Klavierton (C5)",
+    url: pianoC5Url,
+    baseFreq: 524,
+    play: makeMelodySamplePlayFn(pianoC5Url, 2.2, 0, 0.9),
   },
   {
-    id: "minecraftPling",
-    label: "Minecraft-Pling",
-    hint: "Minecraft-Notenblock",
-    url: minecraftNoteblockUrl,
-    baseFreq: 495,
-    play: makeMelodySamplePlayFn(minecraftNoteblockUrl, 3.2, 0.22, 0.7),
+    id: "bell",
+    label: "Glocke",
+    hint: "Heller Glockenton",
+    url: bellDingUrl,
+    baseFreq: 2643,
+    play: makeMelodySamplePlayFn(bellDingUrl, 1.3, 0.12, 0.85),
   },
   {
-    id: "vineBoom",
-    label: "Vine Boom",
-    hint: "Der Vine-Boom-Meme-Sound",
-    url: vineBoomUrl,
-    baseFreq: 49,
-    play: makeMelodySamplePlayFn(vineBoomUrl, 0.45, 0.06, 0.9),
+    id: "beep8bit",
+    label: "8-Bit-Piepton",
+    hint: "Kurzer Retro-Piepton",
+    url: beep8bitUrl,
+    baseFreq: 743.5,
+    play: makeMelodySamplePlayFn(beep8bitUrl, 2.0, 0.07, 0.2),
   },
 ];
 

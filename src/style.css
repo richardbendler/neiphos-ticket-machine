@@ -2699,17 +2699,20 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  /* Nimmt den kompletten unter der Controls-Leiste noch verbleibenden Platz
-     ein (min-height:0 ist noetig, damit Flexbox das ueberhaupt zulaesst),
-     Zeilenhoehe kommt aus fitGridToContainer() (dj-mixer/index.ts) --
-     dadurch passen auf normal grossen Bildschirmen alle Sound-Zeilen ohne
-     Scrollen. Auf extrem kleinen/kurzen Bildschirmen (z.B. sehr schmales
-     Handy-Hochformat, wo allein die Controls-Leiste schon viel Platz
-     braucht) reicht selbst die minimale Zeilenhoehe nicht mehr aus --
-     overflow-y:auto faengt das als Fallback ab, damit Zeilen dann
-     scrollbar bleiben statt unsichtbar abgeschnitten zu werden. */
-  flex: 1;
-  min-height: 0;
+  /* War flex:1/min-height:0 (nimmt den kompletten unter der Controls-Leiste
+     verbleibenden Platz ein) -- dadurch wurde das Rhythmus-Raster kleiner,
+     sobald die Melodiespuren darunter (siehe .melody-tracks) durch
+     Ausklappen mehr Platz brauchten, mit einer EIGENEN Scrollbar nur fuer
+     den Melodiebereich. Auf ausdruecklichen Wunsch soll stattdessen die
+     GESAMTE Seite scrollen, nicht nur ein Teilbereich unten -- die
+     Raster-Hoehe ist deshalb jetzt ein von den Geschwisterelementen
+     unabhaengiges, rein vom Viewport abgeleitetes Budget (kein flex:1 mehr),
+     Zeilenhoehe kommt weiterhin aus fitGridToContainer() (dj-mixer/index.ts)
+     und fuellt genau dieses Budget. overflow-y:auto bleibt als Fallback fuer
+     den Fall, dass selbst die minimale Zeilenhoehe (18px, siehe dort) auf
+     einem sehr kleinen Bildschirm nicht reicht. */
+  flex: 0 0 auto;
+  height: clamp(240px, 52vh, 640px);
   overflow-y: auto;
   touch-action: pan-y;
 }
@@ -2830,20 +2833,23 @@ button {
 }
 
 /* ---------- DJ-Mischer: Melodiespuren (Piano-Roll) ---------- */
-/* Eigener, hoehenbegrenzter und bei Bedarf selbst scrollbarer Bereich unter
-   dem Rhythmus-Raster (siehe dj-mixer/index.ts#buildMelodyDom) -- dadurch
-   behaelt .seq (das Rhythmus-Raster) sein bestehendes "passt immer ohne
-   Scrollen"-Verhalten unveraendert bei, auch wenn eine oder mehrere
-   Melodiespuren ausgeklappt sind und dadurch viel Platz beanspruchen. */
+/* Unter dem Rhythmus-Raster (siehe dj-mixer/index.ts#buildMelodyDom) --
+   War zunaechst selbst hoehenbegrenzt und bei Bedarf selbst scrollbar
+   (eigene Scrollbar nur fuer diesen Bereich), auf ausdruecklichen Wunsch
+   ("nicht nur unten in diesem Melodiebereich scrollen, sondern auf der
+   ganzen Seite") jetzt OHNE eigene Hoehenbegrenzung/Scrollbar -- waechst
+   beim Ausklappen einer Spur einfach natuerlich mit, die umschliessende
+   .stage-center-panel (siehe dort, base-Klasse hat bereits overflow-y:auto)
+   scrollt dann als Ganzes. .seq (das Rhythmus-Raster) hat dafuer ein eigenes,
+   vom Viewport statt von diesem Bereich abgeleitetes Hoehenbudget bekommen
+   (siehe dortiger Kommentar), damit es nicht mehr zusammengequetscht wird,
+   nur weil hier mehr Platz gebraucht wird. */
 .melody-tracks {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
   flex-shrink: 0;
-  max-height: clamp(150px, 28vh, 300px);
-  overflow-y: auto;
-  touch-action: pan-y;
   padding-top: 2px;
 }
 

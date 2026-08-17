@@ -618,10 +618,15 @@ export function createDjMixerGame(): MinigameModule {
       controls2.append(playBtn, clearBtn);
       controlsBar.appendChild(controls2);
 
-      // Kein Scrollen mehr noetig -- seqHost bekommt per Flex den kompletten
-      // restlichen Platz unter der Controls-Leiste, buildGridDom/
-      // fitGridToContainer verteilen die Sound-Zeilen dann exakt darauf.
-      panel.style.overflowY = "hidden";
+      // War hier auf "hidden" gesetzt (seqHost fuellte per Flex:1 den
+      // kompletten restlichen Platz, kein Scrollen noetig) -- jetzt hat
+      // seqHost ein eigenes, vom Viewport abgeleitetes Hoehenbudget (siehe
+      // .seq in style.css) und panel behaelt stattdessen die geerbte
+      // .stage-center-panel-Grundeinstellung (overflow-y:auto), damit die
+      // GESAMTE Seite scrollt, wenn die Melodiespuren (siehe .melody-tracks)
+      // durch Ausklappen mehr Platz brauchen als der Bildschirm hergibt --
+      // auf ausdruecklichen Wunsch, statt einer eigenen Scrollbar nur fuer
+      // den Melodiebereich.
 
       seqHost = document.createElement("div");
       seqHost.className = "seq";

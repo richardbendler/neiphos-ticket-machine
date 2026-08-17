@@ -382,29 +382,7 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "kick", label: "Tür zu", hint: "Dumpfes Schließgeräusch (Kick)", play: playKick },
   { id: "snare", label: "Weiche", hint: "Kupplungsklacken (Snare)", play: playSnare },
   { id: "hiHat", label: "Bremse", hint: "Druckluft-Tick (Hi-Hat)", play: playHiHat },
-  { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 0.76, 1) },
-  // War vorher "Ansage 2" -- die dritte, kuenstlich klingende Ansage
-  // ("announcement"/bahnhofsansage.mp3) klang identisch zu "DB-Ansage",
-  // aber schlechter, und wurde deshalb entfernt; dieser Sound ruecky auf
-  // den (jetzt wieder freien) Namen "Ansage" nach.
-  // fixedPitch: siehe Kommentar bei makeSamplePlayFn -- ohne das klang die
-  // Ansage bei schnellerem Tempo wie eine Micky-Maus-Stimme. Die Datei selbst
-  // wurde ausserdem auf nur den ersten Satz gekuerzt (vorher ~8.8s, jetzt
-  // ~3.2s) und ihre minimale Anfangsstille weggeschnitten.
-  { id: "ansageDb", label: "Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl, 1.12, undefined, undefined, true) },
   { id: "sBahnNeu", label: "S-Bahn", hint: "S-Bahn-Geräusch (Sample-Clip)", play: makeSamplePlayFn(sBahnNeuUrl, 2.5) },
-  // Drei kurze, echte Bahnsteig-/Haltestellen-Ansagen -- auf ausdruecklichen
-  // Wunsch ergaenzt, wieder ohne Ruecksicht auf Lizenzfragen (siehe
-  // Datei-Kommentar oben).
-  { id: "einsteigenBitte", label: "Einsteigen", hint: "„Einsteigen bitte“ (Sample-Clip)", play: makeSamplePlayFn(einsteigenBitteUrl, 0.72) },
-  { id: "zurueckbleiben", label: "Zurückbleiben", hint: "„Zurückbleiben bitte“ (Sample-Clip)", play: makeSamplePlayFn(zurueckbleibenUrl, 0.5) },
-  { id: "haltestellengong", label: "Halte-Gong", hint: "Haltestellengong Bus/Tram (Sample-Clip)", play: makeSamplePlayFn(haltestellengongUrl, 1.65) },
-  { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 4.5, 1.1) },
-  // startOffset auf ausdruecklichen Wunsch ergaenzt (war 0/kein Offset): die
-  // ersten ca. 280ms sind im Original nur leises Strassen-/Fahrgeraeusch vor
-  // dem eigentlichen Klingeln, wirkte als zu lange/zu deutliche Luecke vorm
-  // Einsatz auf dem Sequencer-Takt (gemeldet).
-  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 3.5, 2.0, 0.28) },
   { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 0.55, 1.2) },
   { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 0.98, 1.3) },
   { id: "hopperSqueak", label: "Hüpftier", hint: "Quietschendes Gummi-Hüpftier", play: playHopperSqueak },
@@ -433,6 +411,32 @@ export const SOUND_DEFS: SoundDef[] = [
   // dieser Stelle bereits sehr hoch ist (sonst Uebersteuerungsgefahr).
   { id: "aufzugDing", label: "Aufzug-Ding", hint: "Aufzug-Signalton am Bahnhof (Sample-Clip)", play: makeSamplePlayFn(aufzugDingUrl, 1.0, 1.6, 1.1) },
   { id: "bahnsteigPfiff", label: "Pfiff", hint: "Abfahrtspfiff auf dem Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnsteigPfiffUrl, 0.9, 0.9) },
+  // Auf ausdruecklichen Wunsch ans Ende der Liste verschoben (Choo-Choo,
+  // Einsteigen, Zurückbleiben, Ansage, Tram-Klingel, Bahnübergang,
+  // Halte-Gong) -- alle uebrigen Sounds ruecken dadurch weiter nach vorne,
+  // "Tür zu"/"Weiche"/"Bremse" bleiben unveraendert die ersten drei.
+  { id: "horn", label: "Choo-Choo", hint: "Klassisches Dampflok-Tuckern (Sample-Clip)", play: makeSamplePlayFn(hornUrl, 0.76, 1) },
+  // Zwei kurze, echte Bahnsteig-Ansagen -- auf ausdruecklichen Wunsch
+  // ergaenzt, wieder ohne Ruecksicht auf Lizenzfragen (siehe Datei-Kommentar
+  // oben).
+  { id: "einsteigenBitte", label: "Einsteigen", hint: "„Einsteigen bitte“ (Sample-Clip)", play: makeSamplePlayFn(einsteigenBitteUrl, 0.72) },
+  { id: "zurueckbleiben", label: "Zurückbleiben", hint: "„Zurückbleiben bitte“ (Sample-Clip)", play: makeSamplePlayFn(zurueckbleibenUrl, 0.5) },
+  // War vorher "Ansage 2" -- die dritte, kuenstlich klingende Ansage
+  // ("announcement"/bahnhofsansage.mp3) klang identisch zu "DB-Ansage",
+  // aber schlechter, und wurde deshalb entfernt; dieser Sound ruecky auf
+  // den (jetzt wieder freien) Namen "Ansage" nach.
+  // fixedPitch: siehe Kommentar bei makeSamplePlayFn -- ohne das klang die
+  // Ansage bei schnellerem Tempo wie eine Micky-Maus-Stimme. Die Datei selbst
+  // wurde ausserdem auf nur den ersten Satz gekuerzt (vorher ~8.8s, jetzt
+  // ~3.2s) und ihre minimale Anfangsstille weggeschnitten.
+  { id: "ansageDb", label: "Ansage", hint: "Bahn-Ansage (Sample-Clip)", play: makeSamplePlayFn(ansageDbUrl, 1.12, undefined, undefined, true) },
+  // startOffset auf ausdruecklichen Wunsch ergaenzt (war 0/kein Offset): die
+  // ersten ca. 280ms sind im Original nur leises Strassen-/Fahrgeraeusch vor
+  // dem eigentlichen Klingeln, wirkte als zu lange/zu deutliche Luecke vorm
+  // Einsatz auf dem Sequencer-Takt (gemeldet).
+  { id: "tramBell", label: "Tram-Klingel", hint: "Straßenbahn-Klingel (Sample-Clip)", play: makeSamplePlayFn(tramBellUrl, 3.5, 2.0, 0.28) },
+  { id: "railroadBell", label: "Bahnübergang", hint: "Bahnübergangs-Glocke, rhythmisch (Sample-Clip)", play: makeSamplePlayFn(railroadBellUrl, 4.5, 1.1) },
+  { id: "haltestellengong", label: "Halte-Gong", hint: "Haltestellengong Bus/Tram (Sample-Clip)", play: makeSamplePlayFn(haltestellengongUrl, 1.65) },
 ];
 
 /**

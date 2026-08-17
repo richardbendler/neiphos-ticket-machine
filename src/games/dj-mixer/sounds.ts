@@ -28,7 +28,6 @@ export type SoundId =
   | "einsteigenBitte"
   | "haltestellengong"
   | "bvgStandardgong"
-  | "bvgInfogong"
   | "bvgSondergong"
   | "bvgEndhaltestelle"
   | "dbGongNeu"
@@ -229,12 +228,6 @@ const playHopperSqueak: PlayFn = (ctx, time, destination) => {
 // Duplikat-Download. Quellen (jeweils Instant-Sound-Button auf myinstants.com):
 //  - bvgStandardgong: myinstants.com/en/instant/bvg-standardgong-39783
 //                     (der klassische BVG-U-Bahn-Tuerschliess-Gong, Berlin)
-//  - bvgInfogong:     myinstants.com/en/instant/bvg-infogong-29302 (kurzer
-//                     Gong vor BVG-Lautsprecherdurchsagen, Berlin --
-//                     maxDuration auf ausdruecklichen Wunsch von 1.8 auf ca.
-//                     1.1s gekuerzt, damit nur die ersten beiden Toene des
-//                     "Bing-Bong" zu hoeren sind statt noch ein dritter/
-//                     vierter Ton hinterher)
 //  - bvgSondergong:   myinstants.com/en/instant/bvg-sondergong-5090
 //                     (BVG-Gong fuer Sonderansagen/Stoerungshinweise, Berlin)
 //  - bvgEndhaltestelle: myinstants.com/en/instant/bvg-endhaltestelle-76312
@@ -271,7 +264,6 @@ import zurueckbleibenUrl from "../../assets/sounds/zurueckbleiben.mp3";
 import einsteigenBitteUrl from "../../assets/sounds/einsteigen-bitte.mp3";
 import haltestellengongUrl from "../../assets/sounds/haltestellengong.mp3";
 import bvgStandardgongUrl from "../../assets/sounds/bvg-standardgong.mp3";
-import bvgInfogongUrl from "../../assets/sounds/bvg-infogong.mp3";
 import bvgSondergongUrl from "../../assets/sounds/bvg-sondergong.mp3";
 import bvgEndhaltestelleUrl from "../../assets/sounds/bvg-endhaltestelle.mp3";
 import dbGongNeuUrl from "../../assets/sounds/db-gong-neu.mp3";
@@ -361,7 +353,6 @@ const SAMPLE_URLS = [
   einsteigenBitteUrl,
   haltestellengongUrl,
   bvgStandardgongUrl,
-  bvgInfogongUrl,
   bvgSondergongUrl,
   bvgEndhaltestelleUrl,
   dbGongNeuUrl,
@@ -386,17 +377,12 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "hornParis", label: "Horn Paris", hint: "Französisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornParisUrl, 0.55, 1.2) },
   { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 0.98, 1.3) },
   { id: "hopperSqueak", label: "Hüpftier", hint: "Quietschendes Gummi-Hüpftier", play: playHopperSqueak },
-  // 6 weitere kurze Bahn-/Nahverkehrs-Signaltoene, Schwerpunkt Berlin/BVG
-  // (siehe Quellenkommentar oben bei den Imports; ursprünglich 10, 4 davon
-  // nach Durchsicht wieder entfernt).
+  // 5 weitere kurze Bahn-/Nahverkehrs-Signaltoene, Schwerpunkt Berlin/BVG
+  // (siehe Quellenkommentar oben bei den Imports; ursprünglich 10, 5 davon
+  // nach Durchsicht wieder entfernt -- BVG-Info zuletzt auf ausdruecklichen
+  // Wunsch, bleibt aber weiterhin Teil der Huepftier-Metro-Bahnhofskulisse,
+  // siehe core/sound.ts).
   { id: "bvgStandardgong", label: "BVG-Gong", hint: "BVG-U-Bahn-Türschließ-Gong, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgStandardgongUrl, 1.7, 1.8) },
-  // maxDuration von 1.8 auf 1.08 (dann auf 1.14 nachjustiert, war erst zu
-  // knapp geschnitten -- die Wellenform zeigt den zweiten Ton bis ca. 1.14s
-  // ausklingend, direkt danach beginnt bei 1.15s bereits ein dritter Ton) --
-  // auf ausdruecklichen Wunsch nur noch die ersten beiden Toene des
-  // "Bing-Bong"-Gongs samt vollem Ausklingen, der dritte/vierte Ton kurz
-  // danach wirkte wie ein unpassend angehaengter zweiter Sound (gemeldet).
-  { id: "bvgInfogong", label: "BVG-Info", hint: "BVG-Infogong vor Durchsagen, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgInfogongUrl, 1.7, 1.14) },
   { id: "bvgSondergong", label: "BVG-Sonder", hint: "BVG-Sondergong für Störungshinweise, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgSondergongUrl, 1.7, 1.8) },
   // maxDuration von 2.2 auf 1.05 -- auf ausdruecklichen Wunsch nur noch
   // "Endstation" selbst, der nachfolgende Satzteil ("bitte alle

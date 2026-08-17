@@ -1,7 +1,7 @@
 import type { GameEnv, MinigameModule } from "../../core/Game";
 import { theme } from "../../core/theme";
 import { SOUND_DEFS, speakPhrase, stopSpeech, preloadSamples } from "./sounds";
-import { MELODY_INSTRUMENTS, MELODY_NOTE_ROWS } from "./melody";
+import { MELODY_INSTRUMENTS, MELODY_NOTE_ROW_COUNT, noteRowsForInstrument, preloadMelodySamples } from "./melody";
 import { showGameIntro } from "../../core/gameIntro";
 
 const GAME_ID = "dj-mixer";
@@ -53,8 +53,9 @@ function buildDefaultGrid(stepCount: number): boolean[][] {
 
 /**
  * Eine Melodiespur: waehlbares Instrument (siehe melody.ts) + pro Taktschritt
- * hoechstens EINE Note (Index in MELODY_NOTE_ROWS, oder null = keine Note --
- * bewusst monophon, nicht mehrere Toene gleichzeitig pro Spur, das haelt den
+ * hoechstens EINE Note (Zeilen-Index im per noteRowsForInstrument() erzeugten
+ * Piano-Roll des jeweiligen Instruments, oder null = keine Note -- bewusst
+ * monophon, nicht mehrere Toene gleichzeitig pro Spur, das haelt den
  * Piano-Roll einfach antippbar). "expanded" steuert, ob die Spur gerade als
  * kompakte Kopfzeile oder als ausgeklappter Piano-Roll gezeichnet wird (siehe
  * buildMelodyDom).
@@ -117,6 +118,7 @@ export function createDjMixerGame(): MinigameModule {
       masterGain.gain.value = volume;
       masterGain.connect(compressor).connect(audioCtx.destination);
       preloadSamples(audioCtx);
+      preloadMelodySamples(audioCtx);
     }
     if (audioCtx.state === "suspended") void audioCtx.resume();
     return audioCtx;
@@ -148,7 +150,8 @@ export function createDjMixerGame(): MinigameModule {
   function triggerMelodyNote(trackIndex: number, rowIndex: number, time: number): void {
     const ctx = audioCtx!;
     const instrument = MELODY_INSTRUMENTS[melodyTracks[trackIndex].instrumentIndex];
-    instrument.play(ctx, time, masterGain!, MELODY_NOTE_ROWS[rowIndex].freq, secondsPerStep());
+    const rows = noteRowsForInstrument(instrument);
+    instrument.play(ctx, time, masterGain!, rows[rowIndex].playbackRate);
   }
 
   function scheduleStep(step: number, time: number): void {
@@ -309,7 +312,7 @@ export function createDjMixerGame(): MinigameModule {
 
   /** Beim Instrumentenwechsel eine mittlere Note anspielen, damit man den neuen Klang sofort hoert (analog zu previewSound bei den Rhythmus-Zeilen). */
   function previewMelodyInstrument(trackIndex: number): void {
-    previewMelodyNote(trackIndex, Math.floor(MELODY_NOTE_ROWS.length / 2));
+    previewMelodyNote(trackIndex, Math.floor(MELODY_NOTE_ROW_COUNT / 2));
   }
 
   function toggleMelodyExpanded(trackIndex: number): void {
@@ -320,7 +323,7 @@ export function createDjMixerGame(): MinigameModule {
   /**
    * Baut die drei Melodiespuren neu auf -- jede entweder als kompakte
    * Kopfzeile mit nicht antippbarem Vorschau-Streifen (eingeklappt) oder als
-   * volle Piano-Roll mit MELODY_NOTE_ROWS.length antippbaren Tonhoehen-Zeilen
+   * volle Piano-Roll mit MELODY_NOTE_ROW_COUNT antippbaren Tonhoehen-Zeilen
    * (ausgeklappt, siehe toggleMelodyExpanded). melodyHost selbst ist per CSS
    * hoehenbegrenzt und bei Bedarf eigenstaendig scrollbar (siehe .melody-tracks
    * in style.css) -- das Rhythmus-Raster darueber behaelt dadurch sein
@@ -341,7 +344,12 @@ export function createDjMixerGame(): MinigameModule {
       const toggleBtn = document.createElement("button");
       toggleBtn.type = "button";
       toggleBtn.className = "melody-track__toggle";
-      toggleBtn.textContent = track.expanded ? "▾" : "▸";
+      // Auf ausdruecklichen Wunsch NICHT mehr ein nach rechts zeigendes
+      // Dreieck (sah wie ein zweiter/separater Play-Button neben "▶
+      // Abspielen" aus, gemeldet) -- stattdessen ein klassisches Akkordeon-
+      // Chevron (runter = "hier klappt was auf", hoch = "hier klappt was
+      // zu"), eindeutig als Ausklapp-Pfeil statt Wiedergabe-Symbol erkennbar.
+      toggleBtn.textContent = track.expanded ? "▲" : "▼";
       toggleBtn.setAttribute("aria-label", track.expanded ? "Melodiespur einklappen" : "Melodiespur ausklappen");
       toggleBtn.addEventListener("click", () => toggleMelodyExpanded(trackIndex));
       header.appendChild(toggleBtn);
@@ -363,8 +371,12 @@ export function createDjMixerGame(): MinigameModule {
       select.title = MELODY_INSTRUMENTS[track.instrumentIndex].hint;
       select.addEventListener("change", () => {
         track.instrumentIndex = Number(select.value);
-        select.title = MELODY_INSTRUMENTS[track.instrumentIndex].hint;
         previewMelodyInstrument(trackIndex);
+        // Neu aufbauen statt nur select.title zu aktualisieren -- ein
+        // Instrumentenwechsel aendert bei ausgeklappter Spur auch die
+        // Notennamen-Beschriftung jeder Zeile (siehe noteRowsForInstrument
+        // in melody.ts), die muss mit neu gezeichnet werden.
+        buildMelodyDom();
       });
       header.appendChild(select);
 
@@ -381,7 +393,8 @@ export function createDjMixerGame(): MinigameModule {
         const roll = document.createElement("div");
         roll.className = "melody-roll";
         const rowEls: HTMLButtonElement[][] = [];
-        MELODY_NOTE_ROWS.forEach((noteRow, rowIndex) => {
+        const noteRows = noteRowsForInstrument(MELODY_INSTRUMENTS[track.instrumentIndex]);
+        noteRows.forEach((noteRow, rowIndex) => {
           const rollRow = document.createElement("div");
           rollRow.className = "melody-roll__row" + (noteRow.isBlackKey ? " melody-roll__row--black" : "");
 

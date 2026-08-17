@@ -32,7 +32,17 @@ export type SoundId =
   | "hopperSqueak"
   | "zurueckbleiben"
   | "einsteigenBitte"
-  | "haltestellengong";
+  | "haltestellengong"
+  | "bvgStandardgong"
+  | "bvgInfogong"
+  | "bvgSondergong"
+  | "bvgAlexanderplatz"
+  | "bvgEndhaltestelle"
+  | "dbGongNeu"
+  | "xWagenTuer"
+  | "achtungZugbetrieb"
+  | "aufzugDing"
+  | "bahnsteigPfiff";
 
 /**
  * playbackRate ist nur fuer die Sample-Clips relevant (siehe
@@ -214,6 +224,46 @@ const playHopperSqueak: PlayFn = (ctx, time, destination) => {
 //  - haltestellengong: myinstants.com/en/instant/rostock-bus-ansagengong-rsag-haltestellengong-349
 //                     (Bus-/Straßenbahn-Haltestellengong statt Zug -- fuer
 //                     mehr Abwechslung zu den bisher reinen Zug-Sounds)
+//
+// Auf ausdruecklichen Wunsch nochmals 10 weitere kurze, im deutschen Raum
+// (v.a. Berlin, wo die App/das Festival verortet ist) wiedererkennbare
+// Bahn-/Nahverkehrs-Signaltoene ergaenzt -- bewusst mit Schwerpunkt auf
+// echten BVG-Toenen (Berlin), passend zum bereits vorhandenen
+// "zurueckbleiben"-Clip (klassische Berliner U-Bahn-Ansage). Dieselben
+// BVG-/DB-Clips werden teils auch in core/sound.ts fuer die
+// Huepftier-Metro-Bahnhofskulisse verwendet (dort mit eigenem Import,
+// siehe dortiger Quellenkommentar) -- wie bei dbAnkuendigung/ansageDb/
+// einsteigenBitte/haltestellengong oben ist das absichtlich dieselbe
+// Datei an zwei Stellen, kein Duplikat-Download. Quellen (jeweils
+// Instant-Sound-Button auf myinstants.com):
+//  - bvgStandardgong: myinstants.com/en/instant/bvg-standardgong-39783
+//                     (der klassische BVG-U-Bahn-Tuerschliess-Gong, Berlin)
+//  - bvgInfogong:     myinstants.com/en/instant/bvg-infogong-29302
+//                     (kurzer Gong vor BVG-Lautsprecherdurchsagen, Berlin)
+//  - bvgSondergong:   myinstants.com/en/instant/bvg-sondergong-5090
+//                     (BVG-Gong fuer Sonderansagen/Stoerungshinweise, Berlin)
+//  - bvgAlexanderplatz: myinstants.com/en/instant/bvg-alexanderplatz-68341
+//                     (BVG-Ansagegong + Stationsname "Alexanderplatz", Berlin)
+//  - bvgEndhaltestelle: myinstants.com/en/instant/bvg-endhaltestelle-76312
+//                     (BVG-Ansagegong "Endstation, bitte alle aussteigen", Berlin)
+//  - dbGongNeu:       myinstants.com/en/instant/db-gong-neu-29978 (neuerer
+//                     DB-Bahnhofsdurchsage-Gong, bundesweit an DB-Stationen
+//                     inkl. Berlin Hauptbahnhof zu hoeren)
+//  - xWagenTuer:      myinstants.com/en/instant/x-wagen-tur-72596
+//                     (Tuerschliess-Signal der Baureihe "X-Wagen", einer
+//                     echten deutschen U-Bahn-/Stadtbahn-Baureihe, u.a.
+//                     Nuernberg/NRW -- fuellt die bisherige Luecke im
+//                     Bestand an "hornDE"-artigen deutschen Zug-/Bahn-
+//                     Tuer-Signaltoenen)
+//  - achtungZugbetrieb: myinstants.com/en/instant/achtung-zugbetrieb-2674
+//                     (DB-Warnansage "Achtung, Zugbetrieb", bundesweit)
+//  - aufzugDing:      myinstants.com/en/instant/elevator-ding-5180 (generischer
+//                     Aufzug-Signalton -- steht hier fuer den Aufzug am
+//                     Bahnsteig, im weiteren Sinne Bahnhofsthematik)
+//  - bahnsteigPfiff:  myinstants.com/en/instant/referee-whistle-70248
+//                     (generischer kurzer Pfiff -- steht hier fuer den
+//                     klassischen Abfahrts-/Zugabfertigungspfiff auf dem
+//                     Bahnsteig)
 import dbAnkuendigungUrl from "../../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../../assets/sounds/ansage-db.mp3";
 import sBahnNeuUrl from "../../assets/sounds/s-bahn-neu.mp3";
@@ -230,6 +280,16 @@ import steamWhistleUrl from "../../assets/sounds/steam-whistle.mp3";
 import zurueckbleibenUrl from "../../assets/sounds/zurueckbleiben.mp3";
 import einsteigenBitteUrl from "../../assets/sounds/einsteigen-bitte.mp3";
 import haltestellengongUrl from "../../assets/sounds/haltestellengong.mp3";
+import bvgStandardgongUrl from "../../assets/sounds/bvg-standardgong.mp3";
+import bvgInfogongUrl from "../../assets/sounds/bvg-infogong.mp3";
+import bvgSondergongUrl from "../../assets/sounds/bvg-sondergong.mp3";
+import bvgAlexanderplatzUrl from "../../assets/sounds/bvg-alexanderplatz.mp3";
+import bvgEndhaltestelleUrl from "../../assets/sounds/bvg-endhaltestelle.mp3";
+import dbGongNeuUrl from "../../assets/sounds/db-gong-neu.mp3";
+import xWagenTuerUrl from "../../assets/sounds/u-bahn-x-wagen-tuer.mp3";
+import achtungZugbetriebUrl from "../../assets/sounds/achtung-zugbetrieb.mp3";
+import aufzugDingUrl from "../../assets/sounds/aufzug-ding.mp3";
+import bahnsteigPfiffUrl from "../../assets/sounds/bahnsteig-pfiff.mp3";
 
 const sampleBufferCache = new Map<string, Promise<AudioBuffer>>();
 
@@ -319,6 +379,16 @@ const SAMPLE_URLS = [
   zurueckbleibenUrl,
   einsteigenBitteUrl,
   haltestellengongUrl,
+  bvgStandardgongUrl,
+  bvgInfogongUrl,
+  bvgSondergongUrl,
+  bvgAlexanderplatzUrl,
+  bvgEndhaltestelleUrl,
+  dbGongNeuUrl,
+  xWagenTuerUrl,
+  achtungZugbetriebUrl,
+  aufzugDingUrl,
+  bahnsteigPfiffUrl,
 ];
 
 export interface SoundDef {
@@ -367,6 +437,18 @@ export const SOUND_DEFS: SoundDef[] = [
   { id: "hornUk", label: "Horn UK", hint: "Britisches Zughorn (Sample-Clip)", play: makeSamplePlayFn(hornUkUrl, 0.31, 1.2) },
   { id: "steamWhistle", label: "Dampfpfeife", hint: "Pfeife einer echten Dampflok (Sample-Clip)", play: makeSamplePlayFn(steamWhistleUrl, 0.98, 1.3) },
   { id: "hopperSqueak", label: "Hüpftier", hint: "Quietschendes Gummi-Hüpftier", play: playHopperSqueak },
+  // 10 weitere kurze Bahn-/Nahverkehrs-Signaltoene, Schwerpunkt Berlin/BVG
+  // (siehe Quellenkommentar oben bei den Imports).
+  { id: "bvgStandardgong", label: "BVG-Gong", hint: "BVG-U-Bahn-Türschließ-Gong, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgStandardgongUrl, 1.7, 1.8) },
+  { id: "bvgInfogong", label: "BVG-Info", hint: "BVG-Infogong vor Durchsagen, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgInfogongUrl, 1.7, 1.8) },
+  { id: "bvgSondergong", label: "BVG-Sonder", hint: "BVG-Sondergong für Störungshinweise, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgSondergongUrl, 1.7, 1.8) },
+  { id: "bvgAlexanderplatz", label: "Alexanderplatz", hint: "BVG-Ansagegong „Alexanderplatz“, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgAlexanderplatzUrl, 1.5, 2.2) },
+  { id: "bvgEndhaltestelle", label: "Endstation", hint: "BVG-Ansagegong „Endstation“, Berlin (Sample-Clip)", play: makeSamplePlayFn(bvgEndhaltestelleUrl, 1.6, 2.2) },
+  { id: "dbGongNeu", label: "DB-Gong", hint: "Neuer DB-Bahnhofsdurchsage-Gong (Sample-Clip)", play: makeSamplePlayFn(dbGongNeuUrl, 1.5, 1.8) },
+  { id: "xWagenTuer", label: "U-Bahn-Tür", hint: "Türschließ-Signal U-Bahn-Baureihe X-Wagen (Sample-Clip)", play: makeSamplePlayFn(xWagenTuerUrl, 1.0, 1.3) },
+  { id: "achtungZugbetrieb", label: "Achtung!", hint: "DB-Warnansage „Achtung, Zugbetrieb“ (Sample-Clip)", play: makeSamplePlayFn(achtungZugbetriebUrl, 1.4, 1.3) },
+  { id: "aufzugDing", label: "Aufzug-Ding", hint: "Aufzug-Signalton am Bahnhof (Sample-Clip)", play: makeSamplePlayFn(aufzugDingUrl, 1.8, 0.8) },
+  { id: "bahnsteigPfiff", label: "Pfiff", hint: "Abfahrtspfiff auf dem Bahnsteig (Sample-Clip)", play: makeSamplePlayFn(bahnsteigPfiffUrl, 0.9, 0.9) },
 ];
 
 /**

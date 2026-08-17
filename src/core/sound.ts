@@ -20,24 +20,6 @@ import dbAnkuendigungUrl from "../assets/sounds/db-ankuendigung.mp3";
 import ansageDbUrl from "../assets/sounds/ansage-db.mp3";
 import einsteigenBitteUrl from "../assets/sounds/einsteigen-bitte.mp3";
 import haltestellengongUrl from "../assets/sounds/haltestellengong.mp3";
-// Auf ausdruecklichen Wunsch ca. zehn weitere Clips fuer die Huepftier-Metro-
-// Bahnhofskulisse recherchiert (siehe STATION_ANNOUNCEMENT_CLIPS unten) --
-// echte kurze Bahn-/Bahnhofs-Sample-Clips, aus denselben Quellen-Kategorien
-// wie die bereits vorhandenen (oeffentlich frei verfuegbare Wikimedia-
-// Commons- bzw. Pixabay-Aufnahmen), unter demselben bereits dokumentierten
-// Lizenzrisiko-Vorbehalt wie die uebrigen echten Sample-Clips im Projekt
-// (siehe games/dj-mixer/sounds.ts, Datei-Kommentar oben).
-// Auf ausdruecklichen Wunsch NUR deutsche oder englische Bahnansagen -- zwei
-// urspruenglich mit recherchierte russischsprachige Ansage-Clips (St.
-// Petersburg Metro bzw. "Tueren schliessen" auf Russisch) wurden deshalb
-// wieder entfernt.
-import zughornKurzUrl from "../assets/sounds/zughorn-kurz.ogg";
-import ansageChimeUrl from "../assets/sounds/ansage-chime.ogg";
-import zielanzeigeKlapperUrl from "../assets/sounds/zielanzeige-klappern.ogg";
-import tuerenSchliessenUrl from "../assets/sounds/tueren-schliessen.ogg";
-import bahnhofsglockeUrl from "../assets/sounds/bahnhofsglocke.ogg";
-import naechsterHaltUrl from "../assets/sounds/naechster-halt.ogg";
-import bahnansageKurzUrl from "../assets/sounds/bahnansage-kurz.mp3";
 // Ersatz fuer den bisherigen "zurueckbleiben"-Clip NUR in dieser Rotation
 // (siehe STATION_ANNOUNCEMENT_CLIPS-Kommentar) -- auf ausdruecklichen Wunsch
 // "der ist viel zu doll" recherchiert: derselbe Ansagetext, aber eine
@@ -46,14 +28,16 @@ import bahnansageKurzUrl from "../assets/sounds/bahnansage-kurz.mp3";
 // weiterhin den bisherigen zurueckbleiben.mp3-Clip unveraendert -- die beiden
 // Stellen sind bewusst unabhaengig (siehe dortiger Kommentar).
 import zurueckbleibenRuhigUrl from "../assets/sounds/zurueckbleiben-ruhig.ogg";
-// Auf ausdruecklichen Wunsch ("noch mal wirklich so zwanzig neue Dinge")
-// nochmals deutlich erweitert: 13 weitere echte Sample-Clips, diesmal gezielt
-// nach konkreten deutschen Verkehrsbetrieben/Staedten recherchiert (BVG
-// Berlin, Dresden, Rostock, "DB"/"Zugbetrieb" allgemein) statt generischer
-// Suchbegriffe -- dadurch eindeutiger deutschen Ursprungs als z. B. ein
-// schlicht "Gong" oder "U-Bahn" benannter Clip unbekannter Herkunft (genau
-// solche wurden bewusst NICHT aufgenommen). Quellen (jeweils Instant-Sound-
-// Button auf myinstants.com):
+// Auf ausdruecklichen Wunsch nach konkreten deutschen Verkehrsbetrieben/
+// Staedten recherchiert (BVG Berlin, Dresden, Rostock, "DB"/"Zugbetrieb"
+// allgemein) statt generischer Suchbegriffe. Eine zweite Durchsicht hat
+// danach alle Clips OHNE klar erkennbaren deutschen Bezug (generisch
+// "Gong"/"Horn"/"Bahnhof-Atmo" betitelte Pixabay-/Wikimedia-Funde ohne
+// Stadt-/Betriebsnamen, sowie Duplikate/schlecht klingende Clips) wieder
+// entfernt (siehe Git-Historie) -- was jetzt uebrig ist, hat entweder einen
+// Stadt-/Betriebsnamen im Titel (BVG, Dresden, Rostock, DB) oder ist eine
+// gesprochene deutsche Phrase. Quellen (jeweils Instant-Sound-Button auf
+// myinstants.com):
 //  - bvgStandardgong: myinstants.com/en/instant/bvg-standardgong-39783
 //                     (der klassische BVG-Tuerschliess-Gong)
 //  - bvgInfogong:     myinstants.com/en/instant/bvg-infogong-29302
@@ -61,26 +45,26 @@ import zurueckbleibenRuhigUrl from "../assets/sounds/zurueckbleiben-ruhig.ogg";
 //  - bvgAlexanderplatz: myinstants.com/en/instant/bvg-alexanderplatz-68341
 //  - bvgEndhaltestelle: myinstants.com/en/instant/bvg-endhaltestelle-76312
 //  - dresdenHauptbahnhofS1: myinstants.com/en/instant/dresden-hauptbahnhof-s1-61233
-//  - bahnhofsszene:   myinstants.com/en/instant/bahnhofsszene-80547
-//  - bahnhofsatmo:    myinstants.com/en/instant/bahnhof-54632
 //  - dbGongNeu:       myinstants.com/en/instant/db-gong-neu-29978
 //  - achtungZugbetrieb: myinstants.com/en/instant/achtung-zugbetrieb-2674
 //  - rostockLinie25Ostseestadion: myinstants.com/en/instant/rostock-25-hauptbahnhof-sud-ostseestadion-98998
 //  - rostockLinie25Schwimmhalle: myinstants.com/en/instant/rostock-25-hauptbahnhof-sud-schwimmhalle-52049
-//  - sbahnAmbiente:   myinstants.com/en/instant/s-bahn-90921
 import bvgStandardgongUrl from "../assets/sounds/bvg-standardgong.mp3";
 import bvgInfogongUrl from "../assets/sounds/bvg-infogong.mp3";
 import bvgSondergongUrl from "../assets/sounds/bvg-sondergong.mp3";
 import bvgAlexanderplatzUrl from "../assets/sounds/bvg-alexanderplatz.mp3";
 import bvgEndhaltestelleUrl from "../assets/sounds/bvg-endhaltestelle.mp3";
 import dresdenHauptbahnhofS1Url from "../assets/sounds/dresden-hauptbahnhof-s1.mp3";
-import bahnhofsszeneUrl from "../assets/sounds/bahnhofsszene.mp3";
-import bahnhofsatmoUrl from "../assets/sounds/bahnhofsatmo.mp3";
 import dbGongNeuUrl from "../assets/sounds/db-gong-neu.mp3";
 import achtungZugbetriebUrl from "../assets/sounds/achtung-zugbetrieb.mp3";
 import rostockLinie25OstseestadionUrl from "../assets/sounds/rostock-linie25-ostseestadion.mp3";
 import rostockLinie25SchwimmhalleUrl from "../assets/sounds/rostock-linie25-schwimmhalle.mp3";
-import sbahnAmbienteUrl from "../assets/sounds/sbahn-ambiente.mp3";
+// Auf ausdruecklichen Wunsch die im DJ-Mischer neu ergaenzten und dort
+// behaltenen Sounds (siehe games/dj-mixer/sounds.ts) auch hier ergaenzt --
+// die BVG-/DB-Clips oben sind ohnehin schon geteilt, neu sind nur diese
+// beiden generischen Ersatztoene (Aufzug-Signal am Bahnsteig, Abfahrtspfiff).
+import aufzugDingUrl from "../assets/sounds/aufzug-ding.mp3";
+import bahnsteigPfiffUrl from "../assets/sounds/bahnsteig-pfiff.mp3";
 
 let audioCtx: AudioContext | null = null;
 
@@ -319,7 +303,13 @@ export function playStationPopSound(): void {
  * Wunsch ergaenzt, KEIN Lizenzrisiko (keine Audiodatei, nur Text), und laesst
  * sich beliebig erweitern, ohne erst eine passende Aufnahme finden zu muessen.
  */
-type StationAnnouncementClip = { kind: "sample"; url: string; volume: number } | { kind: "phrase"; text: string };
+// startOffset (optional, nur "sample"): schneidet stille/unerwuenschte
+// Vorlaufzeit im Original ab, bevor die Wiedergabe beginnt -- analog zum
+// gleichnamigen Parameter in games/dj-mixer/sounds.ts#makeSamplePlayFn.
+// Anders als dort gibt es hier aber keine maxDuration/Kappung: eine
+// Bahnhofsansage darf ruhig ihre volle Original-Laenge laufen, nur der
+// Startpunkt wird bei Bedarf verschoben.
+type StationAnnouncementClip = { kind: "sample"; url: string; volume: number; startOffset?: number } | { kind: "phrase"; text: string };
 
 const STATION_ANNOUNCEMENT_CLIPS: StationAnnouncementClip[] = [
   { kind: "sample", url: ansageDbUrl, volume: 0.6 },
@@ -327,28 +317,23 @@ const STATION_ANNOUNCEMENT_CLIPS: StationAnnouncementClip[] = [
   { kind: "sample", url: einsteigenBitteUrl, volume: 0.6 },
   { kind: "sample", url: haltestellengongUrl, volume: 0.6 },
   { kind: "sample", url: zurueckbleibenRuhigUrl, volume: 0.6 },
-  { kind: "sample", url: zughornKurzUrl, volume: 0.5 },
-  { kind: "sample", url: ansageChimeUrl, volume: 0.6 },
-  { kind: "sample", url: zielanzeigeKlapperUrl, volume: 0.6 },
-  { kind: "sample", url: tuerenSchliessenUrl, volume: 0.6 },
-  { kind: "sample", url: bahnhofsglockeUrl, volume: 0.6 },
-  { kind: "sample", url: naechsterHaltUrl, volume: 0.6 },
-  { kind: "sample", url: bahnansageKurzUrl, volume: 0.6 },
-  // 13 weitere echte Clips, siehe Quellenangaben bei den Imports oben --
-  // gezielt nach konkreten deutschen Verkehrsbetrieben/Staedten recherchiert.
+  // Echte Clips, siehe Quellenangaben bei den Imports oben -- gezielt nach
+  // konkreten deutschen Verkehrsbetrieben/Staedten recherchiert.
   { kind: "sample", url: bvgStandardgongUrl, volume: 0.6 },
   { kind: "sample", url: bvgInfogongUrl, volume: 0.6 },
   { kind: "sample", url: bvgSondergongUrl, volume: 0.6 },
   { kind: "sample", url: bvgAlexanderplatzUrl, volume: 0.55 },
   { kind: "sample", url: bvgEndhaltestelleUrl, volume: 0.6 },
   { kind: "sample", url: dresdenHauptbahnhofS1Url, volume: 0.55 },
-  { kind: "sample", url: bahnhofsszeneUrl, volume: 0.5 },
-  { kind: "sample", url: bahnhofsatmoUrl, volume: 0.5 },
   { kind: "sample", url: dbGongNeuUrl, volume: 0.6 },
   { kind: "sample", url: achtungZugbetriebUrl, volume: 0.55 },
   { kind: "sample", url: rostockLinie25OstseestadionUrl, volume: 0.55 },
   { kind: "sample", url: rostockLinie25SchwimmhalleUrl, volume: 0.55 },
-  { kind: "sample", url: sbahnAmbienteUrl, volume: 0.5 },
+  // Auf ausdruecklichen Wunsch aus dem DJ-Mischer uebernommen (siehe
+  // games/dj-mixer/sounds.ts). startOffset bei aufzugDing: das eigentliche
+  // "Ding" beginnt im Original erst bei ca. 1.15s, siehe dortiger Kommentar.
+  { kind: "sample", url: aufzugDingUrl, volume: 0.55, startOffset: 1.1 },
+  { kind: "sample", url: bahnsteigPfiffUrl, volume: 0.5 },
   // 10 gesprochene Ansagen (siehe Typkommentar oben) -- an typischen echten
   // Ansagen von DB/S-Bahn Berlin/BVG orientiert, u. a. mit den auf
   // ausdruecklichen Wunsch genannten Beispielen "S1" und "Ringbahn".
@@ -463,7 +448,11 @@ export function playRandomStationAnnouncement(): void {
         if (activeAnnouncementSource === source) activeAnnouncementSource = null;
       };
       activeAnnouncementSource = source;
-      source.start();
+      // AudioBufferSourceNode.start(when, offset) interpretiert offset immer
+      // relativ zum Original -- siehe games/dj-mixer/sounds.ts#makeSamplePlayFn
+      // fuer denselben Mechanismus.
+      if (clip.startOffset) source.start(ctx.currentTime, clip.startOffset);
+      else source.start();
     },
     () => {
       stationAnnouncementBusy = false; // Ladefehler soll die Kulisse nicht dauerhaft blockieren

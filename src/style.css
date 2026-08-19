@@ -1087,6 +1087,21 @@ button {
   padding: calc(3px * var(--hb-scale, 1)) calc(9px * var(--hb-scale, 1));
 }
 
+/* Admin-Loeschmodus (siehe menu/HighscoreBoard.ts#renderGameCard,
+   opts.onDeleteEntry) -- sitzt DIREKT unter dem jeweiligen Eintrag (nicht
+   wie .highscore-board__play-btn unten in der Zeile), da es pro Eintrag
+   (bei Gleichstand also ggf. mehrere je Kategorie) einen eigenen Button
+   braucht statt nur einen je Kategorie-Zeile. Roter Text statt neuer
+   Button-Variante -- reicht als Warnhinweis fuer eine reine Admin-Ansicht,
+   ohne ein komplett neues .btn-Modifier einzufuehren. */
+.btn.highscore-board__delete-btn {
+  align-self: flex-end;
+  margin-top: calc(2px * var(--hb-scale, 1));
+  font-size: calc(0.64rem * var(--hb-scale, 1));
+  padding: calc(2px * var(--hb-scale, 1)) calc(8px * var(--hb-scale, 1));
+  color: var(--danger);
+}
+
 .highscore-board__values {
   display: flex;
   flex-direction: column;

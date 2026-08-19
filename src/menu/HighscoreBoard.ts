@@ -1,6 +1,6 @@
 import { gameRegistry } from "../games/registry";
 import type { GameMeta } from "../games/registry";
-import { getHighscoreBoard } from "../core/storage";
+import { getHighscoreBoard, type HighscoreEntry } from "../core/storage";
 import { getTicketMethods, getDailyBestBoard, type DailyBestEntry } from "../core/ticketMethods";
 
 function formatAchievedAt(iso: string): string {
@@ -100,6 +100,36 @@ export interface HighscoreBoardResult {
   element: HTMLElement;
   /** Muss beim Verlassen des Boards aufgerufen werden (stoppt den ResizeObserver, analog zu MainMenu.ts#MainMenuResult). */
   destroy: () => void;
+  /** Baut alle Spiel-Karten mit dem aktuellen Datenstand neu (z. B. nach admin-seitigem Loeschen eines Eintrags, siehe onDeleteEntry). */
+  refresh: () => void;
+}
+
+export interface HighscoreBoardOptions {
+  /**
+   * Fuer den "Jetzt spielen"-Button je Schwierigkeitsstufe/Variante (siehe
+   * renderGameCard unten) -- startet auf ausdruecklichen Wunsch direkt GENAU
+   * dieses Spiel in GENAU dieser Variante (board), statt nur ins Hauptmenue
+   * zu fuehren. board entspricht dabei 1:1 GameEnv#initialBoard, das
+   * einzelne Spiele mit mehreren Varianten (z. B. Geschwindigkeitsstufen)
+   * auswerten koennen, um ihre eigene Auswahl zu ueberspringen. Weggelassen
+   * im Admin-Loeschmodus (siehe onDeleteEntry) -- dort ergibt ein "Jetzt
+   * spielen"-Button keinen Sinn.
+   */
+  onPlay?: (gameId: string, board: string) => void;
+  /**
+   * Admin-Loeschmodus (siehe admin/AdminPanel.ts#openDeleteHighscoresModal):
+   * auf ausdruecklichen Wunsch "genau so designed wie das grosse
+   * Highscoreboard", nur mit einem Loeschen-Button je Eintrag statt des
+   * "Jetzt spielen"-Buttons. Ist dieser Callback gesetzt, faellt ausserdem
+   * der Tagesbestenliste-Umschalter weg (Loeschen wirkt ohnehin nur auf das
+   * Allzeit-Board) und leere Kategorien zeigen weiterhin "Noch kein
+   * Highscore" (fuer die exakt gleiche Optik wie im echten Board), aber
+   * natuerlich ohne Loeschen-Button. Das eigentliche Loeschen (Bestaetigung,
+   * lokale + Server-Entfernung) macht der Aufrufer -- diese Komponente ruft
+   * nur den Callback auf; anschliessend sollte der Aufrufer refresh() (siehe
+   * HighscoreBoardResult) aufrufen, damit der geloeschte Eintrag verschwindet.
+   */
+  onDeleteEntry?: (gameId: string, board: string, entry: HighscoreEntry) => void;
 }
 
 /**
@@ -108,18 +138,12 @@ export interface HighscoreBoardResult {
  * kein Canvas/GameLoop noetig.
  *
  * Zweiter Modus "Tagesbestenliste" (nur sichtbar, wenn dieser Ticket-
- * Verdienstweg im Admin-Panel aktiviert ist, siehe core/ticketMethods.ts)
- * -- eigener Umschalt-Button oben, zeigt statt der Allzeit-Bestwerte die
- * seit dem letzten 6-Uhr-Reset erspielten Tagesbestwerte.
- *
- * onPlay: fuer den "Jetzt spielen"-Button je Schwierigkeitsstufe/Variante
- * (siehe renderGameCard unten) -- startet auf ausdruecklichen Wunsch direkt
- * GENAU dieses Spiel in GENAU dieser Variante (board), statt nur ins
- * Hauptmenue zu fuehren. board entspricht dabei 1:1 GameEnv#initialBoard,
- * das einzelne Spiele mit mehreren Varianten (z. B. Geschwindigkeitsstufen)
- * auswerten koennen, um ihre eigene Auswahl zu ueberspringen.
+ * Verdienstweg im Admin-Panel aktiviert ist, siehe core/ticketMethods.ts,
+ * UND kein Admin-Loeschmodus aktiv ist, siehe opts.onDeleteEntry) -- eigener
+ * Umschalt-Button oben, zeigt statt der Allzeit-Bestwerte die seit dem
+ * letzten 6-Uhr-Reset erspielten Tagesbestwerte.
  */
-export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => void): HighscoreBoardResult {
+export function renderHighscoreBoard(opts: HighscoreBoardOptions): HighscoreBoardResult {
   const screen = document.createElement("div");
   screen.className = "menu-screen";
 
@@ -134,7 +158,7 @@ export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => 
   header.style.flexWrap = "wrap";
   header.style.gap = "10px";
   const h1 = document.createElement("h1");
-  h1.textContent = "Highscores";
+  h1.textContent = opts.onDeleteEntry ? "Highscores löschen" : "Highscores";
   header.appendChild(h1);
   card.appendChild(header);
 
@@ -146,9 +170,12 @@ export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => 
   let mode: BoardMode = "all";
 
   // Umschalt-Button nur, wenn der Tagesbestenliste-Weg ueberhaupt aktiviert
-  // ist (siehe Admin-Panel, Abschnitt "Ticket-Verdienstwege") -- sonst gibt
-  // es schlicht keine Tagesbestwerte zu zeigen.
-  if (getTicketMethods().dailyBoard) {
+  // ist (siehe Admin-Panel, Abschnitt "Ticket-Verdienstwege") UND kein
+  // Admin-Loeschmodus aktiv ist (Loeschen wirkt ohnehin nur auf das
+  // Allzeit-Board, siehe opts.onDeleteEntry-Kommentar oben) -- sonst gibt es
+  // schlicht keine Tagesbestwerte zu zeigen bzw. keinen Sinn, sie hier
+  // anzuzeigen.
+  if (getTicketMethods().dailyBoard && !opts.onDeleteEntry) {
     const toggleBtn = document.createElement("button");
     toggleBtn.type = "button";
     toggleBtn.className = "btn btn--ghost";
@@ -206,6 +233,7 @@ export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => 
         for (const entry of boardData.entries) {
           const value = document.createElement("span");
           value.className = "highscore-board__value";
+
           // Wert+Einheit und Name je in einer eigenen "white-space:
           // nowrap"-Spanne (siehe style.css) -- verhindert, dass bei wenig
           // Platz (z. B. sehr lange Namen) MITTEN im Wert ("5 Karten") oder
@@ -213,11 +241,41 @@ export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => 
           // breit aus, bricht die Zeile stattdessen sauber ZWISCHEN Wert und
           // Namen um (der "—" bleibt dabei beim Namen, wirkt dadurch wie ein
           // Aufzaehlungspunkt vor der zweiten Zeile).
-          const timeLine = "achievedAt" in entry ? `<span class="highscore-board__value-time">${formatAchievedAt((entry as { achievedAt: string }).achievedAt)}</span>` : "";
-          value.innerHTML = `
-            <span class="highscore-board__value-main"><span class="highscore-board__value-num"><strong>${category.formatValue(boardData.value)}</strong></span> <span class="highscore-board__value-name">— ${(entry as DailyBestEntry).name}</span></span>
-            ${timeLine}
-          `;
+          const mainLine = document.createElement("span");
+          mainLine.className = "highscore-board__value-main";
+          const numSpan = document.createElement("span");
+          numSpan.className = "highscore-board__value-num";
+          const strong = document.createElement("strong");
+          strong.textContent = category.formatValue(boardData.value);
+          numSpan.appendChild(strong);
+          const nameSpan = document.createElement("span");
+          nameSpan.className = "highscore-board__value-name";
+          nameSpan.textContent = `— ${(entry as DailyBestEntry).name}`;
+          mainLine.append(numSpan, document.createTextNode(" "), nameSpan);
+          value.appendChild(mainLine);
+
+          if ("achievedAt" in entry) {
+            const timeSpan = document.createElement("span");
+            timeSpan.className = "highscore-board__value-time";
+            timeSpan.textContent = formatAchievedAt((entry as { achievedAt: string }).achievedAt);
+            value.appendChild(timeSpan);
+          }
+
+          // Admin-Loeschmodus: eigener Loeschen-Button je Eintrag (nicht je
+          // Kategorie-Zeile, damit bei Gleichstand gezielt EIN Halter
+          // entfernt werden kann, siehe opts.onDeleteEntry-Kommentar oben).
+          // Nur im "all"-Modus moeglich -- Tagesbestwerte lassen sich hier
+          // gar nicht anzeigen (siehe Umschalt-Guard oben), "achievedAt in
+          // entry" reicht daher als zuverlaessige HighscoreEntry-Erkennung.
+          if (opts.onDeleteEntry && "achievedAt" in entry) {
+            const deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "btn btn--ghost highscore-board__delete-btn";
+            deleteBtn.textContent = "🗑 Löschen";
+            deleteBtn.addEventListener("click", () => opts.onDeleteEntry!(game.id, category.board, entry as HighscoreEntry));
+            value.appendChild(deleteBtn);
+          }
+
           valueWrap.appendChild(value);
         }
         mainRow.appendChild(valueWrap);
@@ -228,12 +286,15 @@ export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => 
         mainRow.appendChild(value);
       }
 
-      const playBtn = document.createElement("button");
-      playBtn.type = "button";
-      playBtn.className = "btn btn--ghost highscore-board__play-btn";
-      playBtn.textContent = "▶ Jetzt spielen";
-      playBtn.addEventListener("click", () => onPlay(game.id, category.board));
-      row.appendChild(playBtn);
+      // Kein Sinn im Admin-Loeschmodus (kein onPlay dort, siehe Aufrufer).
+      if (opts.onPlay) {
+        const playBtn = document.createElement("button");
+        playBtn.type = "button";
+        playBtn.className = "btn btn--ghost highscore-board__play-btn";
+        playBtn.textContent = "▶ Jetzt spielen";
+        playBtn.addEventListener("click", () => opts.onPlay!(game.id, category.board));
+        row.appendChild(playBtn);
+      }
 
       section.appendChild(row);
     }
@@ -307,5 +368,6 @@ export function renderHighscoreBoard(onPlay: (gameId: string, board: string) => 
   return {
     element: screen,
     destroy: () => resizeObserver.disconnect(),
+    refresh: refreshMode,
   };
 }

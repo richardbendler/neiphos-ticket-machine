@@ -492,7 +492,7 @@ export class Router {
     this.screenEl = placeholder;
     void import("../menu/HighscoreBoard").then(({ renderHighscoreBoard }) => {
       if (this.screenEl !== placeholder) return; // zwischenzeitlich schon wieder verlassen
-      const { element, destroy } = renderHighscoreBoard((gameId, board) => this.startGame(gameId, board));
+      const { element, destroy } = renderHighscoreBoard({ onPlay: (gameId, board) => this.startGame(gameId, board) });
       placeholder.replaceWith(element);
       this.screenEl = element;
       this.screenCleanup = destroy;

@@ -618,7 +618,13 @@ export class Router {
             canvas.removeEventListener("pointercancel", onUp);
           });
 
-          this.sessionStartedAt = performance.now();
+          // War performance.now() -- das ist die Zeit seit Seitenladung, nicht
+          // die echte Uhrzeit. new Date(performance.now()) landet dadurch
+          // immer nahe 01.01.1970 (gemeldeter Bug in der Admin-Spielstatistik,
+          // siehe recordSession/teardownActiveGame unten -- dort wird aus
+          // genau diesem Wert das angezeigte Datum gebaut). Date.now() liefert
+          // echte Unix-Millisekunden.
+          this.sessionStartedAt = Date.now();
 
           const loop = new GameLoop((dt) => {
             // Waehrend z. B. die Highscore-Namenseingabe oder der Bildschirmschoner
@@ -660,7 +666,7 @@ export class Router {
       } catch (err) {
         console.error(`Fehler beim Aufraeumen von Spiel "${this.activeGame.id}":`, err);
       }
-      recordSession(this.activeGame.id, this.sessionStartedAt, performance.now());
+      recordSession(this.activeGame.id, this.sessionStartedAt, Date.now());
     }
 
     this.activeGame = null;

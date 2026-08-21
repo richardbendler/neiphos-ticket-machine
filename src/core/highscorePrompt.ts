@@ -269,7 +269,7 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       if (current.ok) {
         const tearHint = document.createElement("div");
         tearHint.className = "ticket-tear-hint";
-        tearHint.textContent = "⬆️ Ticket nach oben abreißen! ⬆️";
+        tearHint.textContent = "⬇️ Ticket nach unten abreißen! ⬇️";
         panel.appendChild(tearHint);
       }
 

@@ -30,6 +30,8 @@ import {
   setMilestone,
   isPrintingEnabled,
   setPrintingEnabled,
+  isGameTicketEnabled,
+  setGameTicketEnabled,
 } from "../core/ticketMethods";
 import { getTicketCooldownSettings, setTicketCooldownEnabled, setTicketCooldownMinutes } from "../core/ticketCooldown";
 import {
@@ -1099,7 +1101,70 @@ function renderTicketMethodsControl(): HTMLDivElement {
   const dailyRow = makeRow("dailyBoard", "Tagesbestenliste (setzt sich täglich um 6 Uhr morgens zurück)");
   wrap.appendChild(dailyRow.row);
 
+  // Eigenstaendiges Untermenue: JE SPIEL an-/abschaltbar, ob es ueberhaupt
+  // jemals ein Ticket geben darf -- unabhaengig von den drei Verdienstwegen
+  // oben (die gelten global fuer ALLE Spiele gleichzeitig), siehe core/
+  // ticketMethods.ts#isGameTicketEnabled.
+  const gamesBtn = document.createElement("button");
+  gamesBtn.type = "button";
+  gamesBtn.className = "btn btn--ghost";
+  gamesBtn.style.width = "100%";
+  gamesBtn.style.marginTop = "10px";
+  gamesBtn.style.fontSize = "0.8rem";
+  gamesBtn.textContent = "Ticket-fähige Spiele bearbeiten →";
+  gamesBtn.addEventListener("click", () => openGameTicketsModal());
+  wrap.appendChild(gamesBtn);
+
   return wrap;
+}
+
+/** Untermenue: JE SPIEL an-/abschaltbar, ob es ueberhaupt jemals ein Ticket geben darf (siehe core/ticketMethods.ts#isGameTicketEnabled). Nur Spiele aus MILESTONE_GAMES -- das sind alle Spiele mit Highscore-/Ticket-Anbindung ueberhaupt (siehe dortigen Kommentar). */
+function openGameTicketsModal(): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "Ticket-fähige Spiele";
+    panel.appendChild(h2);
+
+    const hint = paragraph("Nur hier aktivierte Spiele können überhaupt ein Ticket auslösen -- unabhängig davon, welche Verdienstwege oben aktiv sind. Praktisch z. B. um einzelne Spiele bewusst ticketfrei zu halten.");
+    hint.style.fontSize = "0.8rem";
+    panel.appendChild(hint);
+
+    for (const game of MILESTONE_GAMES) {
+      const row = document.createElement("label");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "10px";
+      row.style.padding = "8px 0";
+      row.style.borderTop = "1px solid var(--panel-border)";
+      row.style.cursor = "pointer";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.style.width = "20px";
+      checkbox.style.height = "20px";
+      checkbox.style.flexShrink = "0";
+      checkbox.checked = isGameTicketEnabled(game.gameId);
+      checkbox.addEventListener("change", () => setGameTicketEnabled(game.gameId, checkbox.checked));
+      row.appendChild(checkbox);
+
+      const label = document.createElement("span");
+      label.style.flex = "1";
+      label.textContent = game.title;
+      row.appendChild(label);
+
+      panel.appendChild(row);
+    }
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "btn btn--accent";
+    closeBtn.style.width = "100%";
+    closeBtn.style.marginTop = "14px";
+    closeBtn.textContent = "Fertig";
+    closeBtn.addEventListener("click", close);
+    panel.appendChild(closeBtn);
+  });
 }
 
 /**

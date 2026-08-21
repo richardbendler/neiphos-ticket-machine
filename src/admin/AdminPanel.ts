@@ -1258,6 +1258,79 @@ function renderTicketCooldownControl(): HTMLDivElement {
   return wrap;
 }
 
+/** Plus/Minus-Uhrzeit-Stepper (15-Minuten-Schritte, wrapt ueber Mitternacht) -- siehe renderTicketPrintWindowControl fuer den Hintergrund, warum kein <input type="time">. */
+function createTimeStepper(initialValue: string, disabled: boolean, onChange: (value: string) => void): { el: HTMLDivElement; getValue: () => string; setDisabled: (disabled: boolean) => void } {
+  const STEP_MIN = 15;
+  const [initH, initM] = initialValue.split(":").map(Number);
+  let totalMin = ((initH || 0) % 24) * 60 + ((initM || 0) % 60);
+
+  const el = document.createElement("div");
+  el.style.display = "inline-flex";
+  el.style.alignItems = "center";
+  el.style.gap = "2px";
+
+  function makeStepBtn(label: string): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn--ghost";
+    btn.textContent = label;
+    btn.style.width = "2.6em";
+    btn.style.padding = "8px 0";
+    btn.style.fontSize = "1.1rem";
+    return btn;
+  }
+
+  const minusBtn = makeStepBtn("−");
+  minusBtn.disabled = disabled;
+  const display = document.createElement("span");
+  display.style.minWidth = "4.4em";
+  display.style.textAlign = "center";
+  display.style.fontVariantNumeric = "tabular-nums";
+  display.style.fontWeight = "700";
+  const plusBtn = makeStepBtn("+");
+  plusBtn.disabled = disabled;
+
+  function currentValue(): string {
+    const h = Math.floor(totalMin / 60) % 24;
+    const m = totalMin % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+  function render(): void {
+    display.textContent = currentValue();
+  }
+  render();
+
+  guardedClick(
+    minusBtn,
+    () => {
+      totalMin = (totalMin - STEP_MIN + 1440) % 1440;
+      render();
+      onChange(currentValue());
+    },
+    120,
+  );
+  guardedClick(
+    plusBtn,
+    () => {
+      totalMin = (totalMin + STEP_MIN) % 1440;
+      render();
+      onChange(currentValue());
+    },
+    120,
+  );
+
+  el.append(minusBtn, display, plusBtn);
+
+  return {
+    el,
+    getValue: currentValue,
+    setDisabled: (d: boolean) => {
+      minusBtn.disabled = d;
+      plusBtn.disabled = d;
+    },
+  };
+}
+
 /**
  * Ticket-Zeitfenster -- auf ausdruecklichen Wunsch direkt neben dem
  * Ticket-Cooldown: nur innerhalb der eingestellten Uhrzeiten (Standard
@@ -1304,42 +1377,38 @@ function renderTicketPrintWindowControl(): HTMLDivElement {
   enabledRow.append(checkbox, enabledLabel);
   wrap.appendChild(enabledRow);
 
+  // Bewusst KEIN <input type="time"> mehr -- auf diesem Kiosk-Touchscreen
+  // oeffnet das native Zeit-Widget keine bedienbare Eingabehilfe (gemeldeter
+  // Bug: "beim Antippen klappt keine Tastatur auf"). Plus/Minus-Stepper in
+  // 15-Minuten-Schritten brauchen dagegen ueberhaupt keine Tastatur/keinen
+  // Picker -- robust auf jedem Touchscreen, und fuer ein Bar-Oeffnungszeiten-
+  // Fenster reicht diese Genauigkeit voellig.
   const timesRow = document.createElement("div");
   timesRow.style.display = "flex";
   timesRow.style.alignItems = "center";
-  timesRow.style.gap = "8px";
+  timesRow.style.gap = "10px";
+  timesRow.style.flexWrap = "wrap";
 
-  const startInput = document.createElement("input");
-  startInput.type = "time";
-  startInput.value = settings.start;
-  startInput.disabled = !checkbox.checked;
-  startInput.style.padding = "6px";
+  const startStepper = createTimeStepper(settings.start, !checkbox.checked, (value) => {
+    setTicketPrintWindowTimes(value, endStepper.getValue());
+  });
 
   const toLabel = document.createElement("span");
   toLabel.textContent = "bis";
   toLabel.style.fontSize = "0.85rem";
 
-  const endInput = document.createElement("input");
-  endInput.type = "time";
-  endInput.value = settings.end;
-  endInput.disabled = !checkbox.checked;
-  endInput.style.padding = "6px";
+  const endStepper = createTimeStepper(settings.end, !checkbox.checked, (value) => {
+    setTicketPrintWindowTimes(startStepper.getValue(), value);
+  });
 
-  timesRow.append(startInput, toLabel, endInput);
+  timesRow.append(startStepper.el, toLabel, endStepper.el);
   wrap.appendChild(timesRow);
 
   checkbox.addEventListener("change", () => {
     setTicketPrintWindowEnabled(checkbox.checked);
-    startInput.disabled = !checkbox.checked;
-    endInput.disabled = !checkbox.checked;
+    startStepper.setDisabled(!checkbox.checked);
+    endStepper.setDisabled(!checkbox.checked);
   });
-
-  function commitTimes(): void {
-    if (!startInput.value || !endInput.value) return;
-    setTicketPrintWindowTimes(startInput.value, endInput.value);
-  }
-  startInput.addEventListener("change", commitTimes);
-  endInput.addEventListener("change", commitTimes);
 
   return wrap;
 }

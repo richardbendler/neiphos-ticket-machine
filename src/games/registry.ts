@@ -17,6 +17,8 @@ export interface GameMeta {
   subtitle: string;
   /** Kurzer Zusatzhinweis auf der Menu-Kachel, separat von der Beschreibung in eigener Schriftart dargestellt (z. B. "auch mit Hüpftieren spielbar"). */
   note?: string;
+  /** Zeigt ein gelbes "Neu"-Badge neben dem Titel der Menu-Kachel -- fuer frisch hinzugefuegte Spiele, von Hand wieder zu entfernen, sobald das Spiel nicht mehr neu ist. */
+  isNew?: boolean;
   icon: IconName;
   /** Kurzcode fuer das Farb-Badge der Menu-Kachel (2 Grossbuchstaben, angelehnt an die Zonen-Schilder "AB"/"BC" echter Fahrkartenautomaten). */
   badge: string;

@@ -918,6 +918,17 @@ button {
   min-width: 0;
 }
 
+/* Haelt Titel + optionales "Neu"-Badge (siehe .menu-tile__new-badge) auf
+   derselben Zeile nebeneinander, statt dass das Badge (wie jedes andere
+   Kind von .menu-tile__text, siehe dort) als eigene Zeile darunter
+   landet. */
+.menu-tile__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: calc(5px * var(--menu-tile-scale, 1));
+  min-width: 0;
+}
+
 .menu-tile__title {
   font-family: var(--font);
   font-weight: 800;
@@ -932,6 +943,24 @@ button {
      keine Umbruchstelle und wuerden am Kachelrand einfach abgeschnitten
      statt in eine zweite Zeile umzubrechen. */
   overflow-wrap: break-word;
+  min-width: 0;
+}
+
+/* Gelbes "Neu"-Badge fuer frisch hinzugefuegte Spiele (siehe games/
+   registry.ts#isNew) -- nie schrumpfend/umbrechend (flex-shrink:0,
+   white-space:nowrap), damit es neben einem langen Titel nicht selbst
+   verkuemmert. */
+.menu-tile__new-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: calc(0.62rem * var(--menu-tile-scale, 1));
+  letter-spacing: 0.02em;
+  color: #4a3400;
+  background: #ffd23f;
+  border-radius: calc(999px * var(--menu-tile-scale, 1));
+  padding: calc(2px * var(--menu-tile-scale, 1)) calc(7px * var(--menu-tile-scale, 1));
 }
 
 .menu-tile__subtitle {

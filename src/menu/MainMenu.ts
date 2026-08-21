@@ -312,7 +312,10 @@ export function renderMainMenu(games: GameMeta[], onSelect: (id: string) => void
     tile.style.setProperty("--tile-accent", game.accent);
     tile.innerHTML = `
       <span class="menu-tile__text">
-        <span class="menu-tile__title">${game.title}</span>
+        <span class="menu-tile__title-row">
+          <span class="menu-tile__title">${game.title}</span>
+          ${game.isNew ? `<span class="menu-tile__new-badge">Neu</span>` : ""}
+        </span>
         <span class="menu-tile__subtitle">${game.subtitle}</span>
         ${game.note ? `<span class="menu-tile__note">${game.note}</span>` : ""}
       </span>

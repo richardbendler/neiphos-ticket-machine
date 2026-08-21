@@ -100,7 +100,12 @@ export function createSetlistPuzzleGame(): MinigameModule {
   function updateSlot(slotId: string): void {
     const el = slotEls[slotId];
     if (!el) return;
-    el.classList.remove("setlist-slot--correct", "setlist-slot--wrong");
+    // "--fixed" muss hier explizit weg: dieses Feld ist gerade eine echte
+    // Luecke (updateSlot wird NUR fuer blankActs aufgerufen), koennte aber
+    // aus einer FRUEHEREN Runde noch als fest markiert sein (applyFixedActs
+    // setzt die Klasse nur, entfernt sie aber nie selbst) -- sonst bliebe es
+    // trotz "?"-Anzeige ein ungueltiges Drop-Ziel (siehe dropTargetAt).
+    el.classList.remove("setlist-slot--correct", "setlist-slot--wrong", "setlist-slot--fixed");
     const occupantId = placement[slotId];
     el.innerHTML = "";
     if (occupantId) {
@@ -182,7 +187,12 @@ export function createSetlistPuzzleGame(): MinigameModule {
     const el = document.elementFromPoint(x, y);
     if (!el) return null;
     const slot = el.closest<HTMLElement>("[data-slot-id]");
-    if (slot) return slot;
+    // "--fixed" heisst: dieses Feld ist in der AKTUELLEN Runde gar keine
+    // Luecke (siehe applyFixedActs) -- dort darf kein Chip hinein, auch wenn
+    // es (wie alle Felder) technisch ein data-slot-id traegt. Ein bereits
+    // BEFUELLTES Luecken-Feld bleibt dagegen weiterhin ein gueltiges Ziel
+    // (Tauschen zweier Chips).
+    if (slot && !slot.classList.contains("setlist-slot--fixed")) return slot;
     const sidebar = el.closest<HTMLElement>(".setlist-sidebar");
     if (sidebar) return sidebar;
     return null;

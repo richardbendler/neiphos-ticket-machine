@@ -6,6 +6,7 @@ import { printTicket, friendlyPrintErrorMessage, type TicketVariant, type Ticket
 import { isPrintingEnabled, type TicketReasonKind } from "./ticketMethods";
 import { openPaperChangeInstructions } from "./paperChangeInstructions";
 import { getTicketCooldownRemainingMs, formatCooldownRemainingRough, recordTicketPrinted } from "./ticketCooldown";
+import { getTicketPrintWindowSettings, isWithinTicketPrintWindow, formatTicketPrintWindow } from "./ticketPrintWindow";
 
 const TICKET_VARIANT_BY_REASON: Record<Exclude<TicketReasonKind, null>, TicketVariant> = {
   highscore: "highscore",
@@ -109,16 +110,28 @@ export function promptHighscoreName(opts: {
       // als gaebe es ueberhaupt keinen Ticket-Verdienstweg: nur noch der
       // normale "Speichern"-Button, kein Ticket-Button, kein Cooldown-Hinweis.
       const rawTicketVariant = opts.ticketReason !== null && isPrintingEnabled() ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
+      // Zeitfenster-Sperre (siehe core/ticketPrintWindow.ts, Standard
+      // 21:00-04:00 -- Oeffnungszeiten der Zornbar): ausserhalb verhaelt
+      // sich dieser Dialog wie bei einem aktiven Cooldown (siehe unten) --
+      // kein Ticket-Button, aber Name/Highscore werden trotzdem gespeichert.
+      const printWindowSettings = rawTicketVariant !== null ? getTicketPrintWindowSettings() : null;
+      const outsidePrintWindow = printWindowSettings !== null && !isWithinTicketPrintWindow();
       // Cooldown-Sperre (siehe core/ticketCooldown.ts): waehrend der Cooldown
       // laeuft, verhaelt sich dieser Dialog so, als gaebe es gar keinen
       // Ticket-Verdienstweg -- der Name/Highscore wird trotzdem ganz normal
       // gespeichert (siehe onDone unten), nur der Ticket-Druck faellt fuer
       // diese Runde weg. Ein kurzer Hinweis (siehe unten) erklaert, warum.
-      const cooldownRemainingMs = rawTicketVariant !== null ? getTicketCooldownRemainingMs() : 0;
+      const cooldownRemainingMs = rawTicketVariant !== null && !outsidePrintWindow ? getTicketCooldownRemainingMs() : 0;
       const cooldownActive = cooldownRemainingMs > 0;
-      const ticketVariant = cooldownActive ? null : rawTicketVariant;
+      const ticketVariant = cooldownActive || outsidePrintWindow ? null : rawTicketVariant;
 
-      if (cooldownActive) {
+      if (outsidePrintWindow && printWindowSettings) {
+        const windowNote = document.createElement("p");
+        windowNote.style.fontSize = "0.85rem";
+        windowNote.style.color = "var(--text-muted)";
+        windowNote.textContent = `Tickets gibt's nur zwischen ${formatTicketPrintWindow(printWindowSettings)} -- diesmal gibt es kein Ticket, dein Ergebnis wird aber trotzdem gespeichert.`;
+        panel.appendChild(windowNote);
+      } else if (cooldownActive) {
         const cooldownNote = document.createElement("p");
         cooldownNote.style.fontSize = "0.85rem";
         cooldownNote.style.color = "var(--text-muted)";
@@ -265,7 +278,7 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       // vh-gekoppelt, passend zur jetzt breiteren .ticket-result-panel.
       p.style.fontSize = "clamp(0.4rem, min(2.2vw, 3.4vh), 1.7rem)";
       p.textContent = current.ok
-        ? "Mit diesem Ticket kannst du dir nun einen Shot an der Bar abholen. Lass es vorher noch beim Schaffner stempeln."
+        ? "Mit diesem Ticket kannst du dir nun einen Shot an der Zornbar abholen -- nur dort einlösbar! Lass es vorher noch beim Schaffner stempeln."
         : friendlyPrintErrorMessage(current.error);
       panel.appendChild(p);
 

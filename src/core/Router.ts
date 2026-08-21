@@ -14,6 +14,8 @@ import { renderMainMenu } from "../menu/MainMenu";
 import { openFeedbackDialog } from "./feedbackPrompt";
 import { fetchUnreadFeedbackCount } from "./feedback";
 import { getTicketCooldownRemainingMs, formatCooldownCountdown, openTicketCooldownInfo } from "./ticketCooldown";
+import { isWithinTicketPrintWindow, getTicketPrintWindowSettings, formatTicketPrintWindow, openTicketPrintWindowInfo } from "./ticketPrintWindow";
+import { isPrintingEnabled } from "./ticketMethods";
 import brandLogo from "../assets/brand/neiphos-logo.png";
 import type { GameEnv, MinigameModule } from "./Game";
 
@@ -324,6 +326,32 @@ export class Router {
     };
     this.registerFooterPoll(refreshCooldownBadge, 1000);
 
+    // Ticket-Zeitfenster-Hinweis (siehe core/ticketPrintWindow.ts, Standard
+    // 21:00-04:00 -- Oeffnungszeiten der Zornbar) -- nur sichtbar, waehrend
+    // der Ticketdruck gerade wegen der Uhrzeit pausiert. Selbes Muster wie
+    // der Cooldown-Badge direkt darueber.
+    const printWindowBadge = document.createElement("button");
+    printWindowBadge.type = "button";
+    printWindowBadge.className = "chrome-footer-cooldown-badge";
+    printWindowBadge.style.display = "none";
+    const printWindowIcon = document.createElement("span");
+    printWindowIcon.className = "chrome-footer-cooldown-badge__icon";
+    printWindowIcon.innerHTML = icons.clock;
+    const printWindowText = document.createElement("span");
+    printWindowBadge.append(printWindowIcon, printWindowText);
+    guardedClick(printWindowBadge, () => openTicketPrintWindowInfo());
+
+    const refreshPrintWindowBadge = () => {
+      const settings = getTicketPrintWindowSettings();
+      if (!isPrintingEnabled() || !settings.enabled || isWithinTicketPrintWindow()) {
+        printWindowBadge.style.display = "none";
+        return;
+      }
+      printWindowText.textContent = `Tickets nur ${formatTicketPrintWindow(settings)}`;
+      printWindowBadge.style.display = "flex";
+    };
+    this.registerFooterPoll(refreshPrintWindowBadge, 30_000);
+
     // Kleine, unaufdringliche Versionsanzeige -- auf ausdruecklichen Wunsch,
     // damit auf einen Blick erkennbar ist, welcher Stand gerade laeuft (fuer
     // Debugging/um zu pruefen, ob ein Deploy wirklich angekommen ist). Ganz
@@ -350,7 +378,7 @@ export class Router {
     // der Text natuerlich am selben Rand wie die Fussleiste beginnt.
     notifyCol.style.alignItems = "flex-start";
     notifyCol.style.gap = "3px";
-    notifyCol.append(paperWarn, cooldownBadge, unreadBadge);
+    notifyCol.append(paperWarn, cooldownBadge, printWindowBadge, unreadBadge);
 
     // Auf ausdruecklichen Wunsch Seiten getauscht (war Feedback-Button
     // links/Meldungen rechts) -- angelehnt an die VBB-Vorlage, wo der

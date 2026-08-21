@@ -1432,13 +1432,15 @@ const server = http.createServer(async (req, res) => {
     // dafuer straff ratenlimitiert -- schuetzt die Papierrolle vor Spam,
     // ohne echte Highscore-Momente zu blockieren.
     // Grosszuegig ueber der tatsaechlich hoechsten bekannten Ticket-Vorlage
-    // (~577 Zeilen bei aktuellem Design, siehe core/ticket.ts) -- auf
-    // ausdruecklichen Wunsch als Failsafe: eine Anfrage, die mehr als die
-    // DOPPELTE realistische Ticketlaenge verlangt, wird sofort abgelehnt,
-    // BEVOR ueberhaupt etwas an den Drucker geschickt wird. Schuetzt gegen
-    // einen Client-/Renderfehler, der ein absurd hohes Bild anfordert (war
-    // vorher bei 4000 Zeilen, also ueber 6x so grosszuegig wie noetig).
-    const MAX_EXPECTED_TICKET_ROWS = 620;
+    // (~577 Zeilen bei aktuellem Design, mit dem optionalen abtrennbaren
+    // "Gratis Shot"-Streifen (core/ticket.ts#drawShotStrip) ~657 Zeilen) --
+    // auf ausdruecklichen Wunsch als Failsafe: eine Anfrage, die deutlich
+    // mehr als die realistische Ticketlaenge verlangt, wird sofort
+    // abgelehnt, BEVOR ueberhaupt etwas an den Drucker geschickt wird.
+    // Schuetzt gegen einen Client-/Renderfehler, der ein absurd hohes Bild
+    // anfordert (war vorher bei 4000 Zeilen, also ueber 6x so grosszuegig
+    // wie noetig).
+    const MAX_EXPECTED_TICKET_ROWS = 700;
     // Nur fuer die Fehlersuche beim wiederholt gemeldeten Gibberish-Vorfall:
     // protokolliert Start/Ende jedes Druckauftrags MIT Quelle (admin-
     // geschuetzter Testdruck vs. oeffentlicher Highscore-Druck) -- damit sich

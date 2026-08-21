@@ -18,7 +18,7 @@ import { gameRegistry } from "../games/registry";
 import { openTouchTest } from "./TouchTest";
 import { guardedClick } from "../core/guardedClick";
 import { playHighscoreOpenSound } from "../core/sound";
-import { printTicket, printDiagnosticStrip, friendlyPrintErrorMessage } from "../core/ticket";
+import { printTicket, printDiagnosticStrip, friendlyPrintErrorMessage, renderTicketPreviewDataUrl, type TicketVariant } from "../core/ticket";
 import { openPaperChangeInstructions } from "../core/paperChangeInstructions";
 import {
   getTicketMethods,
@@ -942,6 +942,20 @@ function renderPrinterControl(): HTMLDivElement {
   diagBtn.style.marginLeft = "8px";
   diagBtn.textContent = "🔬 Kurzer Testdruck (Diagnose)";
   wrap.appendChild(diagBtn);
+
+  // Reine Bildschirm-Vorschau (kein Druck, kein Papierverbrauch) aller
+  // Ticket-Vorlagen mit Beispieldaten -- auf ausdruecklichen Wunsch, damit
+  // man sich einen Ueberblick verschaffen kann, ohne jede Vorlage einzeln
+  // physisch auszudrucken. Zeigt die UNGEDREHTE Ansicht (siehe core/
+  // ticket.ts#renderTicketPreviewDataUrl), normal lesbar am Bildschirm.
+  const previewBtn = document.createElement("button");
+  previewBtn.type = "button";
+  previewBtn.className = "btn btn--ghost";
+  previewBtn.style.fontSize = "0.78rem";
+  previewBtn.style.marginLeft = "8px";
+  previewBtn.textContent = "🎫 Ticket-Vorlagen ansehen";
+  previewBtn.addEventListener("click", () => openTicketPreviewsModal());
+  wrap.appendChild(previewBtn);
   guardedClick(
     diagBtn,
     () => {
@@ -1013,6 +1027,76 @@ function renderPrinterControl(): HTMLDivElement {
   }, 1000);
 
   return wrap;
+}
+
+/** Beispieldaten fuer die Vorschau (siehe openTicketPreviewsModal) -- rein optisch, nie tatsaechlich gespeichert/gedruckt. */
+const PREVIEW_FIELDS = { name: "Max Mustermann", game: "Beispielspiel", score: "123 Punkte" };
+
+/**
+ * Bildschirm-Vorschau aller Ticket-Vorlagen (siehe renderPrinterControl fuer
+ * den Aufruf-Button) -- reine Anzeige, druckt nichts. Zeigt jede beschriftete
+ * Vorlage (highscore/dailyHighscore/milestone) einmal, dazu zusaetzlich EINE
+ * mit dem abtrennbaren "Gratis Shot"-Streifen (core/ticket.ts#drawShotStrip),
+ * damit man den Unterschied sieht, ohne fuers Zeitfenster extra die Uhrzeit
+ * stellen zu muessen.
+ */
+function openTicketPreviewsModal(): void {
+  openModal((panel, close) => {
+    addCloseCorner(panel, close);
+    const h2 = document.createElement("h2");
+    h2.textContent = "Ticket-Vorlagen";
+    panel.appendChild(h2);
+
+    const hint = paragraph("Reine Bildschirm-Vorschau mit Beispieldaten -- druckt nichts.");
+    hint.style.fontSize = "0.8rem";
+    panel.appendChild(hint);
+
+    const entries: { label: string; variant: TicketVariant; includeShotStrip?: boolean }[] = [
+      { label: "Basic (Admin-Testdruck)", variant: "basic" },
+      { label: "Highscore", variant: "highscore" },
+      { label: "Highscore -- mit Gratis-Shot-Streifen", variant: "highscore", includeShotStrip: true },
+      { label: "Tagesbestwert", variant: "dailyHighscore" },
+      { label: "Meilenstein", variant: "milestone" },
+    ];
+
+    for (const entry of entries) {
+      const block = document.createElement("div");
+      block.style.margin = "14px 0";
+
+      const label = document.createElement("p");
+      label.style.fontWeight = "700";
+      label.style.fontSize = "0.85rem";
+      label.style.marginBottom = "6px";
+      label.textContent = entry.label;
+      block.appendChild(label);
+
+      const loading = document.createElement("p");
+      loading.style.fontSize = "0.78rem";
+      loading.style.color = "var(--text-faint)";
+      loading.textContent = "Rendert …";
+      block.appendChild(loading);
+      panel.appendChild(block);
+
+      void renderTicketPreviewDataUrl(entry.variant, PREVIEW_FIELDS, entry.includeShotStrip).then((dataUrl) => {
+        loading.remove();
+        const img = document.createElement("img");
+        img.src = dataUrl;
+        img.style.width = "100%";
+        img.style.borderRadius = "var(--radius-sm)";
+        img.style.border = "1px solid var(--panel-border)";
+        block.appendChild(img);
+      });
+    }
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "btn btn--accent";
+    closeBtn.style.width = "100%";
+    closeBtn.style.marginTop = "14px";
+    closeBtn.textContent = "Fertig";
+    closeBtn.addEventListener("click", close);
+    panel.appendChild(closeBtn);
+  });
 }
 
 /**
@@ -1353,7 +1437,7 @@ function renderTicketPrintWindowControl(): HTMLDivElement {
   hint.style.fontSize = "0.78rem";
   hint.style.color = "var(--text-faint)";
   hint.style.margin = "0 0 10px";
-  hint.textContent = "Ticketdruck nur innerhalb dieser Uhrzeiten möglich -- außerhalb wird trotzdem ganz normal gespeichert, nur ohne Ticket. Zeitfenster darf über Mitternacht hinausreichen (z. B. 21:00-04:00).";
+  hint.textContent = "Das Ticket selbst gibt's immer -- nur der abtrennbare „Gratis Shot an der Zornbar“-Streifen kommt ausschließlich innerhalb dieser Uhrzeiten mit drauf (außerhalb ist die Zornbar zu). Zeitfenster darf über Mitternacht hinausreichen (z. B. 21:00-04:00).";
   wrap.appendChild(hint);
 
   const settings = getTicketPrintWindowSettings();

@@ -278,7 +278,7 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       // vh-gekoppelt, passend zur jetzt breiteren .ticket-result-panel.
       p.style.fontSize = "clamp(0.4rem, min(2.2vw, 3.4vh), 1.7rem)";
       p.textContent = current.ok
-        ? "Mit diesem Ticket kannst du dir nun einen Shot an der Zornbar abholen -- nur dort einlösbar! Lass es vorher noch beim Schaffner stempeln."
+        ? "Mit diesem Ticket kannst du dir nun einen Shot an der Zornbar abholen (die Bar direkt hinter diesem Automaten) -- nur dort einlösbar! Lass es vorher noch beim Schaffner stempeln."
         : friendlyPrintErrorMessage(current.error);
       panel.appendChild(p);
 

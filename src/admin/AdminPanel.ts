@@ -34,6 +34,7 @@ import {
   setGameTicketEnabled,
 } from "../core/ticketMethods";
 import { getTicketCooldownSettings, setTicketCooldownEnabled, setTicketCooldownMinutes } from "../core/ticketCooldown";
+import { getTicketPrintWindowSettings, setTicketPrintWindowEnabled, setTicketPrintWindowTimes } from "../core/ticketPrintWindow";
 import {
   isScreensaverEnabled,
   setScreensaverEnabled,
@@ -1257,6 +1258,92 @@ function renderTicketCooldownControl(): HTMLDivElement {
   return wrap;
 }
 
+/**
+ * Ticket-Zeitfenster -- auf ausdruecklichen Wunsch direkt neben dem
+ * Ticket-Cooldown: nur innerhalb der eingestellten Uhrzeiten (Standard
+ * 21:00-04:00, Oeffnungszeiten der Zornbar) gibt's ueberhaupt einen
+ * Ticket-Button im Highscore-Dialog. Siehe core/ticketPrintWindow.ts fuer
+ * die Sperrlogik und den Fussleisten-Hinweis (core/Router.ts), wenn gerade
+ * ausserhalb des Fensters.
+ */
+function renderTicketPrintWindowControl(): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.marginBottom = "18px";
+
+  const title = document.createElement("p");
+  title.style.color = "var(--text-muted)";
+  title.style.marginBottom = "8px";
+  title.textContent = "Ticket-Zeitfenster:";
+  wrap.appendChild(title);
+
+  const hint = document.createElement("p");
+  hint.style.fontSize = "0.78rem";
+  hint.style.color = "var(--text-faint)";
+  hint.style.margin = "0 0 10px";
+  hint.textContent = "Ticketdruck nur innerhalb dieser Uhrzeiten möglich -- außerhalb wird trotzdem ganz normal gespeichert, nur ohne Ticket. Zeitfenster darf über Mitternacht hinausreichen (z. B. 21:00-04:00).";
+  wrap.appendChild(hint);
+
+  const settings = getTicketPrintWindowSettings();
+
+  const enabledRow = document.createElement("label");
+  enabledRow.style.display = "flex";
+  enabledRow.style.alignItems = "center";
+  enabledRow.style.gap = "8px";
+  enabledRow.style.marginBottom = "8px";
+  enabledRow.style.cursor = "pointer";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = settings.enabled;
+  checkbox.style.width = "20px";
+  checkbox.style.height = "20px";
+
+  const enabledLabel = document.createElement("span");
+  enabledLabel.textContent = "Aktiviert";
+
+  enabledRow.append(checkbox, enabledLabel);
+  wrap.appendChild(enabledRow);
+
+  const timesRow = document.createElement("div");
+  timesRow.style.display = "flex";
+  timesRow.style.alignItems = "center";
+  timesRow.style.gap = "8px";
+
+  const startInput = document.createElement("input");
+  startInput.type = "time";
+  startInput.value = settings.start;
+  startInput.disabled = !checkbox.checked;
+  startInput.style.padding = "6px";
+
+  const toLabel = document.createElement("span");
+  toLabel.textContent = "bis";
+  toLabel.style.fontSize = "0.85rem";
+
+  const endInput = document.createElement("input");
+  endInput.type = "time";
+  endInput.value = settings.end;
+  endInput.disabled = !checkbox.checked;
+  endInput.style.padding = "6px";
+
+  timesRow.append(startInput, toLabel, endInput);
+  wrap.appendChild(timesRow);
+
+  checkbox.addEventListener("change", () => {
+    setTicketPrintWindowEnabled(checkbox.checked);
+    startInput.disabled = !checkbox.checked;
+    endInput.disabled = !checkbox.checked;
+  });
+
+  function commitTimes(): void {
+    if (!startInput.value || !endInput.value) return;
+    setTicketPrintWindowTimes(startInput.value, endInput.value);
+  }
+  startInput.addEventListener("change", commitTimes);
+  endInput.addEventListener("change", commitTimes);
+
+  return wrap;
+}
+
 /** Untermenue zum Bearbeiten aller Meilenstein-Schwellwerte (ein Wert je Spiel, siehe core/ticketMethods.ts#MILESTONE_GAMES). */
 function openMilestonesModal(): void {
   openModal((panel, close) => {
@@ -1825,6 +1912,9 @@ function renderAdminHome(panel: HTMLDivElement, close: () => void): void {
 
   // --- Ticket-Cooldown -------------------------------------------------
   panel.appendChild(renderTicketCooldownControl());
+
+  // --- Ticket-Zeitfenster ----------------------------------------------
+  panel.appendChild(renderTicketPrintWindowControl());
 
   // --- Sync-Status ---------------------------------------------------
   // Direkt unter der Ueberschrift (war frueher ganz unten, auf

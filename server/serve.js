@@ -1606,25 +1606,28 @@ const server = http.createServer(async (req, res) => {
       //
       // MS_PER_PRINTED_ROW=20 (zusammen mit dem staerkeren Dichte-Zuschlag)
       // war die ERSTE Konfiguration, die live nachweislich sauber druckte
-      // (~577 Zeilen in ~23s Uebertragungszeit). Seitdem schrittweise
-      // gesenkt: 14 (~16s), 10 (11.6s), 7 (8.4s), 5 (6.1-6.2s) -- 5 wirkte
-      // nach 2 Testdrucken sauber, brachte aber bei einem SPAETEREN echten
-      // Highscore-Ticket (an anderer Stelle, ein Stueck spaeter im Alltags-
-      // betrieb) wieder Gibberish. Danach kurz auf 4 gesenkt, dort ebenfalls
-      // vereinzelt Gibberish -- WICHTIGE ERKENNTNIS: dieser Drucker faellt
+      // (~577 Zeilen in ~23s Uebertragungszeit). Seitdem mehrfach probeweise
+      // gesenkt -- 14, 10, 7, 5, 4 -- und JEDE dieser Stufen hat frueher oder
+      // spaeter wieder Gibberish gebracht, zuletzt wieder bei 7 (erneut
+      // gemeldet: nur bei echten Highscore-Tickets mit Textfeldern, NIE beim
+      // admin-geschuetzten Testdruck -- der druckt aber auch immer nur die
+      // reine "basic"-Vorlage OHNE die per Canvas gezeichneten Textfelder,
+      // ist also strukturell gar kein Test fuer diesen Fall, sondern hat nur
+      // zufaellig bisher weniger anspruchsvolle Bildbereiche gedruckt).
+      // WICHTIGE ERKENNTNIS aus all diesen Runden: dieser Drucker faellt
       // offenbar nicht bei einer sauberen Schwelle klar aus, sondern das
-      // Risiko ist eher GRADUELL/statistisch (mal klappt eine Stufe mehrfach,
-      // dann doch nicht) -- ein paar saubere Testdrucke sind also KEIN
-      // verlaesslicher Beweis, dass eine Stufe wirklich sicher ist, auch
-      // 5 nicht. Deshalb jetzt vorsichtshalber wieder auf 7 zurueck (die
-      // Stufe DAVOR, mit dem groessten bisherigen Sicherheitsabstand unter
-      // den halbwegs schnellen Stufen). RASTER_BAND_HEIGHT und der Dichte-
-      // Zuschlag bleiben weiterhin unveraendert (siehe oben). Falls
-      // WEITERHIN Gibberish auftritt: weiter zurueck (10, dann 14, dann 20)
-      // -- 4 und 5 gelten inzwischen beide als nicht zuverlaessig genug,
-      // dorthin nicht mehr zurueckgehen.
+      // Risiko ist GRADUELL/statistisch (mal klappt eine Stufe mehrfach, dann
+      // doch nicht) -- ein paar saubere Testdrucke sind also KEIN
+      // verlaesslicher Beweis, dass eine Stufe wirklich sicher ist. Deshalb
+      // nach diesem erneuten Vorfall NICHT wieder nur eine Stufe zurueck,
+      // sondern zurueck auf die einzige Stufe, die bisher NIE (auch nicht bei
+      // spaeteren echten Tickets) erneut Gibberish gezeigt hat: 20. Etwas
+      // langsamer (~23s statt ~8s Uebertragungszeit fuer ein volles Ticket),
+      // aber fuers Live-Event ist ein zuverlaessig lesbares Ticket wichtiger
+      // als ein paar Sekunden Wartezeit. 7, 5 und 4 gelten ab jetzt alle als
+      // nicht zuverlaessig genug, dorthin nicht mehr zurueckgehen.
       const PRINT_SETTLE_MS = 4000;
-      const MS_PER_PRINTED_ROW = 7;
+      const MS_PER_PRINTED_ROW = 20;
       const MS_MIN_PER_BAND = 10;
       await withPrinterDevice(
         () =>

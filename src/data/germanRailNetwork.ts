@@ -42,6 +42,7 @@ export const RAIL_CITIES: RailCity[] = [
   { id: "dresden", name: "Dresden", lat: 51.05, lon: 13.74 },
   { id: "neustadtDosse", name: "Neustadt (Dosse)", lat: 52.85, lon: 12.4 },
   { id: "breddin", name: "Breddin", lat: 52.94, lon: 12.4 },
+  { id: "wittenberge", name: "Wittenberge", lat: 53.0, lon: 11.75 },
   // 20 weitere Staedte, auf ausdruecklichen Wunsch ergaenzt -- dichteres,
   // groesseres Netz mit mehr Routen-Varianz.
   { id: "kiel", name: "Kiel", lat: 54.32, lon: 10.14 },
@@ -150,12 +151,24 @@ export const FESTIVAL_CITY_ID = "breddin";
 
 // Ungerichtet gemeint -- gilt in beide Richtungen (siehe neighborsOf).
 export const RAIL_EDGES: RailEdge[] = [
-  // Original direkte Berlin-Hamburg-Strecke ist hier ueber den echten
-  // Zwischenhalt Neustadt (Dosse) aufgesplittet, von dem aus die kurze
-  // Stichstrecke nach Breddin abzweigt (70+220 ≈ die alten 290 km).
+  // Original direkte Berlin-Hamburg-Strecke ist hier ueber die echten
+  // Zwischenhalte Neustadt (Dosse), Breddin und Wittenberge aufgesplittet
+  // (70+20+15+185 ≈ die alten 290 km). Bewusst KEINE Stichstrecke/Abzweigung
+  // mehr fuer Breddin (war vorher so modelliert, aber falsch): Breddin liegt
+  // real direkt AUF der Strecke, nur eine Station HINTER Neustadt (Dosse) --
+  // man kaeme von Neustadt (Dosse) aus sonst auch OHNE Breddin weiter
+  // Richtung Hamburg, was es real nicht gibt. Wittenberge (ebenfalls ein
+  // echter Zwischenhalt dieser Strecke) haelt dabei absichtlich die
+  // Zug-Distanz Hamburg-Breddin bei 2 Kanten wie zuvor -- eine direkte
+  // Breddin-Hamburg-Kante wuerde Hamburg (und alles, was ueber Hamburg
+  // laeuft) um eine Kante naeher an Breddin ruecken und damit die mit viel
+  // Sorgfalt austarierte "jeder Startort ist exakt 5 Zuege von Breddin
+  // entfernt"-Balance fuer alle 19 nordwestlich angebundenen Startorte
+  // brechen (per BFS-Analyse verifiziert).
   { from: "berlin", to: "neustadtDosse", km: 70 },
-  { from: "neustadtDosse", to: "hamburg", km: 220 },
   { from: "neustadtDosse", to: "breddin", km: 20 },
+  { from: "breddin", to: "wittenberge", km: 15 },
+  { from: "wittenberge", to: "hamburg", km: 185 },
   { from: "berlin", to: "hannover", km: 250 },
   { from: "berlin", to: "leipzig", km: 190 },
   { from: "berlin", to: "dresden", km: 180 },

@@ -99,6 +99,44 @@ const FIELD_VERTICAL_NUDGE = FIELD_FONT_SIZE * 0.15;
 // mittig im Band [field.y - FIELD_ROW_HEIGHT, field.y] platziert.
 const FIELD_ROW_HEIGHT = 84;
 
+// Abtrennbarer "Gratis Shot"-Streifen (siehe renderTicketCanvas) -- auf
+// ausdruecklichen Wunsch NUR gedruckt, wenn das Ticket-Zeitfenster (core/
+// ticketPrintWindow.ts) gerade offen ist (oder ganz deaktiviert ist, dann
+// IMMER). Bewusst als ZUSAETZLICHE Flaeche NEBEN der unveraenderten
+// Bild-Vorlage angehaengt (nicht darueber gezeichnet) -- die Vorlage selbst
+// bleibt auf ausdruecklichen Wunsch ("designmaessig nicht mehr veraendern")
+// unangetastet. Steht quer/vertikal zum restlichen Ticket, damit er wirkt
+// wie ein eigener, abreissbarer Abschnitt (gestrichelte Trennlinie an der
+// Nahtstelle).
+const SHOT_STRIP_WIDTH = 210;
+const SHOT_STRIP_BG = "#e7d9b8";
+
+function drawShotStrip(ctx: CanvasRenderingContext2D, seamX: number, height: number): void {
+  ctx.save();
+  ctx.fillStyle = SHOT_STRIP_BG;
+  ctx.fillRect(seamX, 0, SHOT_STRIP_WIDTH, height);
+
+  ctx.strokeStyle = FIELD_COLOR;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 12]);
+  ctx.beginPath();
+  ctx.moveTo(seamX, 0);
+  ctx.lineTo(seamX, height);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.translate(seamX + SHOT_STRIP_WIDTH / 2, height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = FIELD_COLOR;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "800 46px 'Barlow Semi Condensed', sans-serif";
+  ctx.fillText("GRATIS SHOT AN DER ZORNBAR", 0, -22);
+  ctx.font = "600 34px 'Barlow Semi Condensed', sans-serif";
+  ctx.fillText("(die Bar hinter dem Automaten)", 0, 32);
+  ctx.restore();
+}
+
 export interface TicketFields {
   name?: string;
   game?: string;
@@ -135,14 +173,19 @@ function drawFieldValue(ctx: CanvasRenderingContext2D, field: { x: number; maxX:
   ctx.fillText(text, field.x, field.y - FIELD_ROW_HEIGHT / 2 + FIELD_VERTICAL_NUDGE);
 }
 
-/** Rendert das Ticket in normaler (breiter) Ausrichtung auf die vermessene Bild-Vorlage, skaliert auf 384px Hoehe, dreht danach um 90° fuers Querformat (siehe Datei-Kommentar). */
-export async function renderTicketCanvas(variant: TicketVariant, fields: TicketFields): Promise<HTMLCanvasElement> {
+/**
+ * Baut die Ticket-Vorlage in normaler (breiter, normal lesbarer) Ausrichtung
+ * -- gemeinsame Grundlage fuer renderTicketCanvas (skaliert+dreht das noch
+ * fuers Querformat, siehe dort) UND renderTicketPreviewDataUrl (zeigt genau
+ * DIESE Ausrichtung unveraendert an, siehe admin/AdminPanel.ts).
+ */
+async function buildTicketDesignCanvas(variant: TicketVariant, fields: TicketFields, includeShotStrip: boolean): Promise<HTMLCanvasElement> {
   await document.fonts.ready;
   const template = TEMPLATES[variant];
   const img = await loadImage(template.url);
 
   const design = document.createElement("canvas");
-  design.width = img.naturalWidth;
+  design.width = img.naturalWidth + (includeShotStrip ? SHOT_STRIP_WIDTH : 0);
   design.height = img.naturalHeight;
   const dctx = design.getContext("2d")!;
   dctx.drawImage(img, 0, 0);
@@ -153,6 +196,23 @@ export async function renderTicketCanvas(variant: TicketVariant, fields: TicketF
     drawFieldValue(dctx, { ...FIELD_LINES.dynamic, x: template.dynamicX! }, fields.score?.trim() || "");
     drawFieldValue(dctx, FIELD_LINES.purchasedAt, formatPurchasedAt());
   }
+
+  if (includeShotStrip) {
+    drawShotStrip(dctx, img.naturalWidth, img.naturalHeight);
+  }
+
+  return design;
+}
+
+/** NUR fuer die Admin-Vorschau (siehe admin/AdminPanel.ts#openTicketPreviewsModal) -- die UNGEDREHTE, normal lesbare Design-Ansicht als data-URL, damit man sich die Vorlagen am Bildschirm anschauen kann, ohne den Kopf zu drehen (im Gegensatz zum tatsaechlichen Druckbild, das quer gedreht ist, siehe renderTicketCanvas). */
+export async function renderTicketPreviewDataUrl(variant: TicketVariant, fields: TicketFields, includeShotStrip = false): Promise<string> {
+  const design = await buildTicketDesignCanvas(variant, fields, includeShotStrip);
+  return design.toDataURL("image/png");
+}
+
+/** Rendert das Ticket in normaler (breiter) Ausrichtung auf die vermessene Bild-Vorlage, skaliert auf 384px Hoehe, dreht danach um 90° fuers Querformat (siehe Datei-Kommentar). includeShotStrip haengt den abtrennbaren "Gratis Shot"-Streifen an (siehe drawShotStrip), gesteuert vom Ticket-Zeitfenster (core/ticketPrintWindow.ts). */
+export async function renderTicketCanvas(variant: TicketVariant, fields: TicketFields, includeShotStrip = false): Promise<HTMLCanvasElement> {
+  const design = await buildTicketDesignCanvas(variant, fields, includeShotStrip);
 
   // Auf exakt 384px Hoehe skalieren -- das wird nach der Drehung die feste
   // Druckbreite (siehe Datei-Kommentar).
@@ -252,10 +312,27 @@ export function friendlyPrintErrorMessage(error?: string): string {
  * laeuft ueber den eigenen, oeffentlichen aber ratenlimitierten /ticket-
  * Endpunkt -- normale Spieler:innen kennen (und sollen) das Admin-Passwort
  * nicht kennen.
+ *
+ * includeShotStrip: haengt den abtrennbaren "Gratis Shot"-Streifen an
+ * (siehe core/ticket.ts#drawShotStrip), gesteuert vom Ticket-Zeitfenster
+ * (core/ticketPrintWindow.ts) -- nur vom eigentlichen Highscore-Ticket-Druck
+ * genutzt, der Admin-Testdruck laesst das weg (immer false/undefined).
  */
-export async function printTicket(variant: TicketVariant, fields: TicketFields, adminHeaders?: HeadersInit): Promise<PrintTicketResult> {
+export async function printTicket(variant: TicketVariant, fields: TicketFields, adminHeaders?: HeadersInit, includeShotStrip = false): Promise<PrintTicketResult> {
   try {
-    const canvas = await renderTicketCanvas(variant, fields);
+    const canvas = await renderTicketCanvas(variant, fields, includeShotStrip);
+    // NUR im lokalen Vite-Dev-Server (npm run dev, siehe import.meta.env.DEV)
+    // -- dort ist nie ein echter Drucker/Server-Endpunkt vorhanden, ein
+    // echter Fetch schlaegt dort IMMER fehl. Auf ausdruecklichen Wunsch tut
+    // die App hier stattdessen so, als waere erfolgreich gedruckt worden,
+    // damit sich die Ticket-Dialoge lokal ohne angeschlossenen Drucker
+    // testen lassen. Betrifft NUR den Dev-Server -- der echte Produktions-/
+    // Pi-Build (npm run build) hat import.meta.env.DEV=false und verhaelt
+    // sich davon vollkommen unberuehrt.
+    if (import.meta.env.DEV) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return { ok: true };
+    }
     const packed = packMonochrome(canvas);
     const endpoint = adminHeaders ? "raster" : "ticket";
     const res = await fetch(`./api/system/printer/${endpoint}?width=${PRINTER_WIDTH_DOTS}&height=${canvas.height}`, {

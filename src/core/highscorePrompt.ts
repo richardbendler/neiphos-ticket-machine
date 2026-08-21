@@ -6,7 +6,7 @@ import { printTicket, friendlyPrintErrorMessage, type TicketVariant, type Ticket
 import { isPrintingEnabled, type TicketReasonKind } from "./ticketMethods";
 import { openPaperChangeInstructions } from "./paperChangeInstructions";
 import { getTicketCooldownRemainingMs, formatCooldownRemainingRough, recordTicketPrinted } from "./ticketCooldown";
-import { getTicketPrintWindowSettings, isWithinTicketPrintWindow, formatTicketPrintWindow } from "./ticketPrintWindow";
+import { isWithinTicketPrintWindow, formatTicketPrintWindow } from "./ticketPrintWindow";
 
 const TICKET_VARIANT_BY_REASON: Record<Exclude<TicketReasonKind, null>, TicketVariant> = {
   highscore: "highscore",
@@ -110,33 +110,38 @@ export function promptHighscoreName(opts: {
       // als gaebe es ueberhaupt keinen Ticket-Verdienstweg: nur noch der
       // normale "Speichern"-Button, kein Ticket-Button, kein Cooldown-Hinweis.
       const rawTicketVariant = opts.ticketReason !== null && isPrintingEnabled() ? TICKET_VARIANT_BY_REASON[opts.ticketReason] : null;
-      // Zeitfenster-Sperre (siehe core/ticketPrintWindow.ts, Standard
-      // 21:00-04:00 -- Oeffnungszeiten der Zornbar): ausserhalb verhaelt
-      // sich dieser Dialog wie bei einem aktiven Cooldown (siehe unten) --
-      // kein Ticket-Button, aber Name/Highscore werden trotzdem gespeichert.
-      const printWindowSettings = rawTicketVariant !== null ? getTicketPrintWindowSettings() : null;
-      const outsidePrintWindow = printWindowSettings !== null && !isWithinTicketPrintWindow();
       // Cooldown-Sperre (siehe core/ticketCooldown.ts): waehrend der Cooldown
       // laeuft, verhaelt sich dieser Dialog so, als gaebe es gar keinen
       // Ticket-Verdienstweg -- der Name/Highscore wird trotzdem ganz normal
       // gespeichert (siehe onDone unten), nur der Ticket-Druck faellt fuer
       // diese Runde weg. Ein kurzer Hinweis (siehe unten) erklaert, warum.
-      const cooldownRemainingMs = rawTicketVariant !== null && !outsidePrintWindow ? getTicketCooldownRemainingMs() : 0;
+      const cooldownRemainingMs = rawTicketVariant !== null ? getTicketCooldownRemainingMs() : 0;
       const cooldownActive = cooldownRemainingMs > 0;
-      const ticketVariant = cooldownActive || outsidePrintWindow ? null : rawTicketVariant;
+      const ticketVariant = cooldownActive ? null : rawTicketVariant;
 
-      if (outsidePrintWindow && printWindowSettings) {
-        const windowNote = document.createElement("p");
-        windowNote.style.fontSize = "0.85rem";
-        windowNote.style.color = "var(--text-muted)";
-        windowNote.textContent = `Tickets gibt's nur zwischen ${formatTicketPrintWindow(printWindowSettings)} -- diesmal gibt es kein Ticket, dein Ergebnis wird aber trotzdem gespeichert.`;
-        panel.appendChild(windowNote);
-      } else if (cooldownActive) {
+      // Zeitfenster (siehe core/ticketPrintWindow.ts, Standard 21:00-04:00
+      // -- Oeffnungszeiten der Zornbar): steuert NICHT mehr, OB ueberhaupt
+      // gedruckt wird -- das Ticket selbst gibt es immer (siehe ticketVariant
+      // oben) -- sondern nur noch, ob der abtrennbare "Gratis Shot an der
+      // Zornbar"-Streifen mit drauf kommt (siehe core/ticket.ts#
+      // drawShotStrip). Ausserhalb druckt exakt dasselbe Ticket, nur ohne
+      // diesen Streifen. isWithinTicketPrintWindow() liefert bei komplett
+      // deaktiviertem Zeitfenster immer true -- dann gibt's den Streifen
+      // also IMMER.
+      const includeShotStrip = ticketVariant !== null && isWithinTicketPrintWindow();
+
+      if (cooldownActive) {
         const cooldownNote = document.createElement("p");
         cooldownNote.style.fontSize = "0.85rem";
         cooldownNote.style.color = "var(--text-muted)";
         cooldownNote.textContent = `Ticket-Cooldown aktiv (${formatCooldownRemainingRough(cooldownRemainingMs)}) -- diesmal gibt es kein Ticket, dein Ergebnis wird aber trotzdem gespeichert.`;
         panel.appendChild(cooldownNote);
+      } else if (ticketVariant !== null && !includeShotStrip) {
+        const windowNote = document.createElement("p");
+        windowNote.style.fontSize = "0.85rem";
+        windowNote.style.color = "var(--text-muted)";
+        windowNote.textContent = `Außerhalb von ${formatTicketPrintWindow()} gibt es das Ticket ohne den Gratis-Shot-Streifen an der Zornbar.`;
+        panel.appendChild(windowNote);
       }
 
       // Schuetzt vor einem doppelt ausgeloesten Druckauftrag durch einen
@@ -163,14 +168,14 @@ export function promptHighscoreName(opts: {
             // showTicketPrintResult zeigt seine Meldung dadurch sofort an,
             // waehrend im Hintergrund gedruckt wird -- siehe dortigen
             // Kommentar.
-            const printPromise = printTicket(ticketVariant, ticketFields);
+            const printPromise = printTicket(ticketVariant, ticketFields, undefined, includeShotStrip);
             // Startet den Cooldown erst bei WIRKLICH erfolgreichem Druck --
             // ein fehlgeschlagener Versuch (z. B. Papier leer) hat kein
             // Ticket ausgegeben, soll also auch keinen Cooldown auslösen.
             void printPromise.then((result) => {
               if (result.ok) recordTicketPrinted();
             });
-            showTicketPrintResult(printPromise, ticketVariant, ticketFields);
+            showTicketPrintResult(printPromise, ticketVariant, ticketFields, includeShotStrip);
           }
         },
       });
@@ -239,7 +244,7 @@ export function promptHighscoreName(opts: {
  * herausstellt, wird die Ansicht nachtraeglich durch die Fehler-Ansicht
  * ersetzt.
  */
-function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, variant: TicketVariant, fields: TicketFields): void {
+function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, variant: TicketVariant, fields: TicketFields, includeShotStrip: boolean): void {
   openModal((panel, close) => {
     // War der generische Deckel (max-width:420px) -- auf ausdruecklichen
     // Wunsch darf dieser Dialog deutlich mehr Bildschirmbreite nutzen, siehe
@@ -321,7 +326,7 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       retryBtn.addEventListener("click", () => {
         retryBtn.disabled = true;
         retryBtn.textContent = "Versucht erneut …";
-        void printTicket(variant, fields).then((retryResult) => {
+        void printTicket(variant, fields, undefined, includeShotStrip).then((retryResult) => {
           if (retryResult.ok) recordTicketPrinted();
           render(retryResult);
         });

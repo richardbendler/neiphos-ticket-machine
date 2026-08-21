@@ -14,7 +14,7 @@ import { renderMainMenu } from "../menu/MainMenu";
 import { openFeedbackDialog } from "./feedbackPrompt";
 import { fetchUnreadFeedbackCount } from "./feedback";
 import { getTicketCooldownRemainingMs, formatCooldownCountdown, openTicketCooldownInfo } from "./ticketCooldown";
-import { isWithinTicketPrintWindow, getTicketPrintWindowSettings, formatTicketPrintWindow, openTicketPrintWindowInfo } from "./ticketPrintWindow";
+import { isWithinTicketPrintWindow, getTicketPrintWindowSettings, openTicketPrintWindowInfo } from "./ticketPrintWindow";
 import { isPrintingEnabled } from "./ticketMethods";
 import brandLogo from "../assets/brand/neiphos-logo.png";
 import type { GameEnv, MinigameModule } from "./Game";
@@ -328,8 +328,10 @@ export class Router {
 
     // Ticket-Zeitfenster-Hinweis (siehe core/ticketPrintWindow.ts, Standard
     // 21:00-04:00 -- Oeffnungszeiten der Zornbar) -- nur sichtbar, waehrend
-    // der Ticketdruck gerade wegen der Uhrzeit pausiert. Selbes Muster wie
-    // der Cooldown-Badge direkt darueber.
+    // der abtrennbare "Gratis Shot"-Streifen (core/ticket.ts#drawShotStrip)
+    // gerade wegen der Uhrzeit weggelassen wird. Das Ticket selbst gibt es
+    // IMMER, nur dieser Bonus-Streifen ist zeitlich begrenzt. Selbes Muster
+    // wie der Cooldown-Badge direkt darueber.
     const printWindowBadge = document.createElement("button");
     printWindowBadge.type = "button";
     printWindowBadge.className = "chrome-footer-cooldown-badge";
@@ -347,7 +349,7 @@ export class Router {
         printWindowBadge.style.display = "none";
         return;
       }
-      printWindowText.textContent = `Tickets nur ${formatTicketPrintWindow(settings)}`;
+      printWindowText.textContent = `Gratis Shots an der Zornbar durch Tickets nur von ${settings.start} bis ${settings.end} Uhr`;
       printWindowBadge.style.display = "flex";
     };
     this.registerFooterPoll(refreshPrintWindowBadge, 30_000);

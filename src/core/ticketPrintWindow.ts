@@ -2,12 +2,14 @@ import { loadJSON, saveJSON } from "./storage";
 import { openModal } from "./modal";
 
 /**
- * Ticket-Zeitfenster: der Ticketdruck (Freigetraenk-Ticket bei Highscore/
- * Tagesbestwert/Meilenstein) soll nur innerhalb bestimmter Uhrzeiten
- * moeglich sein -- auf ausdruecklichen Wunsch, da die Zornbar (siehe core/
- * highscorePrompt.ts) nur zu bestimmten Zeiten geoeffnet hat. Rein lokale
- * Geraete-Einstellung (wie z. B. auch Ticket-Cooldown/-Verdienstwege, siehe
- * core/ticketCooldown.ts/ticketMethods.ts) -- kein Server-Sync noetig.
+ * Ticket-Zeitfenster: das Freigetraenk-Ticket (bei Highscore/Tagesbestwert/
+ * Meilenstein) wird IMMER gedruckt -- dieses Zeitfenster steuert nur noch,
+ * ob der abtrennbare "Gratis Shot an der Zornbar"-Streifen mit drauf kommt
+ * (siehe core/ticket.ts#drawShotStrip), auf ausdruecklichen Wunsch, da die
+ * Zornbar (core/highscorePrompt.ts) nur zu bestimmten Zeiten geoeffnet hat.
+ * Rein lokale Geraete-Einstellung (wie z. B. auch Ticket-Cooldown/
+ * -Verdienstwege, siehe core/ticketCooldown.ts/ticketMethods.ts) -- kein
+ * Server-Sync noetig.
  *
  * start/end als "HH:MM" (24h) -- ein Fenster, das ueber Mitternacht
  * hinausreicht (start > end, z. B. Standard 21:00-04:00), wird von
@@ -74,7 +76,7 @@ export function openTicketPrintWindowInfo(): void {
     const settings = getTicketPrintWindowSettings();
     const p = document.createElement("p");
     p.style.fontSize = "0.92rem";
-    p.textContent = `Freigetränk-Tickets gibt es nur zwischen ${formatTicketPrintWindow(settings)} -- außerhalb dieser Zeit hat die Zornbar geschlossen. Weiterspielen kannst du trotzdem ganz normal, dein Highscore/Meilenstein wird gespeichert.`;
+    p.textContent = `Dein Ticket bekommst du immer -- den zusätzlichen Gratis-Shot-Streifen an der Zornbar gibt's aber nur zwischen ${formatTicketPrintWindow(settings)}, weil die Zornbar außerhalb dieser Zeit geschlossen hat.`;
     panel.appendChild(p);
 
     const okBtn = document.createElement("button");

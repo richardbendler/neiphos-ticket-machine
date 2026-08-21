@@ -46,6 +46,11 @@ export function createSetlistPuzzleGame(): MinigameModule {
   let resultEl: HTMLDivElement;
   let scheduleHost: HTMLDivElement;
   const slotEls: Record<string, HTMLDivElement> = {};
+  // Kleines Text-Label direkt hinter jedem Feld, zeigt nach dem Pruefen bei
+  // falsch platzierten Feldern die richtige Loesung (siehe updateSlot) --
+  // bei korrekt platzierten ueberfluessig, da der Chip-Text dann schon die
+  // Loesung IST.
+  const solutionEls: Record<string, HTMLSpanElement> = {};
   const actLookup = new Map<string, SetlistAct>();
 
   // -------- Drag-Zustand (waehrend eines aktiven Zugs)
@@ -108,8 +113,13 @@ export function createSetlistPuzzleGame(): MinigameModule {
       hint.textContent = "?";
       el.appendChild(hint);
     }
+    const isCorrect = occupantId === slotId;
     if (checked) {
-      el.classList.add(occupantId === slotId ? "setlist-slot--correct" : "setlist-slot--wrong");
+      el.classList.add(isCorrect ? "setlist-slot--correct" : "setlist-slot--wrong");
+    }
+    const solutionEl = solutionEls[slotId];
+    if (solutionEl) {
+      solutionEl.textContent = checked && !isCorrect ? `richtig: ${actName(slotId)}` : "";
     }
   }
 
@@ -318,6 +328,11 @@ export function createSetlistPuzzleGame(): MinigameModule {
             row.appendChild(slot);
             slotEls[act.id] = slot;
             actLookup.set(act.id, act);
+
+            const solution = document.createElement("span");
+            solution.className = "setlist-slot__solution";
+            row.appendChild(solution);
+            solutionEls[act.id] = solution;
           }
 
           colEl.appendChild(row);
@@ -346,6 +361,8 @@ export function createSetlistPuzzleGame(): MinigameModule {
           if (!blankActs.some((a) => a.id === act.id)) {
             el.className = "setlist-slot setlist-slot--fixed";
             el.textContent = act.name;
+            const solutionEl = solutionEls[act.id];
+            if (solutionEl) solutionEl.textContent = "";
           }
         }
       }

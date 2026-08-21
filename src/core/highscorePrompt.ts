@@ -250,6 +250,16 @@ function showTicketPrintResult(resultPromise: Promise<PrintTicketResult>, varian
       panel.appendChild(iconWrap);
       panel.appendChild(h2);
 
+      // Auf ausdruecklichen Wunsch ein RICHTIG grosser, unuebersehbarer
+      // Hinweis -- Leute lassen das Ticket sonst einfach im Drucker haengen
+      // statt es abzureissen.
+      if (current.ok) {
+        const tearHint = document.createElement("div");
+        tearHint.className = "ticket-tear-hint";
+        tearHint.textContent = "⬆️ Ticket nach oben abreißen! ⬆️";
+        panel.appendChild(tearHint);
+      }
+
       const p = document.createElement("p");
       // War fix 0.95rem -- auf ausdruecklichen Wunsch jetzt groesser UND
       // vh-gekoppelt, passend zur jetzt breiteren .ticket-result-panel.

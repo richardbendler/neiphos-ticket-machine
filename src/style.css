@@ -1537,6 +1537,26 @@ button {
   max-width: min(45vw, 640px);
 }
 
+/* Richtig grosser, unuebersehbarer Hinweis im "Dein Ticket wird gedruckt!"-
+   Dialog (core/highscorePrompt.ts#showTicketPrintResult) -- auf
+   ausdruecklichen Wunsch, damit niemand das fertige Ticket im Drucker
+   haengen laesst statt es abzureissen. Gleiches Pulsieren wie .hs-print-btn
+   (siehe Keyframes dort), damit es zum bereits etablierten "Achtung, das
+   hier ist wichtig"-Stil dieser App passt. */
+.ticket-tear-hint {
+  margin: clamp(6px, 1.6vh, 14px) 0;
+  padding: clamp(8px, 1.8vh, 16px) clamp(10px, 2.4vw, 20px);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--primary-light), var(--primary));
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.1rem, min(4.2vw, 5.5vh), 2.6rem);
+  line-height: 1.15;
+  box-shadow: 0 3px 0 var(--primary-dark), 0 0 0 4px rgba(31, 179, 196, 0.28);
+  animation: hs-print-btn-pulse 1.8s ease-in-out infinite;
+}
+
 /* Fuer Modals mit Bildschirmtastatur (Highscore-Namenseingabe, Admin-Login,
    Feedback) -- auf ausdruecklichen Wunsch responsiv statt eines festen
    Pixel-Maximums: die Tastatur soll ungefaehr 80% der Bildschirmbreite
@@ -4617,6 +4637,7 @@ button {
 .setlist-act-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 4px 8px;
   border-top: 1px solid var(--panel-border);
@@ -4694,4 +4715,18 @@ button {
 
 .setlist-slot__hint {
   font-size: 0.85rem;
+}
+
+/* Loesungs-Label hinter einem falsch geprueften Feld (siehe games/setlist/
+   index.ts#updateSlot) -- bewusst als eigene Flex-Zeile UNTER Uhrzeit+Feld
+   (nicht daneben, siehe flex-wrap oben bei .setlist-act-row), sonst wuerde
+   der schmale Tagesspalten-Platz sofort ueberlaufen. Leer (kein Text), wenn
+   das Feld richtig ist oder noch nicht geprueft wurde -- nimmt dann auch
+   keinen sichtbaren Platz ein. */
+.setlist-slot__solution:not(:empty) {
+  flex-basis: 100%;
+  font-size: 0.66rem;
+  font-style: italic;
+  color: var(--danger);
+  padding-left: 68px;
 }

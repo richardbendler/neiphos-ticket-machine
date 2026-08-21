@@ -62,6 +62,30 @@ export function setPrintingEnabled(enabled: boolean): void {
   saveJSON(PRINTING_ENABLED_KEY, enabled);
 }
 
+// -------------------------------------------------- Ticket an/aus je Spiel
+//
+// Zusaetzlich zum globalen Not-Aus oben (isPrintingEnabled) UND den drei
+// Verdienstwegen (TicketMethodSettings, die regeln WELCHES Ereignis
+// ticket-wuerdig ist): dieser Schalter bestimmt JE SPIEL, ob es ueberhaupt
+// jemals ein Ticket geben darf -- auf ausdruecklichen Wunsch als eigenes
+// Admin-Untermenue (siehe admin/AdminPanel.ts#openGameTicketsModal). Gilt
+// nur fuer Spiele aus MILESTONE_GAMES (siehe dort) -- das sind alle Spiele,
+// die ueberhaupt checkTicketEligibility() aufrufen; Spiele ohne
+// Highscore-Anbindung (z. B. Setlist-Puzzle, DJ-Mischer) rufen diese
+// Pruefung gar nicht erst auf und brauchen daher keinen eigenen Schalter.
+// Standardmaessig fuer JEDES Spiel an (bisheriges Verhalten unveraendert),
+// bis die Orga hier gezielt einzelne Spiele abschaltet.
+const GAME_TICKET_ENABLED_KEY = ["settings", "gameTicketEnabled"];
+
+export function isGameTicketEnabled(gameId: string): boolean {
+  return loadJSON<Record<string, boolean>>(GAME_TICKET_ENABLED_KEY, {})[gameId] ?? true;
+}
+
+export function setGameTicketEnabled(gameId: string, enabled: boolean): void {
+  const current = loadJSON<Record<string, boolean>>(GAME_TICKET_ENABLED_KEY, {});
+  saveJSON(GAME_TICKET_ENABLED_KEY, { ...current, [gameId]: enabled });
+}
+
 // --------------------------------------------------------------- Meilensteine
 
 /** Je Spiel mit Geschwindigkeits-/Schwierigkeitsstufen (siehe MilestoneGameDef.levels) -- key/label identisch zu den SPEED_LEVELS der jeweiligen Spiele (games/train-photo, games/count-passengers), hier absichtlich dupliziert statt importiert, um keinen Import von core/ auf games/ einzugehen. */
@@ -257,6 +281,9 @@ export function checkTicketEligibility(opts: {
   direction: HighscoreDirection;
   highscoreOutcome: HighscoreOutcome;
 }): TicketEligibilityResult {
+  if (!isGameTicketEnabled(opts.gameId)) {
+    return { viaHighscore: false, viaMilestone: false, viaDailyBoard: false };
+  }
   const methods = getTicketMethods();
   const board = opts.board ?? "default";
   return {

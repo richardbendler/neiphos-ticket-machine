@@ -86,7 +86,7 @@ registerGame({
   icon: "musicNote",
   badge: "SL",
   accent: "#6a3fb5",
-  create: () => import("./setlist").then((m) => m.createSetlistPlaceholder()),
+  create: () => import("./setlist").then((m) => m.createSetlistPuzzleGame()),
 });
 
 registerGame({

@@ -4444,3 +4444,254 @@ button {
   opacity: 0.35;
   box-shadow: none;
 }
+
+/* ---------- Setlist-Puzzle ---------- */
+
+.setlist-layout {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.setlist-sidebar {
+  flex: 0 0 auto;
+  width: clamp(150px, 19vw, 240px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel-alt);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  height: 100%;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+/* Waehrend eines Drags markiert (siehe games/setlist/index.ts#dropTargetAt)
+   -- die Seitenleiste selbst ist ein gueltiges Ziel, um einen Chip aus
+   einem Feld wieder zu entfernen. */
+.setlist-sidebar.setlist-drop-hover {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.setlist-sidebar__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.setlist-sidebar__hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin: -4px 0 2px;
+}
+
+.setlist-sidebar__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 30px;
+}
+
+.setlist-sidebar__progress {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.setlist-result {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  min-height: 1.4em;
+}
+
+.setlist-result--win {
+  color: var(--success);
+}
+
+.setlist-result--fail {
+  color: var(--danger);
+}
+
+.setlist-chip {
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, var(--btn-face-top), var(--btn-face-bottom));
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--text);
+  text-align: center;
+  cursor: grab;
+  /* Sonst interpretiert der Browser einen beginnenden Touch-Drag als
+     Seiten-Scroll-Geste statt als Ziehen des Chips. */
+  touch-action: none;
+  user-select: none;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+.setlist-chip--ghost {
+  position: fixed;
+  z-index: 3000;
+  pointer-events: none;
+  opacity: 0.95;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  transform: scale(1.05);
+}
+
+.setlist-chip--dragged-source {
+  opacity: 0.25;
+}
+
+.setlist-schedule {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 4px 12px 0;
+}
+
+.setlist-stage {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  /* Bewusst KEIN overflow:hidden auf einem Container mit variabler Hoehe --
+     gleicher, bereits per Playwright belegter Headless-Chromium-Bug wie bei
+     .highscore-board__game (siehe dortiger Kommentar): Titel/letzte Zeile
+     runden ihre Ecken stattdessen selbst ab. */
+}
+
+.setlist-stage__title {
+  padding: 8px 14px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  color: #ffffff;
+  background: var(--primary);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.setlist-stage__days {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.setlist-day-column {
+  flex: 1 1 200px;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.setlist-day-column:last-child {
+  border-right: none;
+}
+
+.setlist-day-column__title {
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 6px;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--text-muted);
+}
+
+.setlist-act-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 0.74rem;
+}
+
+.setlist-act-row:first-of-type {
+  border-top: none;
+}
+
+.setlist-act-row--special {
+  background: rgba(255, 204, 51, 0.18);
+  font-style: italic;
+}
+
+.setlist-act-row__time {
+  flex-shrink: 0;
+  min-width: 62px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.setlist-act-row__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.setlist-slot {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  border: 2px dashed var(--panel-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--panel-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-weight: 700;
+  padding: 2px;
+}
+
+.setlist-slot--fixed {
+  border: none;
+  background: transparent;
+  justify-content: flex-start;
+  color: var(--text);
+  font-weight: 600;
+  padding: 0;
+}
+
+.setlist-slot--filled {
+  border-style: solid;
+  border-color: var(--panel-border);
+  background: transparent;
+}
+
+.setlist-slot--correct {
+  border-color: var(--success);
+  background: rgba(31, 138, 76, 0.14);
+}
+
+.setlist-slot--wrong {
+  border-color: var(--danger);
+  background: rgba(198, 40, 40, 0.14);
+}
+
+.setlist-slot.setlist-drop-hover {
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.setlist-slot__hint {
+  font-size: 0.85rem;
+}
